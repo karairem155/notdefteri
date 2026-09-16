@@ -169,6 +169,7 @@ struct TransformableItemView<Content: View>: View {
 // Seçili nesnenin üstünde çıkan menü: Döndür / Kopyala / Öne al / Sil.
 struct ObjectActionMenu: View {
     let anchorRect: CGRect
+    var pageWidth: CGFloat = NotebookPage.defaultSize.width
     var onRotate90: () -> Void
     var onDuplicate: () -> Void
     var onBringToFront: () -> Void
@@ -188,7 +189,7 @@ struct ObjectActionMenu: View {
         .padding(.vertical, 4)
         .background(Color(red: 0.12, green: 0.12, blue: 0.14).opacity(0.94), in: RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
-        .position(x: min(max(anchorRect.midX, 150), 445), y: max(anchorRect.minY - 46, 26))
+        .position(x: min(max(anchorRect.midX, 150), max(pageWidth - 150, 150)), y: max(anchorRect.minY - 46, 26))
         .transition(.opacity)
     }
 

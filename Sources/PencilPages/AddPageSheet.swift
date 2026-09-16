@@ -4,9 +4,9 @@ import UIKit
 import UniformTypeIdentifiers
 
 // Sayfa Ekle ekranı (docs/tasarim/11-SayfaEkle.png).
-// Sekmeler: Şablonlarım (kendi görsellerin), Desenler (uygulamayla gelenler).
-// "PDF'ten" sekmesi 12. adımda (PDF içe aktarma) gelecek.
+// Sekmeler: Şablonlarım (kendi görsellerin), Desenler (uygulamayla gelenler), PDF'ten.
 // Sağ üstte "Ekleneceği yer": başa ya da N. sayfadan sonra.
+// Yeni sayfanın boyutu Ayarlar'daki "Varsayılan sayfa boyutu"ndan gelir; PDF sayfaları kendi oranını korur.
 
 enum TemplateSelection: Equatable {
     case builtin(PaperStyle)
@@ -21,8 +21,11 @@ struct AddPageSheet: View {
     let initialSelection: TemplateSelection
     var onAdded: (UUID) -> Void
 
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var pdfs: PDFLibrary
     @Environment(\.dismiss) private var dismiss
     @State private var tab: Tab = .mine
+    @State private var showingPDFImporter = false
     @State private var selection: TemplateSelection?
     @State private var insertIndex = 0
     @State private var photoItem: PhotosPickerItem?
@@ -35,6 +38,7 @@ struct AddPageSheet: View {
     enum Tab: String, CaseIterable, Identifiable {
         case mine = "Şablonlarım"
         case patterns = "Desenler"
+        case pdf = "PDF'ten"
         var id: String { rawValue }
     }
 
@@ -50,21 +54,25 @@ struct AddPageSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     header
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 22) {
-                        if tab == .mine {
-                            addTemplateCell
-                            ForEach(templates.templates) { template in
-                                customTemplateCell(template)
-                            }
-                        } else {
-                            ForEach(PaperStyle.allCases) { style in
-                                builtinCell(style)
+                    if tab == .pdf {
+                        pdfSection
+                    } else {
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: 22) {
+                            if tab == .mine {
+                                addTemplateCell
+                                ForEach(templates.templates) { template in
+                                    customTemplateCell(template)
+                                }
+                            } else {
+                                ForEach(PaperStyle.allCases) { style in
+                                    builtinCell(style)
+                                }
                             }
                         }
+                        Text("Fotoğraflar veya Dosyalar'dan eklediğin her görsel burada şablon olarak kalır; her sayfaya ayrı şablon seçebilirsin. Yeni sayfa boyutu: \(settings.defaultPageSize.title) (Ayarlar'dan değişir).")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    Text("Fotoğraflar veya Dosyalar'dan eklediğin her görsel burada şablon olarak kalır; her sayfaya ayrı şablon seçebilirsin.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                 }
                 .padding(24)
             }
@@ -76,14 +84,19 @@ struct AddPageSheet: View {
                     Button("İptal") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Ekle") { add() }
-                        .fontWeight(.semibold)
-                        .disabled(selection == nil)
+                    if tab != .pdf {
+                        Button("Ekle") { add() }
+                            .fontWeight(.semibold)
+                            .disabled(selection == nil)
+                    }
                 }
             }
             .photosPicker(isPresented: $showingPhotoPicker, selection: $photoItem, matching: .images)
             .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.image]) { result in
                 handleFile(result)
+            }
+            .fileImporter(isPresented: $showingPDFImporter, allowedContentTypes: [.pdf]) { result in
+                handlePDF(result)
             }
             .onChange(of: photoItem) { _, item in
                 guard let item else { return }
@@ -146,6 +159,27 @@ struct AddPageSheet: View {
             }
             .pickerStyle(.menu)
         }
+    }
+
+    // MARK: - PDF'ten (docs/tasarim/06-PDFNotu.png)
+
+    private var pdfSection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Button {
+                showingPDFImporter = true
+            } label: {
+                Label("PDF Seç", systemImage: "doc.richtext")
+                    .font(.headline)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(accent)
+            Text("Seçtiğin PDF'in bütün sayfaları, \"Ekleneceği yer\"den başlayarak defterine eklenir. PDF sayfası arkada durur, el yazın ayrı katmanda üstüne yazılır. Her sayfa kendi oranını korur.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 8)
     }
 
     // MARK: - Hücreler
@@ -219,15 +253,39 @@ struct AddPageSheet: View {
 
     private func add() {
         guard let selection else { return }
+        let size = settings.defaultPageSize.size
         let newPageID: UUID?
         switch selection {
         case .builtin(let style):
-            newPageID = store.addPage(to: notebookID, at: insertIndex, paper: style, customTemplateID: nil)
+            newPageID = store.addPage(to: notebookID, at: insertIndex, paper: style, customTemplateID: nil, size: size)
         case .custom(let id):
-            newPageID = store.addPage(to: notebookID, at: insertIndex, paper: .blank, customTemplateID: id)
+            newPageID = store.addPage(to: notebookID, at: insertIndex, paper: .blank, customTemplateID: id, size: size)
         }
+        settings.lastUsedTemplate = selection
         if let newPageID { onAdded(newPageID) }
         dismiss()
+    }
+
+    private func handlePDF(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else {
+                importError = "PDF okunamadı."
+                return
+            }
+            guard let imported = pdfs.importPDF(data) else {
+                importError = "PDF açılamadı ya da boş."
+                return
+            }
+            if let firstID = store.addPDFPages(to: notebookID, at: insertIndex, fileName: imported.fileName, pageSizes: imported.pageSizes) {
+                onAdded(firstID)
+            }
+            dismiss()
+        case .failure(let error):
+            importError = error.localizedDescription
+        }
     }
 
     @MainActor

@@ -95,6 +95,12 @@ final class PenFavoritesStore: ObservableObject {
         save()
     }
 
+    func updateWidth(_ id: UUID, width: Double) {
+        guard let index = favorites.firstIndex(where: { $0.id == id }) else { return }
+        favorites[index].width = width
+        save()
+    }
+
     func makeDefault(_ id: UUID) {
         guard favorites.contains(where: { $0.id == id }) else { return }
         defaultPenID = id

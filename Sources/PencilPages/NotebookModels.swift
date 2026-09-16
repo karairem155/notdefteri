@@ -18,7 +18,15 @@ enum PaperStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// İçe aktarılan bir PDF'in tek sayfası. Dosya Documents/pdfs/ içinde durur.
+struct PDFPageReference: Codable, Equatable {
+    var fileName: String
+    var pageIndex: Int
+}
+
 struct NotebookPage: Codable, Identifiable, Equatable {
+    static let defaultSize = CGSize(width: 595, height: 842)   // A4, punto
+
     var id: UUID
     var drawingData: Data
     var paper: PaperStyle
@@ -30,21 +38,33 @@ struct NotebookPage: Codable, Identifiable, Equatable {
     var customTemplateID: UUID?
     // Fotoğraflar, çıkartmalar, bantlar ve buzlu örtüler.
     var overlay: PageOverlayData?
+    // Sayfa boyutu (punto). nil ise A4. Eski kayıtlar A4 olarak açılır.
+    var size: CGSize?
+    // PDF'ten gelen sayfa: PDF arkada, el yazısı ayrı katmanda üstünde.
+    var pdf: PDFPageReference?
 
     init(id: UUID = UUID(),
          drawing: PKDrawing = PKDrawing(),
          paper: PaperStyle = .ruled,
          customTemplateID: UUID? = nil,
-         overlay: PageOverlayData? = nil) {
+         overlay: PageOverlayData? = nil,
+         size: CGSize? = nil,
+         pdf: PDFPageReference? = nil) {
         self.id = id
         self.drawingData = drawing.dataRepresentation()
         self.paper = paper
         self.customTemplateID = customTemplateID
         self.overlay = overlay
+        self.size = size
+        self.pdf = pdf
     }
 
     var drawing: PKDrawing? {
         try? PKDrawing(data: drawingData)
+    }
+
+    var pageSize: CGSize {
+        size ?? Self.defaultSize
     }
 
     mutating func setDrawing(_ drawing: PKDrawing) {
@@ -61,8 +81,10 @@ struct Notebook: Codable, Identifiable, Equatable {
     var isTrashed: Bool
     var pages: [NotebookPage]
     var formatVersion: Int
+    // Raftaki kapak. nil ise varsayılan desen kullanılır.
+    var cover: NotebookCover?
 
-    init(id: UUID = UUID(), title: String, pages: [NotebookPage] = [NotebookPage()]) {
+    init(id: UUID = UUID(), title: String, pages: [NotebookPage] = [NotebookPage()], cover: NotebookCover? = nil) {
         self.id = id
         self.title = title
         self.createdAt = .now
@@ -71,5 +93,6 @@ struct Notebook: Codable, Identifiable, Equatable {
         self.isTrashed = false
         self.pages = pages
         self.formatVersion = 1
+        self.cover = cover
     }
 }

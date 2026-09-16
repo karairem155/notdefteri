@@ -29,6 +29,7 @@ final class CanvasActions: ObservableObject {
 struct PencilCanvasView: UIViewRepresentable {
     var drawing: PKDrawing
     var toolConfiguration: DrawingToolConfiguration
+    var pencilOnly: Bool = true
     var actions: CanvasActions
     var onDrawingChange: (PKDrawing, Bool) -> Void
 
@@ -37,7 +38,7 @@ struct PencilCanvasView: UIViewRepresentable {
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
         canvas.delegate = context.coordinator
-        canvas.drawingPolicy = .pencilOnly
+        canvas.drawingPolicy = pencilOnly ? .pencilOnly : .anyInput
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.isScrollEnabled = false
@@ -62,6 +63,8 @@ struct PencilCanvasView: UIViewRepresentable {
             context.coordinator.appliedToolConfiguration = toolConfiguration
         }
         if canvas.drawing != drawing { canvas.drawing = drawing }
+        let policy: PKCanvasViewDrawingPolicy = pencilOnly ? .pencilOnly : .anyInput
+        if canvas.drawingPolicy != policy { canvas.drawingPolicy = policy }
         actions.canvasView = canvas
         actions.commitCurrentDrawing = { [weak canvas, weak coordinator = context.coordinator] in
             coordinator?.commit(canvas)

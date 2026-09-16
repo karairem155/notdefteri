@@ -7,9 +7,19 @@ struct PageBackgroundView: View {
     var useThumbnail = false
 
     @EnvironmentObject private var templates: TemplateLibrary
+    @EnvironmentObject private var pdfs: PDFLibrary
 
     var body: some View {
-        if let id = page.customTemplateID,
+        if let reference = page.pdf,
+           let image = pdfs.image(for: reference, pixelWidth: useThumbnail ? 300 : 1400) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .background(Color.white)
+                .accessibilityHidden(true)
+        } else if let id = page.customTemplateID,
            let image = useThumbnail ? templates.thumbnail(for: id) : templates.image(for: id) {
             Image(uiImage: image)
                 .resizable()

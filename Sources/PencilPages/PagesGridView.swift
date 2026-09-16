@@ -104,10 +104,10 @@ struct PagesGridView: View {
         return VStack(spacing: 12) {
             ZStack {
                 PageBackgroundView(page: page, useThumbnail: true)
-                PageInkPreview(drawingData: page.drawingData, scale: 0.35)
+                PageInkPreview(drawingData: page.drawingData, scale: 0.35, pageSize: page.pageSize)
                     .allowsHitTesting(false)
             }
-            .aspectRatio(CGFloat(210) / CGFloat(297), contentMode: .fit)
+            .aspectRatio(page.pageSize.width / page.pageSize.height, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
@@ -173,9 +173,9 @@ struct PagesGridView: View {
             // Sürüklenirken görünen küçük kopya
             ZStack {
                 PageBackgroundView(page: page, useThumbnail: true)
-                PageInkPreview(drawingData: page.drawingData, scale: 0.2)
+                PageInkPreview(drawingData: page.drawingData, scale: 0.2, pageSize: page.pageSize)
             }
-            .frame(width: 100, height: 141)
+            .frame(width: 100, height: 100 * page.pageSize.height / page.pageSize.width)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .onAppear { draggingPageID = page.id }
             .onDisappear { draggingPageID = nil }

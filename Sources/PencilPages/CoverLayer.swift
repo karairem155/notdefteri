@@ -13,6 +13,7 @@ struct FrostedPenSettings: Equatable {
 // - Nesne düzenleme kipinde: örtüler taşınır, büyütülür, döndürülür.
 struct CoverLayer: View {
     let covers: [CoverMark]
+    var pageWidth: CGFloat = NotebookPage.defaultSize.width
     let isEditing: Bool
     let isFrostedPenActive: Bool
     let frostedSettings: FrostedPenSettings
@@ -65,6 +66,7 @@ struct CoverLayer: View {
             if isEditing, let id = selectedID, let cover = covers.first(where: { $0.id == id }) {
                 ObjectActionMenu(
                     anchorRect: cover.rect,
+                    pageWidth: pageWidth,
                     onRotate90: { onRotate90(id) },
                     onDuplicate: { onDuplicate(id) },
                     onBringToFront: { onBringToFront(id) },

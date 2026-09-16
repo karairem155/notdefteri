@@ -19,6 +19,7 @@ struct NotebookEditorView: View {
     @EnvironmentObject private var pens: PenFavoritesStore
     @EnvironmentObject private var templates: TemplateLibrary
     @EnvironmentObject private var assets: AssetStore
+    @EnvironmentObject private var settings: AppSettings
     @State private var selectedPageID: UUID?
     @State private var configuration: DrawingToolConfiguration = .fallback
     @State private var hasAppliedDefaultPen = false
@@ -54,8 +55,18 @@ struct NotebookEditorView: View {
 
     static let deskColor = Color(red: 0.24, green: 0.27, blue: 0.40)
     static let barColor = Color(red: 0.30, green: 0.33, blue: 0.47)
-    static let pageWidth: CGFloat = 595
-    static let pageHeight: CGFloat = 842
+    static let pageWidth: CGFloat = NotebookPage.defaultSize.width
+    static let pageHeight: CGFloat = NotebookPage.defaultSize.height
+
+    /// Tek sayfada seçili sayfanın, çiftte iki sayfanın toplam mantıksal boyutu.
+    private var logicalSize: CGSize {
+        if spreadMode {
+            let left = spreadPages.left?.pageSize ?? NotebookPage.defaultSize
+            let right = spreadPages.right?.pageSize ?? left
+            return CGSize(width: left.width + right.width, height: max(left.height, right.height))
+        }
+        return selectedPage?.pageSize ?? NotebookPage.defaultSize
+    }
 
     private let accent = Color(red: 0.55, green: 0.50, blue: 0.95)
 
@@ -247,7 +258,7 @@ struct NotebookEditorView: View {
                 templates: templates,
                 notebookID: notebookID,
                 currentIndex: insertAnchorIndex,
-                initialSelection: currentTemplateSelection
+                initialSelection: settings.initialTemplate(fallback: currentTemplateSelection)
             ) { newPageID in
                 selectedPageID = newPageID
             }
@@ -301,6 +312,15 @@ struct NotebookEditorView: View {
 
     private var pageCounter: some View {
         HStack(spacing: 6) {
+            if selectedPage?.pdf != nil {
+                Text("PDF")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color(red: 0.85, green: 0.25, blue: 0.2), in: RoundedRectangle(cornerRadius: 4))
+                    .accessibilityLabel("PDF sayfası")
+            }
             Button { movePage(by: -1) } label: {
                 Image(systemName: "chevron.left")
             }
@@ -401,8 +421,8 @@ struct NotebookEditorView: View {
     private var pageArea: some View {
         if selectedPage != nil {
             GeometryReader { geometry in
-                let logicalWidth = spreadMode ? Self.pageWidth * 2 : Self.pageWidth
-                let logicalHeight = Self.pageHeight
+                let logicalWidth = logicalSize.width
+                let logicalHeight = logicalSize.height
                 let scale = max(0.1, min((geometry.size.width - 40) / logicalWidth, (geometry.size.height - 40) / logicalHeight))
                 ZStack {
                     // Alttaki yapraklar
@@ -435,16 +455,16 @@ struct NotebookEditorView: View {
 
     // Çift sayfa (docs/tasarim/04-CiftSayfa.png): iki sayfa yan yana, ortada cilt gölgesi.
     private var spreadContent: some View {
-        HStack(spacing: 0) {
+        HStack(alignment: .top, spacing: 0) {
             if let left = spreadPages.left {
                 pageStack(for: left, side: .left)
             } else {
-                emptyPagePlaceholder
+                emptyPagePlaceholder(size: spreadPages.right?.pageSize ?? NotebookPage.defaultSize)
             }
             if let right = spreadPages.right {
                 pageStack(for: right, side: .right)
             } else {
-                emptyPagePlaceholder
+                emptyPagePlaceholder(size: spreadPages.left?.pageSize ?? NotebookPage.defaultSize)
             }
         }
         .overlay {
@@ -459,7 +479,7 @@ struct NotebookEditorView: View {
     }
 
     // Çiftin boş kalan yarısı: dokununca Sayfa Ekle açılır.
-    private var emptyPagePlaceholder: some View {
+    private func emptyPagePlaceholder(size: CGSize) -> some View {
         Button {
             commitAllDrawings()
             showingAddPage = true
@@ -482,7 +502,7 @@ struct NotebookEditorView: View {
                 )
         }
         .buttonStyle(.plain)
-        .frame(width: Self.pageWidth, height: Self.pageHeight)
+        .frame(width: size.width, height: size.height)
         .accessibilityLabel("Sayfa ekle")
     }
 
@@ -495,6 +515,7 @@ struct NotebookEditorView: View {
                     PageBackgroundView(page: page)
                     PageObjectsLayer(
                         objects: page.overlay?.objects ?? [],
+                        pageWidth: page.pageSize.width,
                         selectedID: $selectedObjectID,
                         isEditing: editingObjects,
                         assets: assets,
@@ -508,6 +529,7 @@ struct NotebookEditorView: View {
                     PencilCanvasView(
                         drawing: drawing,
                         toolConfiguration: configuration,
+                        pencilOnly: settings.pencilOnly,
                         actions: actions
                     ) { drawing, persistImmediately in
                         activeSide = side
@@ -522,6 +544,7 @@ struct NotebookEditorView: View {
                     .allowsHitTesting(!editingObjects && !isFrostedPenActive)
                     CoverLayer(
                         covers: page.overlay?.covers ?? [],
+                        pageWidth: page.pageSize.width,
                         isEditing: editingObjects,
                         isFrostedPenActive: isFrostedPenActive && !editingObjects,
                         frostedSettings: frostedSettings,
@@ -544,7 +567,7 @@ struct NotebookEditorView: View {
                 .environment(\.colorScheme, .light)
             }
         }
-        .frame(width: Self.pageWidth, height: Self.pageHeight)
+        .frame(width: page.pageSize.width, height: page.pageSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 2))
     }
 
@@ -605,9 +628,10 @@ struct NotebookEditorView: View {
     /// Yeni nesneyi sayfanın ortasına yakın koyar; üst üste binmesin diye her seferinde biraz kaydırır.
     private func centeredRect(width: CGFloat, height: CGFloat, pageID: UUID) -> CGRect {
         let page = store.notebook(id: notebookID)?.pages.first(where: { $0.id == pageID })
+        let pageSize = page?.pageSize ?? NotebookPage.defaultSize
         let existingCount = (page?.overlay?.objects.count ?? 0) + (page?.overlay?.covers.count ?? 0)
         let shift = CGFloat(existingCount % 5) * 18
-        return CGRect(x: (Self.pageWidth - width) / 2 + shift, y: (Self.pageHeight - height) / 2 + shift, width: width, height: height)
+        return CGRect(x: (pageSize.width - width) / 2 + shift, y: (pageSize.height - height) / 2 + shift, width: width, height: height)
     }
 
     // MARK: Fotoğraf / çıkartma / post-it nesneleri
@@ -829,14 +853,14 @@ struct NotebookEditorView: View {
                             VStack(spacing: 3) {
                                 ZStack {
                                     PageBackgroundView(page: page, useThumbnail: true)
-                                    PageInkPreview(drawingData: page.drawingData)
+                                    PageInkPreview(drawingData: page.drawingData, pageSize: page.pageSize)
                                         .allowsHitTesting(false)
                                 }
                                 .overlay {
                                     RoundedRectangle(cornerRadius: 3)
                                         .stroke(isSelected ? Color.white : Color.white.opacity(0.25), lineWidth: isSelected ? 2 : 0.75)
                                 }
-                                .frame(width: 38, height: 52)
+                                .frame(width: 52 * page.pageSize.width / page.pageSize.height, height: 52)
                                 .clipShape(RoundedRectangle(cornerRadius: 3))
                                 Text("\(index + 1)")
                                     .font(.caption2.monospacedDigit())

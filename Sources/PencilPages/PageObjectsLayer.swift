@@ -6,6 +6,7 @@ import UIKit
 // Nesne düzenleme kipinde tuval dokunuşları bırakır, bu katman alır.
 struct PageObjectsLayer: View {
     let objects: [PlacedObject]
+    var pageWidth: CGFloat = NotebookPage.defaultSize.width
     @Binding var selectedID: UUID?
     let isEditing: Bool
     @ObservedObject var assets: AssetStore
@@ -50,6 +51,7 @@ struct PageObjectsLayer: View {
             if isEditing, let id = selectedID, let object = objects.first(where: { $0.id == id }) {
                 ObjectActionMenu(
                     anchorRect: object.rect,
+                    pageWidth: pageWidth,
                     onRotate90: { onRotate90(id) },
                     onDuplicate: { onDuplicate(id) },
                     onBringToFront: { onBringToFront(id) },

@@ -6,6 +6,7 @@ import UIKit
 struct PageInkPreview: View {
     let drawingData: Data
     var scale: CGFloat = 0.06
+    var pageSize: CGSize = NotebookPage.defaultSize
 
     @State private var preview: UIImage?
 
@@ -21,9 +22,10 @@ struct PageInkPreview: View {
         .task(id: drawingData) {
             let data = drawingData
             let renderScale = scale
+            let bounds = CGRect(origin: .zero, size: pageSize)
             let renderedPreview = await Task.detached(priority: .utility) {
                 guard let drawing = try? PKDrawing(data: data) else { return nil as UIImage? }
-                return drawing.image(from: CGRect(x: 0, y: 0, width: 595, height: 842), scale: renderScale)
+                return drawing.image(from: bounds, scale: renderScale)
             }.value
             preview = renderedPreview
         }

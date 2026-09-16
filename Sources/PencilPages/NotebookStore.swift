@@ -42,9 +42,9 @@ final class NotebookStore: ObservableObject {
     }
 
     @discardableResult
-    func createNotebook() -> UUID {
+    func createNotebook(cover: NotebookCover? = nil) -> UUID {
         let title = "Defter \(notebooks.count + 1)"
-        let notebook = Notebook(title: title)
+        let notebook = Notebook(title: title, cover: cover)
         notebooks.append(notebook)
         dirtyNotebookIDs.insert(notebook.id)
         persist(notebook)
@@ -59,14 +59,32 @@ final class NotebookStore: ObservableObject {
 
     /// Belirli bir konuma sayfa ekler. `index` 0 ise başa, n ise n. sayfadan sonra.
     @discardableResult
-    func addPage(to notebookID: UUID, at index: Int, paper: PaperStyle, customTemplateID: UUID?) -> UUID? {
+    func addPage(to notebookID: UUID, at index: Int, paper: PaperStyle, customTemplateID: UUID?, size: CGSize? = nil) -> UUID? {
         guard let notebook = notebook(id: notebookID) else { return nil }
-        let page = NotebookPage(paper: paper, customTemplateID: customTemplateID)
+        let page = NotebookPage(paper: paper, customTemplateID: customTemplateID, size: size)
         let insertIndex = min(max(index, 0), notebook.pages.count)
         mutate(notebookID) { notebook in
             notebook.pages.insert(page, at: insertIndex)
         }
         return page.id
+    }
+
+    /// PDF'in bütün sayfalarını verilen konumdan başlayarak ekler; ilk yeni sayfanın kimliğini döndürür.
+    @discardableResult
+    func addPDFPages(to notebookID: UUID, at index: Int, fileName: String, pageSizes: [CGSize]) -> UUID? {
+        guard let notebook = notebook(id: notebookID), !pageSizes.isEmpty else { return nil }
+        let pages = pageSizes.enumerated().map { entry in
+            NotebookPage(paper: .blank, size: entry.element, pdf: PDFPageReference(fileName: fileName, pageIndex: entry.offset))
+        }
+        let insertIndex = min(max(index, 0), notebook.pages.count)
+        mutate(notebookID) { notebook in
+            notebook.pages.insert(contentsOf: pages, at: insertIndex)
+        }
+        return pages.first?.id
+    }
+
+    func setCover(_ cover: NotebookCover?, notebookID: UUID) {
+        mutate(notebookID) { $0.cover = cover }
     }
 
     func renameNotebook(_ notebookID: UUID, to title: String) {
