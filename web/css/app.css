@@ -142,10 +142,12 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 
 .placed { position: absolute; transform-origin: center center; touch-action: none; }
 .placed img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-.placed.photo { padding: 6px; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25); }
-.placed.sticker { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.15)); }
-.placed.postit { background: linear-gradient(135deg, var(--tint), color-mix(in srgb, var(--tint) 82%, #6a5a00)); border-radius: 2px; box-shadow: 0 3px 6px rgba(0, 0, 0, 0.18); }
-.placed.postit::after { content: ""; position: absolute; right: 0; bottom: 0; width: 26px; height: 26px; background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.12) 50%); }
+.placed.photo { padding: 7px 7px 18px; background: linear-gradient(#ffffff, #f3f1ea); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 12px 24px -8px rgba(0, 0, 0, 0.55); }
+.placed.photo::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06); }
+.placed.sticker { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25)) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.3)); }
+.placed.postit { background: linear-gradient(160deg, color-mix(in srgb, var(--tint) 80%, #fff) 0%, var(--tint) 45%, color-mix(in srgb, var(--tint) 78%, #5a4a00) 100%); border-radius: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 12px 22px -10px rgba(0, 0, 0, 0.55), 2px 10px 18px -12px rgba(0, 0, 0, 0.4); }
+.placed.postit::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 4px); mix-blend-mode: overlay; }
+.placed.postit::after { content: ""; position: absolute; right: 0; bottom: 0; width: 34px; height: 34px; background: linear-gradient(135deg, transparent 49%, rgba(0, 0, 0, 0.22) 50%, color-mix(in srgb, var(--tint) 70%, #fff) 52%, color-mix(in srgb, var(--tint) 88%, #000) 100%); box-shadow: -3px -3px 6px -2px rgba(0, 0, 0, 0.25); }
 .placed.selected { outline: 2px solid #8c85f5; }
 .handle { position: absolute; width: 16px; height: 16px; background: #fff; border: 2px solid #8c85f5; border-radius: 3px; touch-action: none; }
 .handle.tl { left: -8px; top: -8px; } .handle.tr { right: -8px; top: -8px; } .handle.bl { left: -8px; bottom: -8px; } .handle.br { right: -8px; bottom: -8px; }
@@ -469,3 +471,20 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 /* 3B derinlik: sayfa yelpazesi kartları */
 .fan-card { box-shadow: 0 24px 50px rgba(0, 0, 0, 0.5), 0 4px 10px rgba(0, 0, 0, 0.3); }
 .fan-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, 0.12), transparent 12%, transparent 88%, rgba(0, 0, 0, 0.12)); }
+
+/* Bant: kodla çizilen yarı saydam şerit, yırtık uçlar, desenler */
+.placed.tape, .tape-preview { --tape-clip: polygon(0 6%, 1.5% 0, 3% 8%, 4.5% 0, 6% 6%, 100% 0, 98.5% 8%, 97% 0, 95.5% 7%, 94% 0, 100% 100%, 98.5% 92%, 97% 100%, 95.5% 93%, 94% 100%, 6% 100%, 4.5% 92%, 3% 100%, 1.5% 94%, 0 100%); }
+.placed.tape .tape-body, .tape-preview .tape-body { position: absolute; inset: 0; clip-path: var(--tape-clip); background: color-mix(in srgb, var(--tint) 82%, transparent); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.placed.tape { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.18)); opacity: 0.94; }
+.placed.tape .tape-body::after, .tape-preview .tape-body::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 40%, rgba(0, 0, 0, 0.06)); }
+.placed.tape.stripes .tape-body, .tape-preview.stripes .tape-body { background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.55) 0 8px, transparent 8px 18px); background-color: color-mix(in srgb, var(--tint) 82%, transparent); }
+.placed.tape.dots .tape-body, .tape-preview.dots .tape-body { background-image: radial-gradient(rgba(255, 255, 255, 0.75) 2.5px, transparent 3px); background-size: 14px 14px; background-color: color-mix(in srgb, var(--tint) 82%, transparent); }
+.placed.tape.gingham .tape-body, .tape-preview.gingham .tape-body { background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.4) 0 8px, transparent 8px 16px), repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.4) 0 8px, transparent 8px 16px); background-color: color-mix(in srgb, var(--tint) 82%, transparent); }
+.tape-preview { position: relative; width: 100%; height: 44px; margin: 30px 0; }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px; }
+.emoji-cell { font-size: 34px; height: 64px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, 0.06); cursor: pointer; line-height: 1; }
+.emoji-cell:active { background: rgba(255, 255, 255, 0.16); }
+
+/* Buzlu post-it: derinlik */
+.cover-mark.postit { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 12px 22px -10px rgba(0, 0, 0, 0.5); }
+.cover-mark.postit .frost-tint { background: linear-gradient(160deg, color-mix(in srgb, var(--tint) 85%, #fff), var(--tint) 50%, color-mix(in srgb, var(--tint) 80%, #4a3e00)); }

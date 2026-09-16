@@ -25,6 +25,34 @@ export const TEXT_FONTS = [
   ["Georgia, 'Times New Roman', serif", "Kitap"]
 ];
 
+const LANGS = [["tr", "Türkçe"], ["en", "İngilizce"], ["de", "Almanca"], ["fr", "Fransızca"], ["es", "İspanyolca"], ["it", "İtalyanca"], ["ar", "Arapça"], ["ru", "Rusça"], ["ja", "Japonca"], ["ko", "Korece"], ["zh-CN", "Çince"]];
+
+/** Metni Google Çeviri'de açar (internet gerekir; cihazda çevrimdışı çeviri motoru yok). */
+export function openTranslate(text, target) {
+  const clean = (text || "").trim();
+  if (!clean) { toast("Çevrilecek metin yok."); return; }
+  const tl = target || localStorage.getItem("notdefteri.translateTo") || "tr";
+  const url = `https://translate.google.com/?sl=auto&tl=${encodeURIComponent(tl)}&op=translate&text=${encodeURIComponent(clean.slice(0, 4000))}`;
+  window.open(url, "_blank", "noopener");
+}
+
+/** Çeviri penceresi: yaz (klavye ya da Apple Pencil ile Scribble), dili seç, çevir. */
+export function openTranslateDialog(initial = "") {
+  const area = h("textarea", { class: "text-input", rows: "5", placeholder: "Çevrilecek metni buraya yaz (Apple Pencil ile de yazabilirsin)", style: { fontFamily: "'Bradley Hand', 'Segoe Script', cursive", fontSize: "20px", resize: "vertical" } }, initial);
+  const select = h("select", { class: "select", "aria-label": "Hedef dil" }, ...LANGS.map(([code, name]) => h("option", { value: code }, name)));
+  select.value = localStorage.getItem("notdefteri.translateTo") || "tr";
+  openModal(h("div", { class: "dialog", style: { width: "min(520px, 100%)" } },
+    h("h3", {}, "Çeviri"),
+    h("p", {}, "Metin, Google Çeviri'de yeni sekmede açılır. Sayfadaki el yazısını çevirmek için buraya kalemle yeniden yaz; iPad onu metne çevirir."),
+    area,
+    h("div", { class: "panel-row", style: { color: "var(--muted)" } }, h("label", {}, "Hedef dil"), select),
+    h("div", { class: "dialog-buttons" },
+      h("button", { class: "btn", type: "button", onTap: closeModal }, "Kapat"),
+      h("button", { class: "btn primary", type: "button", onTap: () => { localStorage.setItem("notdefteri.translateTo", select.value); openTranslate(area.value, select.value); } }, "Çevir"))
+  ));
+  setTimeout(() => area.focus(), 50);
+}
+
 /** Bu oturumda açılmış defterler: hızlı geçiş için (Paper'daki gibi birden çok defter). */
 function openNotebooks() {
   try { return JSON.parse(sessionStorage.getItem("notdefteri.open") || "[]"); } catch (_) { return []; }
@@ -124,7 +152,9 @@ export function renderEditor(root, notebookId, initialPageId) {
       h("div", { class: "topbar-side right" },
         iconButton("grid", "Sayfalar", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
         iconButton("books", "Açık defterler", openNotebooksMenu),
-        page.pdf && Object.assign(iconButton("pen", textSelectMode ? "Metin seçmeyi bitir" : "PDF metnini seç: kopyala, çevir", () => { textSelectMode = !textSelectMode; applyModes(); renderTopbar(); }), { className: "icon-btn" + (textSelectMode ? " active-toggle" : "") }),
+        page.pdf
+          ? Object.assign(iconButton("pen", textSelectMode ? "Metin seçmeyi bitir" : "PDF metnini seç: kopyala, çevir", () => { textSelectMode = !textSelectMode; applyModes(); renderTopbar(); }), { className: "icon-btn" + (textSelectMode ? " active-toggle" : "") })
+          : iconButton("share", "Çeviri", () => openTranslateDialog(getSelectionText())),
         Object.assign(iconButton("undo", "Geri al", () => activeInk && activeInk.undo()), { disabled: !(activeInk && activeInk.canUndo) }),
         Object.assign(iconButton("redo", "İleri al", () => activeInk && activeInk.redo()), { disabled: !(activeInk && activeInk.canRedo) }),
         iconButton("more", "Sayfa işlemleri: çoğalt, taşı, sil", pageActionsMenu),
@@ -227,6 +257,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     const count = pages().length;
     actionSheet(`${index + 1}. sayfa`, [
       { title: "Şablonu Değiştir", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t) => { store.setTemplate(notebookId, page.id, t); renderStage(); })) },
+      { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
       { title: "Sayfa Yelpazesi", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${page.id}`); } },
       { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
       { title: "Sayfayı Öne Taşı", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); renderStage(); } },
@@ -543,7 +574,9 @@ export function renderEditor(root, notebookId, initialPageId) {
         h("button", { class: "btn small primary", type: "button", onTap: () => setEditing(false) }, "Bitti"));
     } else if (textSelectMode) {
       banner.hidden = false;
-      banner.replaceChildren(h("span", {}, "Metin seçme: basılı tutup seç, sonra Kopyala ya da Çevir"),
+      banner.replaceChildren(h("span", {}, "Basılı tutup metni seç, sonra:"),
+        h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.15)", color: "#fff" }, onTap: () => { const t = getSelectionText(); if (!t) { toast("Önce metni seç."); return; } navigator.clipboard.writeText(t).then(() => toast("Kopyalandı")).catch(() => toast("Kopyalanamadı")); } }, "Kopyala"),
+        h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.15)", color: "#fff" }, onTap: () => { const t = getSelectionText(); if (!t) { openTranslateDialog(""); return; } openTranslate(t); } }, "Çevir"),
         h("button", { class: "btn small primary", type: "button", onTap: () => { textSelectMode = false; applyModes(); renderTopbar(); } }, "Bitti"));
     } else if (isFrosted()) {
       banner.hidden = false;
@@ -551,6 +584,11 @@ export function renderEditor(root, notebookId, initialPageId) {
     } else {
       banner.hidden = true;
     }
+  }
+
+  function getSelectionText() {
+    const sel = window.getSelection();
+    return sel ? sel.toString().trim() : "";
   }
 
   function setEditing(on) {
@@ -569,7 +607,10 @@ export function renderEditor(root, notebookId, initialPageId) {
     const sorted = page.objects.slice().sort((a, b) => a.z - b.z);
     for (const object of sorted) {
       const el = h("div", { class: `placed ${object.kind}` + (object.id === selectedObjectId ? " selected" : "") + (object.id === editingTextId ? " editing" : ""), style: { "--tint": object.tint || "#FFE566" } });
-      if (object.kind === "text") {
+      if (object.kind === "tape") {
+        el.classList.add(object.pattern || "plain");
+        el.append(h("div", { class: "tape-body" }));
+      } else if (object.kind === "text") {
         el.style.setProperty("--font", object.font || TEXT_FONTS[1][0]);
         el.style.setProperty("--size", (object.size || 22) + "px");
         el.style.setProperty("--text-color", object.color || "#1C1C1E");
@@ -583,7 +624,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         content.addEventListener("pointerdown", (e) => { if (object.id === editingTextId) e.stopPropagation(); });
         el.append(content);
         if (object.id === editingTextId) setTimeout(() => { content.focus(); }, 30);
-      } else if (object.kind !== "postit") {
+      } else if (object.kind !== "postit" && object.kind !== "tape") {
         const image = h("img", { alt: "", draggable: "false" });
         store.assetURL(object.asset).then((url) => { if (url) image.src = url; });
         el.append(image);
@@ -601,6 +642,7 @@ export function renderEditor(root, notebookId, initialPageId) {
             edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
             cut: (object.kind === "photo" || object.kind === "sticker") ? () => startCut(object, page, stack) : null,
             font: object.kind === "text" ? () => textStyleMenu(object, page) : null,
+            translate: object.kind === "text" ? () => openTranslate(object.text) : null,
             rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
             duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
             front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
@@ -653,6 +695,11 @@ export function renderEditor(root, notebookId, initialPageId) {
         if (object.kind === "postit") {
           ctx.fillStyle = object.tint || "#FFE566";
           ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+        } else if (object.kind === "tape") {
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = object.tint || "#F5D76E";
+          ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+          ctx.globalAlpha = 1;
         } else if (object.kind === "text") {
           ctx.fillStyle = object.color || "#1C1C1E";
           ctx.font = `${object.size || 24}px ${object.font || "sans-serif"}`;
@@ -764,6 +811,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       actions.edit && btn("Düzenle", "pen", actions.edit), actions.edit && h("div", { class: "sep" }),
       actions.cut && btn("Kes", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
       actions.font && btn("Yazı tipi", "note", actions.font), actions.font && h("div", { class: "sep" }),
+      actions.translate && btn("Çevir", "share", actions.translate), actions.translate && h("div", { class: "sep" }),
       btn("Döndür", "rotate", actions.rotate), h("div", { class: "sep" }),
       btn("Kopyala", "copy", actions.duplicate), h("div", { class: "sep" }),
       btn("Öne al", "front", actions.front), h("div", { class: "sep" }),
@@ -989,7 +1037,25 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   function addPlainPostIt(tint) {
     const page = selectedPage();
-    const object = { id: uid(), kind: "postit", tint, rect: centeredRect(page, 200, 170), rotation: 0, z: maxZ(page) + 1 };
+    const object = { id: uid(), kind: "postit", tint, rect: centeredRect(page, 200, 170), rotation: Math.round((Math.random() * 6 - 3) * 10) / 10, z: maxZ(page) + 1 };
+    store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
+    touchPage(page);
+    selectedObjectId = object.id;
+    setEditing(true);
+  }
+
+  function addTape(tint, pattern) {
+    const page = selectedPage();
+    const object = { id: uid(), kind: "tape", tint, pattern, assetName: "", rect: centeredRect(page, 220, 34), rotation: Math.round((Math.random() * 16 - 8) * 10) / 10, z: maxZ(page) + 1 };
+    store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
+    touchPage(page);
+    selectedObjectId = object.id;
+    setEditing(true);
+  }
+
+  function addEmojiSticker(emoji) {
+    const page = selectedPage();
+    const object = { id: uid(), kind: "text", text: emoji, font: "-apple-system, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif", size: 64, color: "#000000", rect: centeredRect(page, 96, 96), rotation: Math.round((Math.random() * 20 - 10) * 10) / 10, z: maxZ(page) + 1 };
     store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
     touchPage(page);
     selectedObjectId = object.id;
@@ -1435,6 +1501,25 @@ export function renderEditor(root, notebookId, initialPageId) {
           h("div", { style: { display: "flex", gap: "12px" } },
             h("button", { class: "btn", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onTap: () => { closeModal(); importImage("sticker"); } }, "Görsel Seç")),
           h("div", { class: "note", style: { color: "rgba(255,255,255,0.5)" } }, "Eklenen çıkartma sayfaya yerleşir; sürükleyip döndürebilirsin.")
+        );
+      } else if (tab === "tape") {
+        const tapes = [["Sarı", "#F5D76E", "plain"], ["Pembe", "#F4A7C0", "plain"], ["Mavi", "#8FC6F0", "plain"], ["Mint", "#9EDCC6", "plain"], ["Kraft", "#D3B482", "plain"],
+          ["Çizgili", "#F4A7C0", "stripes"], ["Çizgili mavi", "#8FC6F0", "stripes"], ["Puantiyeli", "#F5D76E", "dots"], ["Puantiyeli mor", "#C9B6F2", "dots"], ["Pötikare", "#9EDCC6", "gingham"], ["Pötikare kırmızı", "#F08C8C", "gingham"]];
+        const customTape = h("input", { type: "color", value: "#F5D76E", "aria-label": "Kendi bant rengim" });
+        body.replaceChildren(
+          h("div", { class: "sticker-section-title" }, "BANT", h("span", {}, "yarı saydam, yırtık uçlu; taşı, döndür, boyutla")),
+          h("div", { class: "postit-grid" },
+            ...tapes.map(([name, hex, pattern]) => h("button", { class: "postit-cell", type: "button", onTap: () => { closeModal(); addTape(hex, pattern); } },
+              h("div", { class: "tape-preview " + pattern, style: { "--tint": hex } }, h("div", { class: "tape-body" })), name)),
+            h("div", { class: "postit-cell" }, h("div", { class: "paper custom", style: { aspectRatio: "auto", height: "80px" } }, h("div", { class: "color-input", style: { width: "44px", height: "44px" } }, customTape), h("button", { class: "btn small primary", type: "button", onTap: () => { closeModal(); addTape(customTape.value.toUpperCase(), "plain"); } }, "Ekle")), "Kendi rengim")),
+          h("div", { class: "info-box" }, svgIcon("hand", 18), h("span", {}, "Bant fotoğrafın köşesine yapıştırılır: fotoğrafı koy, bandı ekle, üstüne sürükle ve döndür."))
+        );
+      } else if (tab === "stickers") {
+        const emojis = ["\u2B50", "\u2764\uFE0F", "\u2705", "\u274C", "\u2757", "\u2753", "\u{1F4CC}", "\u{1F4CD}", "\u{1F31F}", "\u{1F338}", "\u{1F33F}", "\u{1F340}", "\u{1F4A1}", "\u{1F525}", "\u{1F389}", "\u{1F3AF}", "\u{1F4DA}", "\u{1F4DD}", "\u{1F4C5}", "\u23F0", "\u{1F60A}", "\u{1F62D}", "\u{1F914}", "\u{1F44D}", "\u{1F449}", "\u2B06\uFE0F", "\u27A1\uFE0F", "\u{1F4B0}", "\u2615", "\u{1F35C}", "\u{1F3B5}", "\u{1F4F7}"];
+        body.replaceChildren(
+          h("div", { class: "sticker-section-title" }, "ÇIKARTMALAR", h("span", {}, "dokun: sayfaya eklenir; boyutunu ve açısını değiştirebilirsin")),
+          h("div", { class: "emoji-grid" }, ...emojis.map((e) => h("button", { class: "emoji-cell", type: "button", "aria-label": "Çıkartma " + e, onTap: () => { closeModal(); addEmojiSticker(e); } }, e))),
+          h("div", { class: "info-box" }, svgIcon("photo", 18), h("span", {}, "Kendi görsellerinden çıkartma yapmak için \"Çıkartmalarım\" sekmesi; fotoğrafı kesip çıkartma yapmak için Nesneleri düzenle → Kes."))
         );
       } else {
         body.replaceChildren(h("div", { class: "info-box", style: { marginTop: "30px", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "40px 20px" } },
