@@ -137,7 +137,7 @@ export function renderLibrary(root) {
     if (notebook && !showingTrash) {
       bar.append(
         iconButton("more", "Defter işlemleri", () => notebookMenu(notebook)),
-        iconButton("page", "Sayfalar", () => navigate(`#/n/${notebook.id}/fan`)),
+        iconButton("page", "Sayfaları yelpazede gör", () => navigate(`#/n/${notebook.id}/fan`)),
         iconButton("trash", "Çöpe at", () => confirmDialog("Defter çöpe atılsın mı?", `"${notebook.title}" çöp kutusuna taşınır; oradan geri alınabilir.`, "Çöpe At", () => store.mutate(notebook.id, (n) => { n.isTrashed = true; })))
       );
     } else if (notebook && showingTrash) {
@@ -219,7 +219,7 @@ export function renderLibrary(root) {
           h("div", { class: "row-title" }, h("span", {}, notebook.title), notebook.isFavourite && h("span", { style: { color: "#e8a020" } }, svgIcon("star", 14))),
           h("div", { class: "row-sub" }, `${notebook.pages.length} sayfa · ${new Date(notebook.updatedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`)),
         svgIcon("forward", 18));
-      pressable(row, { onTap: () => { closeModal(); navigate(`#/n/${notebook.id}/fan`); }, onLong: () => { closeModal(); notebookMenu(notebook); } });
+      pressable(row, { onTap: () => { closeModal(); navigate(`#/n/${notebook.id}`); }, onLong: () => { closeModal(); notebookMenu(notebook); } });
       list.append(row);
     }
     openModal(h("div", { class: "dialog", style: { width: "min(560px, 100%)" } }, h("h3", {}, currentFolder || "Defterlerim"), list));
@@ -229,7 +229,7 @@ export function renderLibrary(root) {
 
   function openNotebook(notebook, cover) {
     cover.classList.add("opening");
-    setTimeout(() => navigate(`#/n/${notebook.id}/fan`), 320);
+    setTimeout(() => navigate(`#/n/${notebook.id}`), 320);
   }
 
   function newMenu() {
@@ -255,7 +255,7 @@ export function renderLibrary(root) {
       }, true);
       store.addPDFPages(id, 0, asset, sizes);
       toast(`${sizes.length} sayfalık PDF defteri oluşturuldu`);
-      navigate(`#/n/${id}/fan`);
+      navigate(`#/n/${id}`);
     } catch (error) {
       toast("PDF eklenemedi: " + error.message);
     }
@@ -266,13 +266,13 @@ export function renderLibrary(root) {
     if (currentFolder) store.mutate(id, (n) => { n.folder = currentFolder; }, true);
     promptDialog("Defter adı", "Örn. Seyahat günlüğü", `Defter ${store.notebooks.length}`, (title) => {
       store.mutate(id, (n) => { n.title = title; }, true);
-      navigate(`#/n/${id}/fan`);
+      navigate(`#/n/${id}`);
     });
   }
 
   function notebookMenu(notebook) {
     actionSheet(notebook.title, [
-      { title: "Aç", onSelect: () => navigate(`#/n/${notebook.id}/fan`) },
+      { title: "Aç", onSelect: () => navigate(`#/n/${notebook.id}`) },
       { title: "Yeniden Adlandır", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", notebook.title, (title) => store.mutate(notebook.id, (n) => { n.title = title; })) },
       { title: "Kapağı Değiştir", onSelect: () => coverPicker(notebook) },
       { title: "Klasöre Taşı", onSelect: () => moveToFolderMenu(notebook) },

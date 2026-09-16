@@ -117,12 +117,12 @@ export function renderEditor(root, notebookId, initialPageId) {
     const page = selectedPage();
     topbar.replaceChildren(
       h("div", { class: "topbar-side" },
-        h("button", { class: "back-btn", type: "button", "aria-label": "Sayfalar", onTap: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${selectedPageId}`); } }, svgIcon("back", 20)),
+        h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onTap: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 20)),
         page.pdf && h("span", { class: "badge-pdf" }, "PDF"),
         h("span", { class: "topbar-notebook" }, nb().title)),
       h("div", { class: "topbar-title" }, favoriteStrip()),
       h("div", { class: "topbar-side right" },
-        iconButton("grid", "Sayfalar", () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${selectedPageId}`); }),
+        iconButton("grid", "Sayfalar", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
         iconButton("books", "Açık defterler", openNotebooksMenu),
         page.pdf && Object.assign(iconButton("pen", textSelectMode ? "Metin seçmeyi bitir" : "PDF metnini seç: kopyala, çevir", () => { textSelectMode = !textSelectMode; applyModes(); renderTopbar(); }), { className: "icon-btn" + (textSelectMode ? " active-toggle" : "") }),
         Object.assign(iconButton("undo", "Geri al", () => activeInk && activeInk.undo()), { disabled: !(activeInk && activeInk.canUndo) }),

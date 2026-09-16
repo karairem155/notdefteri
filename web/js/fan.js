@@ -35,8 +35,8 @@ export function renderFan(root, notebookId) {
     const list = pages();
     center = Math.min(Math.max(center, 0), list.length - 1);
     head.replaceChildren(
-      h("h1", {}, store.notebook(notebookId).title),
-      h("div", { class: "sub" }, `${list.length} sayfa · ${center + 1}. sayfa · kaydır, dokun`));
+      h("h1", {}, store.notebook(notebookId).title + " · Sayfalar"),
+      h("div", { class: "sub" }, `${list.length} sayfa · ${center + 1}. sayfa seçili · sağa sola kaydır, seçmek için dokun, açmak için "Aç"`));
     stage.replaceChildren();
     for (let i = Math.max(0, center - VISIBLE); i <= Math.min(list.length - 1, center + VISIBLE); i++) {
       stage.append(card(list[i], i));
