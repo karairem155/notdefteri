@@ -13,6 +13,11 @@ export function drawPaper(canvas, paper, w, h) {
   canvas.style.height = h + "px";
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  paintPaper(ctx, paper, w, h);
+}
+
+/** Deseni hazır bir bağlama çizer (anlık görüntü ve önizlemeler için). */
+export function paintPaper(ctx, paper, w, h) {
   ctx.fillStyle = PAPER_COLOR;
   ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = INK;
@@ -36,6 +41,27 @@ export function drawPaper(canvas, paper, w, h) {
     }
     ctx.fill();
   }
+}
+
+/** Görsel URL'sini yükleyip verilen dikdörtgene "cover" oranında çizer. */
+export function drawImageURL(ctx, url, x, y, w, h) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.max(w / image.width, h / image.height);
+      const dw = image.width * scale;
+      const dh = image.height * scale;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.drawImage(image, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      ctx.restore();
+      resolve(true);
+    };
+    image.onerror = () => resolve(false);
+    image.src = url;
+  });
 }
 
 let pdfjsPromise = null;

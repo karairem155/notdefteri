@@ -50,7 +50,7 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 }
 .screen-dark .topbar { background: var(--desk-bar); border-bottom-color: rgba(0, 0, 0, 0.2); color: #fff; }
 .topbar-title { flex: 1; text-align: center; font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.topbar-side { display: flex; align-items: center; gap: 6px; min-width: 120px; }
+.topbar-side { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
 .topbar-side.right { justify-content: flex-end; }
 .back-btn { display: inline-flex; align-items: center; gap: 2px; background: none; border: 0; color: var(--accent); font-size: 17px; padding: 6px 4px; cursor: pointer; }
 .screen-dark .back-btn { color: #c9c6ff; }
@@ -73,7 +73,7 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .btn:disabled { opacity: 0.4; }
 .btn.small { padding: 6px 12px; font-size: 14px; }
 
-.segmented { display: inline-flex; background: rgba(0, 0, 0, 0.08); border-radius: 9px; padding: 2px; }
+.segmented { display: inline-flex; flex-wrap: wrap; background: rgba(0, 0, 0, 0.08); border-radius: 9px; padding: 2px; }
 .screen-dark .segmented { background: rgba(255, 255, 255, 0.14); }
 .segmented button { border: 0; background: transparent; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 14px; color: inherit; display: inline-flex; align-items: center; gap: 4px; }
 .segmented button.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); font-weight: 600; }
@@ -156,7 +156,10 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .object-menu button.danger { color: #f47a6c; }
 .object-menu .sep { width: 1px; height: 20px; background: rgba(255, 255, 255, 0.15); }
 
-.cover-mark { position: absolute; transform-origin: center center; -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); background: color-mix(in srgb, var(--tint) calc(var(--tint-opacity) * 100%), transparent); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); transition: opacity 0.18s; cursor: pointer; touch-action: none; }
+.cover-mark { position: absolute; transform-origin: center center; overflow: hidden; background: var(--paper); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); transition: opacity 0.18s; cursor: pointer; touch-action: none; }
+.cover-mark .frost-inner { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; filter: blur(var(--blur)); pointer-events: none; }
+.cover-mark .frost-tint { position: absolute; inset: 0; background: var(--tint); opacity: var(--tint-opacity); pointer-events: none; }
+.cover-mark.static .frost-inner { display: none; }
 .cover-mark.band { border-radius: 999px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
 .cover-mark.postit { border-radius: 3px; }
 .cover-mark.revealed { opacity: 0; }
@@ -219,7 +222,7 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 
 /* Modal, eylem sayfası, diyalog */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
-.modal-card { background: var(--card); color: var(--text); border-radius: 18px; max-width: min(1320px, 100%); max-height: calc(100% - 20px); overflow: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); width: min(1000px, 100%); }
+.modal-card { overflow-x: hidden; background: var(--card); color: var(--text); border-radius: 18px; max-width: min(1320px, 100%); max-height: calc(100% - 20px); overflow: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); width: min(1000px, 100%); }
 .modal-card.wide { width: min(1320px, 100%); }
 .modal-card.dark { background: #1b1a22; color: rgba(255, 255, 255, 0.85); }
 .sheet { padding: 8px; width: min(420px, 100%); }
@@ -316,3 +319,34 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .settings-row:last-child { border-bottom: 0; }
 .settings-row .select { color: var(--muted); }
 .backup-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* Sayfa çevirme */
+.flip-layer { position: absolute; inset: 0; pointer-events: none; perspective: 2600px; z-index: 8; }
+.flip-under { position: absolute; }
+.flip-sheet { position: absolute; transform-style: preserve-3d; will-change: transform; }
+.flip-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; border-radius: 2px; background: var(--paper); }
+.flip-face.back { transform: rotateY(180deg); }
+.flip-face > .page-stack { box-shadow: none; }
+.flip-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, 0.35), transparent 40%); opacity: 0; pointer-events: none; }
+.flip-face.back .flip-shade { background: linear-gradient(270deg, rgba(0, 0, 0, 0.35), transparent 40%); }
+.page-stack.static, .page-stack.static * { pointer-events: none !important; }
+.layer-ink-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.editor-body { touch-action: none; }
+
+/* Klasörler */
+.library-layout { display: flex; gap: 28px; align-items: flex-start; }
+.folders { width: 230px; flex: none; position: sticky; top: 0; }
+.folders h3 { font-size: 12px; font-weight: 800; letter-spacing: 0.5px; color: var(--muted); margin: 16px 0 8px 12px; }
+.folder-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+.folder-item .count { margin-left: auto; color: var(--muted); font-size: 14px; }
+.folder-item.active { background: var(--accent); color: #fff; }
+.folder-item.active .count { color: rgba(255, 255, 255, 0.8); }
+.folder-item.add { color: var(--accent); font-weight: 600; }
+.library-main { flex: 1; min-width: 0; }
+@media (max-width: 900px) {
+  .library-layout { display: block; }
+  .folders { width: auto; position: static; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; scrollbar-width: none; }
+  .folders h3 { display: none; }
+  .folder-item { flex: none; background: rgba(0, 0, 0, 0.05); padding: 8px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
+  .folder-item .count { margin-left: 4px; }
+}

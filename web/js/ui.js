@@ -53,7 +53,8 @@ export function svgIcon(name, size = 20) {
     close: "M6 6l12 12M18 6L6 18",
     pdf: "M7 3h7l5 5v13H7zM14 3v5h5",
     hand: "M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V6a1.5 1.5 0 0 1 3 0v6M17 12a1.5 1.5 0 0 1 3 1v3a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-3l-3-5a1.5 1.5 0 0 1 2.5-1.5L8 14",
-    move: "M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4"
+    move: "M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4",
+    more: "M5 12h.01M12 12h.01M19 12h.01"
   };
   const d = paths[name] || paths.plus;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

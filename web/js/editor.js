@@ -2,10 +2,12 @@
 // Sayfa katmanları (alttan üste): şablon → nesneler (fotoğraf/çıkartma/post-it) → çizim → örtüler.
 // Kipler: çizim / buzlu kalem (örtü katmanı çizgiyi buzlu şerit yapar) / nesne düzenleme.
 import { store, TOOLS, uid } from "./store.js";
-import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, formatPt } from "./ui.js";
-import { renderBackground } from "./paper.js";
-import { InkCanvas } from "./ink.js";
+import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
+import { renderBackground, paintPaper, drawImageURL, pdfPageImage, PAPER_COLOR } from "./paper.js";
+import { InkCanvas, drawStroke, renderStrokesToDataURL } from "./ink.js";
 import { openAddPageSheet, shrinkImage } from "./addpage.js";
+import { createFlip } from "./flip.js";
+import { attachEditorGestures } from "./gestures.js";
 import { navigate } from "./app.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -47,6 +49,12 @@ export function renderEditor(root, notebookId, initialPageId) {
   let liveBand = null;
   const inks = new Map();
   let popover = null;
+  let fitScale = 1;
+  let zoom = 1;
+  let pan = { x: 0, y: 0 };
+  let flipDir = 0;
+  const snapshots = new Map();   // pageId -> { version, url, pending }
+  const pageVersions = new Map();
 
   const screen = h("div", { class: "screen screen-dark" });
   const topbar = h("div", { class: "topbar" });
@@ -57,6 +65,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   editorBody.append(stage, banner);
   screen.append(topbar, editorBody, bench);
   root.append(screen);
+  const flip = createFlip(stage, buildSheet);
 
   const nb = () => store.notebook(notebookId);
   const pages = () => nb().pages;
@@ -85,7 +94,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         iconButton("grid", "Sayfalar", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
         Object.assign(iconButton("undo", "Geri al", () => activeInk && activeInk.undo()), { disabled: !(activeInk && activeInk.canUndo) }),
         Object.assign(iconButton("redo", "İleri al", () => activeInk && activeInk.redo()), { disabled: !(activeInk && activeInk.canRedo) }),
-        iconButton("page", "Sayfa işlemleri", pageActionsMenu),
+        iconButton("more", "Sayfa işlemleri: çoğalt, taşı, sil", pageActionsMenu),
         iconButton("plus", "Sayfa ekle", () => openAddPageSheet(notebookId, insertAnchor(), (id) => selectPage(id))),
         h("div", { class: "segmented", role: "group", "aria-label": "Görünüm" },
           h("button", { type: "button", class: spreadMode() ? "" : "active", onClick: () => { store.setSetting("spreadMode", false); renderStage(); } }, "Tek"),
@@ -102,17 +111,25 @@ export function renderEditor(root, notebookId, initialPageId) {
     return spreadMode() ? Math.min(spreadLeft() + 1, pages().length - 1) : selectedIndex();
   }
 
-  function movePage(offset) {
+  function flipTargetId(dir) {
     const list = pages();
     let index;
     if (spreadMode()) {
-      index = Math.min(Math.max(spreadLeft() + offset * 2, 0), list.length - 1);
-      if (index === spreadLeft()) return;
+      index = Math.min(Math.max(spreadLeft() + dir * 2, 0), list.length - 1);
+      if (index === spreadLeft()) return null;
     } else {
-      index = selectedIndex() + offset;
-      if (index < 0 || index >= list.length) return;
+      index = selectedIndex() + dir;
+      if (index < 0 || index >= list.length) return null;
     }
-    selectPage(list[index].id);
+    return list[index].id;
+  }
+
+  function movePage(offset) {
+    const target = flipTargetId(offset);
+    if (!target) return;
+    if (editingObjects || zoom > 1 || flip.active || !flip.run(offset, (committed) => { if (committed) selectPage(target); })) {
+      selectPage(target);
+    }
   }
 
   function selectPage(id) {
@@ -175,15 +192,21 @@ export function renderEditor(root, notebookId, initialPageId) {
   }
 
   function fit() {
-    const spread = stage.firstElementChild;
+    const spread = stage.querySelector(".spread");
     if (!spread) return;
     const w = parseFloat(spread.style.width);
     const hgt = parseFloat(spread.style.height);
-    const scale = Math.max(0.1, Math.min((editorBody.clientWidth - 40) / w, (editorBody.clientHeight - 40) / hgt));
+    fitScale = Math.max(0.1, Math.min((editorBody.clientWidth - 40) / w, (editorBody.clientHeight - 40) / hgt));
     stage.style.width = w + "px";
     stage.style.height = hgt + "px";
-    stage.style.transform = `scale(${scale})`;
-    stage.dataset.scale = String(scale);
+    applyTransform();
+  }
+
+  /** Yakınlaştırma sayfanın ortasına göre; kaydırma ekran pikseli cinsinden. */
+  function applyTransform() {
+    if (zoom <= 1) pan = { x: 0, y: 0 };
+    stage.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${fitScale * zoom})`;
+    stage.dataset.scale = String(fitScale * zoom);
   }
 
   function emptyPage(size) {
@@ -207,15 +230,99 @@ export function renderEditor(root, notebookId, initialPageId) {
     const ink = new InkCanvas(canvas, page, {
       getTool: () => tool,
       pencilOnly: () => store.settings.pencilOnly,
+      pressureWidth: () => store.settings.pressureWidth,
       toPageCoords: (e) => toPageCoords(e, stack, page),
-      onChange: () => { activeInk = ink; store.mutate(notebookId, () => {}); renderTopbar(); }
+      neighborFor: (dir) => {
+        if (!spreadMode()) return null;
+        const list = pages();
+        const index = list.findIndex((p) => p.id === page.id);
+        const left = index - (index % 2);
+        const otherIndex = index + dir;
+        if (otherIndex < left || otherIndex > left + 1 || !list[otherIndex]) return null;
+        const other = list[otherIndex];
+        const ink = inks.get(other.id);
+        if (!ink) return null;
+        return { ink, offset: dir === 1 ? -page.size.w : other.size.w };
+      },
+      onChange: () => { activeInk = ink; store.mutate(notebookId, () => {}); renderTopbar(); invalidateSnapshot(page); refreshFrost(stack, page); }
     });
     inks.set(page.id, ink);
-    canvas.addEventListener("pointerdown", () => { activeInk = ink; if (selectedPageId !== page.id && !spreadMode()) selectedPageId = page.id; renderTopbar(); });
+    canvas.addEventListener("pointerdown", () => {
+      activeInk = ink;
+      if (selectedPageId !== page.id) { selectedPageId = page.id; history.replaceState(null, "", `#/n/${notebookId}/p/${page.id}`); }
+      renderTopbar();
+    });
+    // Çift sayfada örtü/nesne katmanına dokununca da o sayfa "seçili" olur (post-it oraya gider).
+    stack.addEventListener("pointerdown", () => { if (selectedPageId !== page.id) { selectedPageId = page.id; renderTopbar(); } }, true);
     renderObjects(objectsLayer, page, stack);
     renderCovers(coversLayer, page, stack);
     stack._layers = { objectsLayer, coversLayer, canvas };
+    stack._pageId = page.id;
     return stack;
+  }
+
+  /** Etkileşimsiz sayfa kopyası: sayfa çevirme yaprağı için. */
+  function staticPage(page) {
+    const stack = h("div", { class: "page-stack static", style: { width: page.size.w + "px", height: page.size.h + "px" } });
+    const bg = h("div", { class: "page-bg" });
+    renderBackground(bg, page);
+    const objectsLayer = h("div", { class: "layer-objects" });
+    const wasEditing = editingObjects;
+    editingObjects = false;
+    renderObjects(objectsLayer, page, stack);
+    editingObjects = wasEditing;
+    const ink = h("img", { class: "layer-ink-img", alt: "", draggable: "false" });
+    if (page.strokes.length) ink.src = renderStrokesToDataURL(page, page.size.w * 2);
+    const coversLayer = h("div", { class: "layer-covers static" });
+    for (const cover of page.covers) {
+      const el = h("div", { class: `cover-mark static ${cover.style === "band" ? "band" : "postit"}`, style: { "--tint": cover.tint, "--tint-opacity": String(cover.tintOpacity), "--blur": cover.blur + "px" } });
+      el.append(h("div", { class: "frost-tint" }));
+      placeItem(el, cover);
+      coversLayer.append(el);
+    }
+    stack.append(bg, objectsLayer, ink, coversLayer);
+    return stack;
+  }
+
+  function paperFace(size) {
+    return h("div", { style: { width: size.w + "px", height: size.h + "px", background: PAPER_COLOR } });
+  }
+
+  /** Çevrilecek yaprağı kurar (docs/tasarim/03-KapakAcilis.png ruhunda). dir: 1 ileri, -1 geri. */
+  function buildSheet(dir) {
+    const list = pages();
+    if (spreadMode()) {
+      const left = spreadLeft();
+      if (dir === 1) {
+        const curRight = list[left + 1];
+        const nextLeft = list[left + 2];
+        const nextRight = list[left + 3];
+        if (!curRight || !nextLeft) return null;
+        const leftW = list[left].size.w;
+        return { x: leftW, y: 0, width: curRight.size.w, height: curRight.size.h, origin: "left",
+          front: staticPage(curRight), back: staticPage(nextLeft),
+          under: nextRight ? staticPage(nextRight) : paperFace(curRight.size), underX: leftW, underY: 0, startAngle: 0, endAngle: -180 };
+      }
+      const curLeft = list[left];
+      const prevLeft = list[left - 2];
+      const prevRight = list[left - 1];
+      if (!curLeft || !prevLeft) return null;
+      return { x: 0, y: 0, width: curLeft.size.w, height: curLeft.size.h, origin: "right",
+        front: staticPage(curLeft), back: staticPage(prevRight),
+        under: staticPage(prevLeft), underX: 0, underY: 0, startAngle: 0, endAngle: 180 };
+    }
+    const index = selectedIndex();
+    const current = list[index];
+    if (dir === 1) {
+      const next = list[index + 1];
+      if (!next) return null;
+      return { x: 0, y: 0, width: current.size.w, height: current.size.h, origin: "left",
+        front: staticPage(current), back: paperFace(current.size), under: staticPage(next), underX: 0, underY: 0, startAngle: 0, endAngle: -180 };
+    }
+    const prev = list[index - 1];
+    if (!prev) return null;
+    return { x: 0, y: 0, width: prev.size.w, height: prev.size.h, origin: "left",
+      front: staticPage(prev), back: paperFace(prev.size), under: null, startAngle: -180, endAngle: 0 };
   }
 
   function refreshLayers() {
@@ -277,6 +384,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         makeTransformable(el, object, stack, page, (rect, rotation) => {
           store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
           placeItem(el, object);
+          touchPage(page);
         }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); });
         if (object.id === selectedObjectId) {
           addHandles(el);
@@ -285,7 +393,7 @@ export function renderEditor(root, notebookId, initialPageId) {
             duplicate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (!o) return; const copy = structuredClone(o); copy.id = uid(); copy.rect = { ...o.rect, x: o.rect.x + 24, y: o.rect.y + 24 }; copy.z = maxZ(p) + 1; p.objects.push(copy); selectedObjectId = copy.id; }),
             front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
             remove: () => { store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); }); selectedObjectId = null; store.removeUnreferencedAssets(); }
-          }, () => { renderObjects(layer, page, stack); renderBanner(); }));
+          }, () => { touchPage(page); renderObjects(layer, page, stack); renderBanner(); }));
         }
       }
       layer.append(el);
@@ -297,6 +405,66 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   function maxZ(page) {
     return page.objects.reduce((m, o) => Math.max(m, o.z || 0), 0);
+  }
+
+  // ---------- sayfa anlık görüntüsü (buzlu örtülerin altındaki bulanık resim) ----------
+
+  function invalidateSnapshot(page) {
+    pageVersions.set(page.id, (pageVersions.get(page.id) || 0) + 1);
+  }
+
+  /** Sayfayı (şablon + nesneler + çizim) tek görsele çevirir; örtüler bu görselin bulanık kesitini gösterir. */
+  async function pageSnapshot(page) {
+    const version = pageVersions.get(page.id) || 0;
+    const cached = snapshots.get(page.id);
+    if (cached && cached.version === version) return cached.url;
+    if (cached && cached.pending && cached.pendingVersion === version) return cached.pending;
+    const pending = (async () => {
+      const { w, h } = page.size;
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      let drewBackground = false;
+      if (page.pdf) {
+        const url = await pdfPageImage(page.pdf, 800);
+        if (url) drewBackground = await drawImageURL(ctx, url, 0, 0, w, h);
+      } else if (page.templateAsset) {
+        const url = await store.assetURL(page.templateAsset);
+        if (url) drewBackground = await drawImageURL(ctx, url, 0, 0, w, h);
+      }
+      if (!drewBackground) paintPaper(ctx, page.pdf || page.templateAsset ? "blank" : page.paper, w, h);
+      for (const object of page.objects.slice().sort((a, b) => a.z - b.z)) {
+        ctx.save();
+        ctx.translate(object.rect.x + object.rect.w / 2, object.rect.y + object.rect.h / 2);
+        ctx.rotate((object.rotation || 0) * Math.PI / 180);
+        if (object.kind === "postit") {
+          ctx.fillStyle = object.tint || "#FFE566";
+          ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+        } else {
+          const url = await store.assetURL(object.asset);
+          if (object.kind === "photo") {
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+          }
+          if (url) await drawImageURL(ctx, url, -object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+        }
+        ctx.restore();
+      }
+      for (const stroke of page.strokes) drawStroke(ctx, stroke);
+      const url = canvas.toDataURL("image/jpeg", 0.85);
+      snapshots.set(page.id, { version, url });
+      return url;
+    })();
+    snapshots.set(page.id, { version: -1, url: cached ? cached.url : null, pending, pendingVersion: version });
+    return pending;
+  }
+
+  function refreshFrost(stack, page) {
+    if (!page.covers.length) return;
+    pageSnapshot(page).then((url) => {
+      for (const inner of stack.querySelectorAll(".frost-inner")) inner.style.backgroundImage = `url("${url}")`;
+    });
   }
 
   function placeItem(el, item) {
@@ -374,6 +542,13 @@ export function renderEditor(root, notebookId, initialPageId) {
     return menu;
   }
 
+  function touchPage(page) {
+    invalidateSnapshot(page);
+    for (const stack of stage.querySelectorAll(".page-stack")) {
+      if (stack._pageId === page.id) refreshFrost(stack, page);
+    }
+  }
+
   function centeredRect(page, w, hh) {
     const count = page.objects.length + page.covers.length;
     const shift = (count % 5) * 18;
@@ -394,6 +569,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       if (hh > maxH) { w = maxH * w / hh; hh = maxH; }
       const object = { id: uid(), kind, asset, rect: centeredRect(page, w, hh), rotation: 0, z: maxZ(page) + 1 };
       store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
+      touchPage(page);
       selectedObjectId = object.id;
       setEditing(true);
     } catch (error) {
@@ -405,6 +581,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     const page = selectedPage();
     const object = { id: uid(), kind: "postit", tint, rect: centeredRect(page, 200, 170), rotation: 0, z: maxZ(page) + 1 };
     store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
+    touchPage(page);
     selectedObjectId = object.id;
     setEditing(true);
   }
@@ -423,14 +600,17 @@ export function renderEditor(root, notebookId, initialPageId) {
     layer.replaceChildren();
     layer.classList.toggle("capture", isFrosted() && !editingObjects);
     for (const cover of page.covers) {
-      const el = h("div", { class: `cover-mark ${cover.style === "band" ? "band" : "postit"}` + (cover.id === selectedObjectId && editingObjects ? " selected" : ""),
+      const el = h("div", { class: `cover-mark ${cover.style === "band" ? "band" : "postit"}` + (cover.id === selectedObjectId && editingObjects ? " selected" : "") + (layer.classList.contains("static") ? " static" : ""),
         style: { "--tint": cover.tint, "--tint-opacity": String(cover.tintOpacity), "--blur": cover.blur + "px" },
         role: "button", "aria-label": "Cevap gizli, açmak için dokun" });
+      el.append(frostInner(cover, page), h("div", { class: "frost-tint" }));
       placeItem(el, cover);
       if (editingObjects) {
         makeTransformable(el, cover, stack, page, (rect, rotation) => {
           store.updatePage(notebookId, page.id, (p) => { const c = p.covers.find((x) => x.id === cover.id); if (c) { c.rect = rect; c.rotation = rotation; } });
           placeItem(el, cover);
+          const inner = el.querySelector(".frost-inner");
+          if (inner) inner.replaceWith(frostInner(cover, page));
         }, () => { selectedObjectId = cover.id; renderCovers(layer, page, stack); renderObjects(stack._layers.objectsLayer, page, stack); renderBanner(); });
         if (cover.id === selectedObjectId) {
           addHandles(el);
@@ -442,17 +622,47 @@ export function renderEditor(root, notebookId, initialPageId) {
           }, () => { renderCovers(layer, page, stack); renderBanner(); }));
         }
       } else {
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (!cover.revealOnTap) return;
-          el.classList.toggle("revealed");
-          el.setAttribute("aria-label", el.classList.contains("revealed") ? "Cevap açık" : "Cevap gizli, açmak için dokun");
+        pressable(el, {
+          onTap: () => {
+            if (!cover.revealOnTap) return;
+            el.classList.toggle("revealed");
+            el.setAttribute("aria-label", el.classList.contains("revealed") ? "Cevap açık" : "Cevap gizli, açmak için dokun");
+          },
+          onLong: () => coverMenu(cover, page)
         });
+        el.addEventListener("pointerdown", (e) => e.stopPropagation());
       }
       layer.append(el);
     }
+    if (page.covers.length) refreshFrost(stack, page);
     if (!editingObjects) attachBandGesture(layer, page, stack);
     else layer.addEventListener("pointerdown", (e) => { if (e.target === layer) { selectedObjectId = null; renderCovers(layer, page, stack); renderObjects(stack._layers.objectsLayer, page, stack); renderBanner(); } });
+  }
+
+  /** Örtünün altındaki bulanık sayfa kesiti: sayfa görseli örtünün içine ters kaydırılıp ters döndürülür. */
+  function frostInner(cover, page) {
+    const inner = h("div", { class: "frost-inner" });
+    inner.style.width = page.size.w + "px";
+    inner.style.height = page.size.h + "px";
+    inner.style.left = -cover.rect.x + "px";
+    inner.style.top = -cover.rect.y + "px";
+    inner.style.transformOrigin = `${cover.rect.x + cover.rect.w / 2}px ${cover.rect.y + cover.rect.h / 2}px`;
+    inner.style.transform = `rotate(${-(cover.rotation || 0)}deg)`;
+    const cached = snapshots.get(page.id);
+    if (cached && cached.url) inner.style.backgroundImage = `url("${cached.url}")`;
+    else inner.style.backgroundColor = PAPER_COLOR;
+    return inner;
+  }
+
+  /** Uzun basınca: örtüyü sil ya da düzenleme kipine geç. */
+  function coverMenu(cover, page) {
+    actionSheet(cover.style === "band" ? "Buzlu şerit" : "Buzlu post-it", [
+      { title: "Taşı / Düzenle", onSelect: () => { selectedObjectId = cover.id; setEditing(true); } },
+      { title: "Sil", destructive: true, onSelect: () => {
+        store.updatePage(notebookId, page.id, (p) => { p.covers = p.covers.filter((c) => c.id !== cover.id); });
+        renderStage();
+      } }
+    ]);
   }
 
   function attachBandGesture(layer, page, stack) {
@@ -669,7 +879,11 @@ export function renderEditor(root, notebookId, initialPageId) {
           h("div", { class: "note", style: { color: "rgba(255,255,255,0.5)" } }, "Eklenen çıkartma sayfaya yerleşir; sürükleyip döndürebilirsin.")
         );
       } else {
-        body.replaceChildren(h("div", { class: "note", style: { color: "rgba(255,255,255,0.6)", marginTop: "30px" } }, tab === "stickers" ? "Hazır çıkartmalar sonraki sürümde gelecek. Kendi çıkartmalarını \"Çıkartmalarım\" sekmesinden ekleyebilirsin." : "Hazır bantlar sonraki sürümde gelecek."));
+        body.replaceChildren(h("div", { class: "info-box", style: { marginTop: "30px", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "40px 20px" } },
+          svgIcon(tab === "stickers" ? "star" : "note", 36),
+          h("div", { style: { fontSize: "17px", fontWeight: "600", color: "#fff" } }, tab === "stickers" ? "Hazır çıkartmalar yakında" : "Hazır bantlar yakında"),
+          h("div", {}, tab === "stickers" ? "Şimdilik kendi görsellerini \"Çıkartmalarım\" sekmesinden ekleyebilirsin." : "Şimdilik bant yerine düz post-it ya da kendi görselini kullanabilirsin."),
+          h("button", { class: "btn primary small", type: "button", onClick: () => { tab = "mine"; build(); } }, "Çıkartmalarım'a git")));
       }
     };
     build();
@@ -690,6 +904,23 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   const resizeObserver = new ResizeObserver(() => fit());
   resizeObserver.observe(editorBody);
+  attachEditorGestures(editorBody, {
+    acceptsMouse: (e) => !e.target.closest(".page-stack") && !e.target.closest(".mode-banner"),
+    getZoom: () => zoom,
+    getPan: () => pan,
+    setZoom: (z, p) => { zoom = z; pan = p; applyTransform(); },
+    beginFlip: (dir) => {
+      if (editingObjects || flip.active || !flipTargetId(dir)) return false;
+      flipDir = dir;
+      return flip.begin(dir);
+    },
+    flipWidth: () => flip.sheetWidth * fitScale * zoom,
+    updateFlip: (progress) => flip.update(progress),
+    endFlip: (commit) => {
+      const target = flipTargetId(flipDir);
+      flip.finish(commit, (committed) => { if (committed && target) selectPage(target); });
+    }
+  });
   const onSettings = (e) => { if (e.detail && (e.detail.key === "pens" || e.detail.key === "palette" || e.detail.key === "defaultPenId")) renderBenchKeepPopover(); };
   store.addEventListener("settings", onSettings);
   const onKey = (e) => {
@@ -707,6 +938,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       store.removeEventListener("settings", onSettings);
       window.removeEventListener("keydown", onKey);
       closePopover();
+      flip.cancel();
       flushInk();
     }
   };

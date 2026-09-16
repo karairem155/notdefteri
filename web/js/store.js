@@ -60,8 +60,10 @@ const DEFAULT_SETTINGS = {
   newPageTemplate: null,     // null = son kullanılan; "builtin:ruled" | "custom:<id>"
   lastUsedTemplate: "builtin:ruled",
   pencilOnly: true,
+  pressureWidth: false,      // Apple Pencil basıncı kalınlığa yansısın mı
   spreadMode: false,
   libraryShelf: true,
+  folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
 };
 
@@ -94,6 +96,7 @@ export function newNotebook(title, cover) {
     isFavourite: false,
     isTrashed: false,
     cover: cover || null,
+    folder: null,
     pages: [newPage()]
   };
 }
