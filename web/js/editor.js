@@ -418,7 +418,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     el.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olay */ }
       session = { id: e.pointerId, start: toPageCoords(e, stack, page), base: { x: ruler.x, y: ruler.y } };
     });
     el.addEventListener("pointermove", (e) => { if (session && e.pointerId === session.id) { e.preventDefault(); onMove(toPageCoords(e, stack, page), session); } });
@@ -588,6 +588,7 @@ export function renderEditor(root, notebookId, initialPageId) {
           addHandles(el);
           layer.append(objectMenu(object, page, {
             edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
+            cut: (object.kind === "photo" || object.kind === "sticker") ? () => startCut(object, page, stack) : null,
             font: object.kind === "text" ? () => textStyleMenu(object, page) : null,
             rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
             duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
@@ -708,7 +709,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       const start = toPageCoords(e, stack, page);
       const center = { x: item.rect.x + item.rect.w / 2, y: item.rect.y + item.rect.h / 2 };
       session = { pointerId: e.pointerId, handle, start, center, rect: { ...item.rect }, rotation: item.rotation || 0, moved: false };
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olay */ }
     });
     el.addEventListener("pointermove", (e) => {
       if (!session || e.pointerId !== session.pointerId) return;
@@ -750,6 +751,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     const btn = (title, icon, fn, cls = "") => h("button", { type: "button", class: cls, onTap: (e) => { e.stopPropagation(); fn(); rerender(); } }, svgIcon(icon, 16), title);
     const menu = h("div", { class: "object-menu", style: { left: x + "px", top: y + "px" } },
       actions.edit && btn("Düzenle", "pen", actions.edit), actions.edit && h("div", { class: "sep" }),
+      actions.cut && btn("Kes", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
       actions.font && btn("Yazı tipi", "note", actions.font), actions.font && h("div", { class: "sep" }),
       btn("Döndür", "rotate", actions.rotate), h("div", { class: "sep" }),
       btn("Kopyala", "copy", actions.duplicate), h("div", { class: "sep" }),
@@ -764,6 +766,123 @@ export function renderEditor(root, notebookId, initialPageId) {
     for (const stack of stage.querySelectorAll(".page-stack")) {
       if (stack._pageId === page.id) refreshFrost(stack, page);
     }
+  }
+
+  // ---------- makas: fotoğrafı kesip beyaz kenarlı çıkartma yapma ----------
+
+  function startCut(object, page, stack) {
+    const layer = h("div", { class: "layer-cut" });
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${page.size.w} ${page.size.h}`);
+    svg.setAttribute("width", page.size.w);
+    svg.setAttribute("height", page.size.h);
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("class", "cut-path");
+    svg.append(path);
+    layer.append(svg);
+    stack.append(layer);
+    banner.hidden = false;
+    banner.replaceChildren(svgIcon("scissors", 16), h("span", {}, "Kes: fotoğrafın üstünde kesmek istediğin şeklin çevresini çiz"),
+      h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.15)", color: "#fff" }, onTap: () => { layer.remove(); renderBanner(); } }, "Vazgeç"));
+    let points = null;
+    layer.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      try { layer.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olay */ }
+      const p = toPageCoords(e, stack, page);
+      points = [[p.x, p.y]];
+    });
+    layer.addEventListener("pointermove", (e) => {
+      if (!points) return;
+      const p = toPageCoords(e, stack, page);
+      const last = points[points.length - 1];
+      if (Math.hypot(p.x - last[0], p.y - last[1]) < 2) return;
+      points.push([p.x, p.y]);
+      path.setAttribute("d", "M" + points.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z");
+    });
+    const end = async () => {
+      if (!points) return;
+      const pts = points;
+      points = null;
+      layer.remove();
+      renderBanner();
+      if (pts.length < 8) { toast("Kesmek için kapalı bir şekil çiz."); return; }
+      try {
+        await cutObject(object, page, pts);
+      } catch (error) {
+        toast("Kesilemedi: " + error.message);
+      }
+    };
+    layer.addEventListener("pointerup", end);
+    layer.addEventListener("pointercancel", end);
+  }
+
+  /** Çizilen yol fotoğrafın yerel koordinatına çevrilir, görsel kırpılır, beyaz kenar eklenir, yeni çıkartma olur. */
+  async function cutObject(object, page, pagePoints) {
+    const url = await store.assetURL(object.asset);
+    if (!url) throw new Error("görsel bulunamadı");
+    const image = await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = () => reject(new Error("görsel yüklenemedi")); im.src = url; });
+    const cx = object.rect.x + object.rect.w / 2;
+    const cy = object.rect.y + object.rect.h / 2;
+    const rad = -(object.rotation || 0) * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    // Sayfa → nesne yerel (döndürülmemiş, sol üst 0,0)
+    const local = pagePoints.map(([x, y]) => {
+      const dx = x - cx, dy = y - cy;
+      return [dx * cos - dy * sin + object.rect.w / 2, dx * sin + dy * cos + object.rect.h / 2];
+    });
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [x, y] of local) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+    const border = 10;
+    const pad = border + 4;
+    const bw = maxX - minX + pad * 2;
+    const bh = maxY - minY + pad * 2;
+    if (bw < 12 || bh < 12) throw new Error("çok küçük");
+    // Görsel "cover" ile yerleşir: ölçek ve kayma
+    const isPhoto = object.kind === "photo";
+    const inset = isPhoto ? 6 : 0;   // fotoğrafın beyaz çerçevesi
+    const areaW = object.rect.w - inset * 2;
+    const areaH = object.rect.h - inset * 2;
+    const scale = Math.max(areaW / image.width, areaH / image.height);
+    const drawW = image.width * scale;
+    const drawH = image.height * scale;
+    const offX = inset + (areaW - drawW) / 2;
+    const offY = inset + (areaH - drawH) / 2;
+    const pixelScale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bw * pixelScale);
+    canvas.height = Math.round(bh * pixelScale);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(pixelScale, pixelScale);
+    ctx.translate(-minX + pad, -minY + pad);
+    const trace = () => { ctx.beginPath(); ctx.moveTo(local[0][0], local[0][1]); for (const [x, y] of local) ctx.lineTo(x, y); ctx.closePath(); };
+    // Beyaz çıkartma kenarı
+    trace();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = border * 2;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    // Kırpılmış görsel
+    ctx.save();
+    trace();
+    ctx.clip();
+    ctx.drawImage(image, offX, offY, drawW, drawH);
+    ctx.restore();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    const asset = await store.importAsset(blob, "cutout.png");
+    // Yeni nesne: yerel kutunun merkezini sayfa koordinatına geri döndür
+    const lcx = minX - pad + bw / 2 - object.rect.w / 2;
+    const lcy = minY - pad + bh / 2 - object.rect.h / 2;
+    const rad2 = (object.rotation || 0) * Math.PI / 180;
+    const pcx = cx + lcx * Math.cos(rad2) - lcy * Math.sin(rad2);
+    const pcy = cy + lcx * Math.sin(rad2) + lcy * Math.cos(rad2);
+    const sticker = { id: uid(), kind: "sticker", asset, rect: { x: pcx - bw / 2 + 18, y: pcy - bh / 2 + 18, w: bw, h: bh }, rotation: object.rotation || 0, z: maxZ(page) + 1 };
+    store.updatePage(notebookId, page.id, (p) => { p.objects.push(sticker); });
+    touchPage(page);
+    selectedObjectId = sticker.id;
+    setEditing(true);
+    toast("Çıkartma kesildi; istersen fotoğrafı silebilirsin");
   }
 
   function centeredRect(page, w, hh) {
@@ -983,7 +1102,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       if (!isFrosted() || editingObjects || e.target !== layer) return;
       if (e.pointerType === "touch" && store.settings.pencilOnly) return;
       e.preventDefault();
-      layer.setPointerCapture(e.pointerId);
+      try { layer.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olay */ }
       session = { pointerId: e.pointerId, start: toPageCoords(e, stack, page) };
       liveBand = h("div", { class: "live-band" });
       layer.append(liveBand);

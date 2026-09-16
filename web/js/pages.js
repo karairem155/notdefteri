@@ -64,7 +64,7 @@ export function renderPages(root, notebookId) {
         timer = null;
         dragging = true;
         el.classList.add("dragging");
-        el.setPointerCapture(e.pointerId);
+        try { el.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olay */ }
         drag = { pageId: page.id };
       }, 380);
     });
