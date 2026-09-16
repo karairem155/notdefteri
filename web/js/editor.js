@@ -145,9 +145,13 @@ export function renderEditor(root, notebookId, initialPageId) {
     const strip = h("div", { class: "fav-strip", role: "group", "aria-label": "Favori kalemler" });
     for (const pen of store.settings.pens) {
       const selected = penMatches(pen);
-      strip.append(h("button", { class: `fav-mini ${pen.tool}` + (selected ? " selected" : ""), type: "button", style: { "--c": pen.color },
-        "aria-label": pen.name, "aria-pressed": String(selected), title: pen.name,
-        onTap: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; lastPen = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } }));
+      const mini = h("button", { class: `fav-mini ${pen.tool}` + (selected ? " selected" : ""), type: "button", style: { "--c": pen.color },
+        "aria-label": pen.name + ", uzun bas: düzenle", "aria-pressed": String(selected), title: pen.name });
+      pressable(mini, {
+        onTap: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; lastPen = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } },
+        onLong: () => penMenu(pen)
+      });
+      strip.append(mini);
     }
     return strip;
   }
@@ -1142,7 +1146,8 @@ export function renderEditor(root, notebookId, initialPageId) {
     const palette = h("div", { class: "palette" });
     for (const hex of s.palette) {
       const selected = isInking() && hex.toUpperCase() === tool.color.toUpperCase();
-      palette.append(h("button", { class: "swatch" + (selected ? " selected" : ""), type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex + (selected ? ", tekrar dokun: kalem ayarları" : ""),
+      const swatch = h("button", { class: "swatch" + (selected ? " selected" : ""), type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex + (selected ? ", tekrar dokun: kalem ayarları" : "") + ", uzun bas: düzenle" });
+      pressable(swatch, {
         onTap: () => {
           if (selected) { openPenPanel(); return; }   // seçili renge tekrar dokununca kalem paneli
           if (!isInking()) tool.tool = "pen";
@@ -1150,7 +1155,10 @@ export function renderEditor(root, notebookId, initialPageId) {
           renderBench();
           renderTopbar();
           applyModes();
-        } }));
+        },
+        onLong: () => paletteColorMenu(hex)
+      });
+      palette.append(swatch);
     }
     const hasSelectedColor = s.palette.some((hex) => isInking() && hex.toUpperCase() === tool.color.toUpperCase());
     const collapsed = !!s.benchCollapsed;
@@ -1164,9 +1172,13 @@ export function renderEditor(root, notebookId, initialPageId) {
     const pensRow = h("div", { class: "pens-row" });
     for (const pen of s.pens) {
       const selected = penMatches(pen);
-      pensRow.append(h("button", { class: "pen-btn" + (selected ? " selected" : ""), type: "button", "aria-label": pen.name, "aria-pressed": String(selected),
-        onTap: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; lastPen = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } },
-        penIllustration(pen), h("span", { class: "tool-caption" }, pen.name)));
+      const penBtn = h("button", { class: "pen-btn" + (selected ? " selected" : ""), type: "button", "aria-label": pen.name + ", uzun bas: düzenle", "aria-pressed": String(selected) },
+        penIllustration(pen), h("span", { class: "tool-caption" }, pen.name));
+      pressable(penBtn, {
+        onTap: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; lastPen = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } },
+        onLong: () => penMenu(pen)
+      });
+      pensRow.append(penBtn);
     }
     pensRow.append(h("div", { class: "bench-sep" }));
     pensRow.append(h("button", { class: "tool-btn" + (tool.tool === "eraser" ? " selected" : ""), type: "button", "aria-label": "Silgi", "aria-pressed": String(tool.tool === "eraser"),
@@ -1185,6 +1197,35 @@ export function renderEditor(root, notebookId, initialPageId) {
     bench.classList.toggle("collapsed", collapsed);
     bench.replaceChildren(paletteRow, pensRow);
     if (popover) bench.append(popover);
+  }
+
+  /** Paletteki bir rengi değiştir, taşı, çıkar. */
+  function paletteColorMenu(hex) {
+    const s = store.settings;
+    const index = s.palette.findIndex((c) => c.toUpperCase() === hex.toUpperCase());
+    const picker = h("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(hex) ? hex : "#000000", "aria-label": "Yeni renk",
+      onChange: (e) => { store.replacePaletteColor(hex, e.target.value); if (tool.color.toUpperCase() === hex.toUpperCase()) tool.color = e.target.value.toUpperCase(); renderBench(); renderTopbar(); } });
+    picker.style.position = "fixed"; picker.style.opacity = "0"; picker.style.pointerEvents = "none";
+    actionSheet("Renk " + hex, [
+      { title: "Rengi Değiştir...", onSelect: () => { document.body.append(picker); picker.click(); setTimeout(() => picker.remove(), 60000); } },
+      { title: "Sola Taşı", disabled: index <= 0, onSelect: () => { store.movePaletteColor(hex, -1); renderBench(); } },
+      { title: "Sağa Taşı", disabled: index >= s.palette.length - 1, onSelect: () => { store.movePaletteColor(hex, 1); renderBench(); } },
+      { title: "Paletten Çıkar", destructive: true, disabled: s.palette.length <= 1, onSelect: () => { store.removePaletteColor(hex); renderBench(); } }
+    ]);
+  }
+
+  /** Favori kalemi düzenle: ayarlar, ad, sıra, varsayılan, sil. */
+  function penMenu(pen) {
+    const s = store.settings;
+    const index = s.pens.findIndex((p) => p.id === pen.id);
+    actionSheet(pen.name, [
+      { title: "Kalem Ayarları", onSelect: () => { tool = { tool: pen.tool, color: pen.color, width: pen.width }; lastPen = { ...tool }; renderBench(); renderTopbar(); applyModes(); openPenPanel(); } },
+      { title: "Yeniden Adlandır", onSelect: () => promptDialog("Kalem adı", "Ad", pen.name, (name) => { store.updatePen(pen.id, { name }); renderBench(); renderTopbar(); }) },
+      { title: "Sola Taşı", disabled: index <= 0, onSelect: () => { store.movePen(pen.id, -1); renderBench(); renderTopbar(); } },
+      { title: "Sağa Taşı", disabled: index >= s.pens.length - 1, onSelect: () => { store.movePen(pen.id, 1); renderBench(); renderTopbar(); } },
+      { title: pen.id === s.defaultPenId ? "\u2713 Varsayılan kalem" : "Varsayılan Yap", onSelect: () => { store.setSetting("defaultPenId", pen.id); renderBench(); } },
+      { title: "Sil", destructive: true, disabled: s.pens.length <= 1, onSelect: () => { store.removePen(pen.id); renderBench(); renderTopbar(); } }
+    ]);
   }
 
   function toolButton(name, icon, label, caption) {
