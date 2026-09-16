@@ -90,8 +90,10 @@ export function renderEditor(root, notebookId, initialPageId) {
     const page = selectedPage();
     topbar.replaceChildren(
       h("div", { class: "topbar-side" },
-        h("button", { class: "back-btn", type: "button", onClick: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 20), "Defterlerim")),
-      h("div", { class: "topbar-title" }, page.pdf && h("span", { class: "badge-pdf" }, "PDF"), nb().title),
+        h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onClick: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 20)),
+        page.pdf && h("span", { class: "badge-pdf" }, "PDF"),
+        h("span", { class: "topbar-notebook" }, nb().title)),
+      h("div", { class: "topbar-title" }, favoriteStrip()),
       h("div", { class: "topbar-side right" },
         iconButton("grid", "Sayfalar", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
         Object.assign(iconButton("undo", "Geri al", () => activeInk && activeInk.undo()), { disabled: !(activeInk && activeInk.canUndo) }),
@@ -107,6 +109,18 @@ export function renderEditor(root, notebookId, initialPageId) {
           Object.assign(iconButton("forward", "Sonraki sayfa", () => movePage(1)), { disabled: !canForward }))
       )
     );
+  }
+
+  /** Üst çubuktaki favori kalemler: dokununca seçilir, seçiliye tekrar dokununca kalem paneli açılır. */
+  function favoriteStrip() {
+    const strip = h("div", { class: "fav-strip", role: "group", "aria-label": "Favori kalemler" });
+    for (const pen of store.settings.pens) {
+      const selected = penMatches(pen);
+      strip.append(h("button", { class: `fav-mini ${pen.tool}` + (selected ? " selected" : ""), type: "button", style: { "--c": pen.color },
+        "aria-label": pen.name, "aria-pressed": String(selected), title: pen.name,
+        onClick: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } }));
+    }
+    return strip;
   }
 
   function insertAnchor() {
@@ -832,7 +846,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     for (const pen of s.pens) {
       const selected = penMatches(pen);
       pensRow.append(h("button", { class: "pen-btn" + (selected ? " selected" : ""), type: "button", "aria-label": pen.name, "aria-pressed": String(selected),
-        onClick: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; clearSelections(); renderBench(); applyModes(); } } }, penIllustration(pen)));
+        onClick: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } }, penIllustration(pen)));
     }
     pensRow.append(h("div", { class: "bench-sep" }));
     pensRow.append(h("button", { class: "tool-btn" + (tool.tool === "eraser" ? " selected" : ""), type: "button", "aria-label": "Silgi", "aria-pressed": String(tool.tool === "eraser"),
@@ -851,7 +865,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   function toolButton(name, icon, label) {
     const selected = tool.tool === name;
     return h("button", { class: "tool-btn" + (selected ? " selected" : ""), type: "button", "aria-label": label, "aria-pressed": String(selected),
-      onClick: () => { tool.tool = name; clearSelections(); renderBench(); applyModes(); } }, icon);
+      onClick: () => { tool.tool = name; clearSelections(); renderBench(); renderTopbar(); applyModes(); } }, icon);
   }
 
   function clearSelections() {
