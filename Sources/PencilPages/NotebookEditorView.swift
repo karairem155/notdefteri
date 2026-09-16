@@ -26,6 +26,7 @@ struct NotebookEditorView: View {
     @State private var showingFrostedPanel = false
     @State private var showingStickerPanel = false
     @State private var showingAddPage = false
+    @State private var showingPages = false
     @State private var editingObjects = false
     @State private var selectedObjectID: UUID?
     @State private var importKind: PlacedObject.Kind = .photo
@@ -171,6 +172,14 @@ struct NotebookEditorView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    commitAllDrawings()
+                    showingPages = true
+                } label: {
+                    Image(systemName: "square.grid.2x2")
+                }
+                .accessibilityLabel("Sayfalar")
+
                 Button { activeCanvasActions.undo() } label: {
                     Image(systemName: "arrow.uturn.backward")
                 }
@@ -228,6 +237,9 @@ struct NotebookEditorView: View {
                 commitAllDrawings()
                 store.flushPendingSaves()
             }
+        }
+        .navigationDestination(isPresented: $showingPages) {
+            PagesGridView(store: store, templates: templates, notebookID: notebookID, selectedPageID: $selectedPageID)
         }
         .sheet(isPresented: $showingAddPage) {
             AddPageSheet(
@@ -858,30 +870,6 @@ struct NotebookEditorView: View {
 private struct ExportedNotebook: Identifiable {
     let id = UUID()
     let url: URL
-}
-
-private struct PageInkPreview: View {
-    let drawingData: Data
-    @State private var preview: UIImage?
-
-    var body: some View {
-        Group {
-            if let preview {
-                Image(uiImage: preview)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-            }
-        }
-        .task(id: drawingData) {
-            let data = drawingData
-            let renderedPreview = await Task.detached(priority: .utility) {
-                guard let drawing = try? PKDrawing(data: data) else { return nil as UIImage? }
-                return drawing.image(from: CGRect(x: 0, y: 0, width: 595, height: 842), scale: 0.06)
-            }.value
-            preview = renderedPreview
-        }
-    }
 }
 
 private struct NotebookShareSheet: UIViewControllerRepresentable {

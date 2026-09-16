@@ -100,6 +100,18 @@ final class NotebookStore: ObservableObject {
         }
     }
 
+    /// Sayfayı verilen sıraya taşır (sürükle-bırak için).
+    func movePage(in notebookID: UUID, pageID: UUID, toIndex destination: Int) {
+        guard let notebook = notebook(id: notebookID),
+              let index = notebook.pages.firstIndex(where: { $0.id == pageID }) else { return }
+        let target = min(max(destination, 0), notebook.pages.count - 1)
+        guard target != index else { return }
+        mutate(notebookID) { notebook in
+            let page = notebook.pages.remove(at: index)
+            notebook.pages.insert(page, at: target)
+        }
+    }
+
     @discardableResult
     func deletePage(in notebookID: UUID, pageID: UUID) -> Bool {
         guard let notebook = notebook(id: notebookID),
