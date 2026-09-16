@@ -430,3 +430,7 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .layer-text.active span { color: rgba(0, 0, 0, 0.001); }
 
 .icon-btn.active-toggle { background: rgba(255, 255, 255, 0.25); }
+
+/* Katlanan tezgah */
+.bench.collapsed .pens-row { display: none; }
+.bench-toggle { margin-left: 4px; }

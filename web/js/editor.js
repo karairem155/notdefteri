@@ -1026,10 +1026,12 @@ export function renderEditor(root, notebookId, initialPageId) {
         onTap: () => { if (!isInking()) tool.tool = "pen"; tool.color = hex; renderBench(); applyModes(); } }));
     }
     const hasSelectedColor = s.palette.some((hex) => isInking() && hex.toUpperCase() === tool.color.toUpperCase());
+    const collapsed = !!s.benchCollapsed;
     const paletteRow = h("div", { class: "palette-row" },
       Object.assign(iconButton("plus", "Seçili rengi palete ekle", () => { store.addPaletteColor(tool.color); renderBench(); }), { disabled: !isInking() || hasSelectedColor }),
       h("div", { class: "palette-scroll" }, palette),
-      Object.assign(iconButton("trash", "Seçili rengi paletten çıkar", () => { store.removePaletteColor(tool.color); renderBench(); }), { disabled: s.palette.length <= 1 || !hasSelectedColor })
+      Object.assign(iconButton("trash", "Seçili rengi paletten çıkar", () => { store.removePaletteColor(tool.color); renderBench(); }), { disabled: s.palette.length <= 1 || !hasSelectedColor }),
+      iconButton(collapsed ? "up" : "down", collapsed ? "Araçları göster" : "Araçları gizle", () => { store.setSetting("benchCollapsed", !collapsed); renderBench(); }, "bench-toggle")
     );
 
     const pensRow = h("div", { class: "pens-row" });
@@ -1053,6 +1055,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       pensRow.append(h("button", { class: "tool-btn", type: "button", "aria-label": "Yapıştır", onTap: pasteClipboard }, svgIcon("copy", 22), h("span", { class: "tool-caption" }, "Yapıştır")));
     }
 
+    bench.classList.toggle("collapsed", collapsed);
     bench.replaceChildren(paletteRow, pensRow);
     if (popover) bench.append(popover);
   }

@@ -68,6 +68,7 @@ const DEFAULT_SETTINGS = {
   spreadMode: false,
   libraryShelf: true,
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
+  benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
 };
 
