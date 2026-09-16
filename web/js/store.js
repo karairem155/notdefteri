@@ -23,6 +23,7 @@ export const TOOLS = {
   pencil: { title: "Kurşun Kalem" },
   highlighter: { title: "Fosforlu" },
   eraser: { title: "Silgi" },
+  lasso: { title: "Kement" },
   frosted: { title: "Buzlu Kalem" }
 };
 
@@ -61,6 +62,9 @@ const DEFAULT_SETTINGS = {
   lastUsedTemplate: "builtin:ruled",
   pencilOnly: true,
   pressureWidth: false,      // Apple Pencil basıncı kalınlığa yansısın mı
+  fingerAction: "navigate",  // parmak: "navigate" sayfa çevirir/kaydırır, "draw" çizer, "erase" siler
+  eraser: { mode: "stroke", size: 12 },   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
+  shapeRecognition: true,    // çizgiyi bitirmeden sabit tutunca şekle dönüşsün
   spreadMode: false,
   libraryShelf: true,
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
@@ -117,6 +121,8 @@ class Store extends EventTarget {
     for (const row of settingsRows) {
       if (row.key in DEFAULT_SETTINGS) this.settings[row.key] = row.value;
     }
+    // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
+    if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {
       const first = newNotebook("İlk Defterim", this.settings.defaultCover);
       this.notebooks.push(first);

@@ -54,7 +54,9 @@ export function svgIcon(name, size = 20) {
     pdf: "M7 3h7l5 5v13H7zM14 3v5h5",
     hand: "M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V6a1.5 1.5 0 0 1 3 0v6M17 12a1.5 1.5 0 0 1 3 1v3a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-3l-3-5a1.5 1.5 0 0 1 2.5-1.5L8 14",
     move: "M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4",
-    more: "M5 12h.01M12 12h.01M19 12h.01"
+    more: "M5 12h.01M12 12h.01M19 12h.01",
+    lasso: "M12 4c4.4 0 8 2 8 4.5S16.4 13 12 13 4 11 4 8.5 7.6 4 12 4zM8 13.5c-1 2-1 4 0 6M9 19.5a1.5 1.5 0 1 0 0 .01",
+    ruler: "M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2"
   };
   const d = paths[name] || paths.plus;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

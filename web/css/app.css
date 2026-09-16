@@ -350,3 +350,17 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
   .folder-item { flex: none; background: rgba(0, 0, 0, 0.05); padding: 8px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
   .folder-item .count { margin-left: 4px; }
 }
+
+/* Cetvel */
+.ruler { position: absolute; height: 44px; margin-top: -22px; margin-left: 0; transform-origin: center center; pointer-events: none; z-index: 5;
+  background: linear-gradient(180deg, rgba(255, 244, 214, 0.92), rgba(240, 224, 180, 0.92)); border: 1px solid rgba(120, 90, 40, 0.35); border-radius: 4px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); }
+.ruler::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 10px; background: repeating-linear-gradient(90deg, rgba(90, 60, 20, 0.6) 0 1px, transparent 1px 10px); }
+.ruler::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 16px; background: repeating-linear-gradient(90deg, rgba(90, 60, 20, 0.6) 0 1px, transparent 1px 50px); }
+.ruler-grip { position: absolute; top: 50%; width: 36px; height: 36px; margin-top: -18px; border-radius: 50%; background: rgba(93, 88, 214, 0.9); color: #fff; display: flex; align-items: center; justify-content: center; pointer-events: auto; touch-action: none; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+.ruler-grip.move { left: 50%; margin-left: -18px; }
+.ruler-grip.rotate { right: 10px; background: rgba(41, 184, 194, 0.95); }
+
+/* Kement seçimi */
+.layer-select { pointer-events: none; }
+.layer-select > * { pointer-events: auto; }
+.selection-box { position: absolute; border: 1.5px dashed #8c85f5; background: rgba(93, 88, 214, 0.05); transform-origin: center center; touch-action: none; }

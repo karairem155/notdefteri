@@ -164,3 +164,48 @@ function img(url) {
   image.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;pointer-events:none";
   return image;
 }
+
+const pdfLines = new Map();
+
+/**
+ * PDF sayfasındaki metin satırlarını sayfa koordinatında verir: [{ x, y, w, h }].
+ * Aynı satırdaki parçalar birleştirilir. Görsel PDF'lerde (taranmış) boş döner.
+ */
+export async function pdfTextLines(reference, pageSize) {
+  const key = `${reference.asset}#${reference.index}`;
+  if (pdfLines.has(key)) return pdfLines.get(key);
+  const doc = await pdfDocument(reference.asset);
+  if (!doc) return [];
+  const page = await doc.getPage(reference.index + 1);
+  const viewport = page.getViewport({ scale: pageSize.w / page.getViewport({ scale: 1 }).width });
+  const content = await page.getTextContent();
+  const items = [];
+  for (const item of content.items) {
+    if (!item.str || !item.str.trim() || !item.transform) continue;
+    const [a, b, c, d, e, f] = item.transform;
+    const fontHeight = Math.hypot(b, d) || Math.hypot(a, c) || 10;
+    // pdf.js koordinatı alt-sol; viewport dönüşümüyle üst-sol'a çevir.
+    const [x, yBaseline] = viewport.convertToViewportPoint(e, f);
+    const scale = viewport.scale;
+    const h = fontHeight * scale;
+    const w = (item.width || 0) * scale;
+    items.push({ x, y: yBaseline - h * 0.8, w, h, baseline: yBaseline });
+  }
+  // Aynı taban çizgisine yakın parçaları tek satırda birleştir.
+  items.sort((p, q) => p.baseline - q.baseline || p.x - q.x);
+  const lines = [];
+  for (const it of items) {
+    const last = lines[lines.length - 1];
+    if (last && Math.abs(last.baseline - it.baseline) < Math.max(2, it.h * 0.35)) {
+      const right = Math.max(last.x + last.w, it.x + it.w);
+      last.x = Math.min(last.x, it.x);
+      last.w = right - last.x;
+      last.h = Math.max(last.h, it.h);
+      last.y = Math.min(last.y, it.y);
+    } else {
+      lines.push({ ...it });
+    }
+  }
+  pdfLines.set(key, lines);
+  return lines;
+}

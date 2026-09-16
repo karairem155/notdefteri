@@ -42,8 +42,9 @@ export function renderSettings(root) {
           row("Varsayılan sayfa boyutu", select(Object.entries(PAGE_SIZES).map(([k, v]) => [k, v.title]), s.pageSize, (v) => store.setSetting("pageSize", v))),
           row("Varsayılan görünüm", select([["single", "Tek sayfa"], ["spread", "Çift sayfa"]], s.spreadMode ? "spread" : "single", (v) => store.setSetting("spreadMode", v === "spread"))),
           row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onClick: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),
-          row("Sadece Apple Pencil ile yaz", toggle(s.pencilOnly, (v) => store.setSetting("pencilOnly", v))),
-          row("Basınca duyarlı kalınlık", toggle(s.pressureWidth, (v) => store.setSetting("pressureWidth", v)))
+          row("Basınca duyarlı kalınlık", toggle(s.pressureWidth, (v) => store.setSetting("pressureWidth", v))),
+          row("Parmak ne yapsın", select([["navigate", "Sayfa çevirir, kaydırır"], ["draw", "Çizer"], ["erase", "Siler"]], s.fingerAction, (v) => store.setSetting("fingerAction", v))),
+          row("Sabit tutunca şekle dönüştür", toggle(s.shapeRecognition, (v) => store.setSetting("shapeRecognition", v)))
         ))
       )
     ));

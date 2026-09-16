@@ -5,6 +5,7 @@ import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDi
 import { coverElement, sameCover } from "./covers.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { shrinkImage } from "./addpage.js";
+import { pdfPageSizes } from "./paper.js";
 import { navigate } from "./app.js";
 
 export function renderLibrary(root) {
@@ -32,7 +33,7 @@ export function renderLibrary(root) {
           h("button", { type: "button", class: store.settings.libraryShelf ? "" : "active", "aria-label": "Liste", onClick: () => { store.setSetting("libraryShelf", false); render(); } }, svgIcon("list", 18)),
           h("button", { type: "button", class: store.settings.libraryShelf ? "active" : "", "aria-label": "Raf", onClick: () => { store.setSetting("libraryShelf", true); render(); } }, svgIcon("books", 18))
         ),
-        !showingTrash && iconButton("plus", "Yeni Defter", createNotebook, "accent")
+        !showingTrash && iconButton("plus", "Yeni Defter", newMenu, "accent")
       )
     );
   }
@@ -140,7 +141,7 @@ export function renderLibrary(root) {
     const grid = h("div", { class: "shelf" });
     for (const notebook of notebooks) grid.append(shelfCell(notebook));
     if (!search) {
-      grid.append(h("div", { class: "shelf-cell new", onClick: createNotebook, role: "button", tabindex: "0" },
+      grid.append(h("div", { class: "shelf-cell new", onClick: newMenu, role: "button", tabindex: "0" },
         h("div", { class: "cover-wrap" }, svgIcon("plus", 30), "Yeni Defter")));
     }
     return grid;
@@ -187,6 +188,35 @@ export function renderLibrary(root) {
     cover.append(h("div", { class: "cover-label" }, notebook.title));
     requestAnimationFrame(() => cover.classList.add("opening"));
     setTimeout(() => { opening = null; navigate(`#/n/${notebook.id}`); }, 600);
+  }
+
+  function newMenu() {
+    actionSheet("Yeni", [
+      { title: "Yeni Defter", onSelect: createNotebook },
+      { title: "PDF'ten Defter", onSelect: createFromPDF }
+    ]);
+  }
+
+  async function createFromPDF() {
+    const file = await pickFile("file-pdf");
+    if (!file) return;
+    toast("PDF açılıyor…");
+    try {
+      const asset = await store.importAsset(file, file.name);
+      const sizes = await pdfPageSizes(asset);
+      if (!sizes.length) { toast("PDF açılamadı ya da boş."); await store.removeAsset(asset); return; }
+      const id = store.createNotebook();
+      store.mutate(id, (n) => {
+        n.title = (file.name || "PDF").replace(/\.[^.]+$/, "") || n.title;
+        n.pages = [];
+        if (currentFolder) n.folder = currentFolder;
+      }, true);
+      store.addPDFPages(id, 0, asset, sizes);
+      toast(`${sizes.length} sayfalık PDF defteri oluşturuldu`);
+      navigate(`#/n/${id}`);
+    } catch (error) {
+      toast("PDF eklenemedi: " + error.message);
+    }
   }
 
   function createNotebook() {

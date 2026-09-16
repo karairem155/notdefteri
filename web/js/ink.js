@@ -1,20 +1,25 @@
 // Çizim motoru. PencilKit yerine: Pointer Events + canvas.
 // - Kalınlık varsayılan olarak sabittir; "Basınca duyarlı kalınlık" ayarı açılırsa Apple Pencil basıncı yansır.
 // - Noktalar hafifçe yumuşatılır, çizgi tek parça eğri olarak çizilir: titreme ve üst üste binme olmaz.
-// - "Sadece Apple Pencil" açıkken parmak dokunuşları çizmez (avuç reddi), parmak sayfa çevirir.
-// - Silgi vektörel: dokunulan çizgi bütünüyle silinir.
+// - Parmak: ayara göre sayfa çevirir, çizer ya da siler. Kalem her zaman çizer.
+// - Silgi: "çizgi" kipinde dokunulan çizgi bütünüyle, "normal" kipinde yalnız dokunulan parça silinir.
+// - Kement: seçilen çizgiler taşınır, büyütülür, döndürülür, kopyalanır, silinir.
+// - Cetvel: cetvel açıkken kenarına yakın başlayan çizgi cetvele yapışır.
+// - Şekil düzeltme: çizgiyi bitirmeden parmağı/kalemi kısa süre sabit tutunca çizgi/daire/dikdörtgen olur.
+// - PDF metni: fosforlu ya da altı çizme, PDF'teki satıra hizalanır (options.textLines).
 // - Geri al / ileri al sayfa başına tutulur.
 import { uid } from "./store.js";
 
 const HISTORY_LIMIT = 60;
 const SMOOTHING = 0.55;      // 0 = ham, 1 = çok gecikmeli
 const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (px)
+const HOLD_MS = 650;         // şekil düzeltme için sabit tutma süresi
 
 export class InkCanvas {
   /**
    * @param {HTMLCanvasElement} canvas
    * @param {object} page - store'daki sayfa nesnesi (strokes dizisi yerinde değişir)
-   * @param {object} options - { getTool, pencilOnly, pressureWidth, onChange, toPageCoords }
+   * @param {object} options - { getTool, fingerAction, pressureWidth, eraser, shapeRecognition, ruler, textLines, onChange, toPageCoords, neighborFor, onSelection }
    */
   constructor(canvas, page, options) {
     this.canvas = canvas;
@@ -25,6 +30,8 @@ export class InkCanvas {
     this.redoStack = [];
     this.live = null;
     this.activePointer = null;
+    this.selection = null;       // { ids: Set }
+    this.lasso = null;           // canlı kement noktaları
     this.setup();
     this.redraw();
     this.bind();
@@ -50,10 +57,21 @@ export class InkCanvas {
     c.addEventListener("pointerleave", (e) => { if (this.live) this.onUp(e); });
   }
 
+  fingerAction() {
+    return this.options.fingerAction ? this.options.fingerAction() : "navigate";
+  }
+
   accepts(e) {
-    if (e.pointerType === "touch" && this.options.pencilOnly()) return false;
+    if (e.pointerType === "touch" && this.fingerAction() === "navigate") return false;
     if (e.pointerType === "mouse" && e.buttons !== 1) return false;
     return true;
+  }
+
+  /** Bu dokunuş için etkin araç: parmak silgi ayarındaysa parmak siler, kalem çizer. */
+  toolFor(e) {
+    const tool = this.options.getTool();
+    if (e.pointerType === "touch" && this.fingerAction() === "erase" && tool.tool !== "lasso") return { ...tool, tool: "eraser" };
+    return tool;
   }
 
   rawPoint(e) {
@@ -64,29 +82,44 @@ export class InkCanvas {
 
   onDown(e) {
     if (!this.accepts(e) || this.activePointer !== null) return;
-    const tool = this.options.getTool();
+    const tool = this.toolFor(e);
     if (!tool || tool.tool === "frosted") return;
     this.activePointer = e.pointerId;
-    this.canvas.setPointerCapture(e.pointerId);
+    this.activeTool = tool.tool;
+    try { this.canvas.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olaylarda yakalama olmayabilir */ }
     e.preventDefault();
     const p = this.rawPoint(e);
     if (tool.tool === "eraser") {
       this.eraseAt(p, true);
       return;
     }
+    if (tool.tool === "lasso") {
+      this.clearSelection();
+      this.lasso = [[p[0], p[1]]];
+      this.redrawWithLive();
+      return;
+    }
     const usePressure = this.options.pressureWidth ? this.options.pressureWidth() : false;
     this.strokeStyle = { tool: tool.tool, color: tool.color, width: tool.width, pressure: usePressure };
     this.smooth = [p[0], p[1]];
+    this.rulerLine = this.rulerFor(p);
+    this.textLine = this.rulerLine ? null : this.textLineFor(p, tool);
     this.liveTarget = this;
-    this.startExternalLive(this.strokeStyle, round(p));
+    this.startExternalLive(this.strokeStyle, round(this.snap(p)));
+    this.armHold();
   }
 
   onMove(e) {
     if (e.pointerId !== this.activePointer) return;
     e.preventDefault();
-    const tool = this.options.getTool();
-    if (tool.tool === "eraser") {
+    if (this.activeTool === "eraser") {
       this.eraseAt(this.rawPoint(e), false);
+      return;
+    }
+    if (this.activeTool === "lasso") {
+      const p = this.rawPoint(e);
+      const last = this.lasso[this.lasso.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= 2) { this.lasso.push([p[0], p[1]]); this.redrawWithLive(); }
       return;
     }
     if (!this.liveTarget) return;
@@ -97,8 +130,9 @@ export class InkCanvas {
       // Üstel yumuşatma: el titremesi ve sensör gürültüsü azalır.
       this.smooth[0] += (raw[0] - this.smooth[0]) * (1 - SMOOTHING);
       this.smooth[1] += (raw[1] - this.smooth[1]) * (1 - SMOOTHING);
-      const sx = this.smooth[0];
-      const sy = this.smooth[1];
+      const snapped = this.snap([this.smooth[0], this.smooth[1], raw[2]]);
+      const sx = snapped[0];
+      const sy = snapped[1];
       // Çift sayfada çizgi ciltten öbür sayfaya geçer: orada yeni bir çizgi olarak devam eder.
       let target = this;
       let offset = 0;
@@ -113,7 +147,7 @@ export class InkCanvas {
         touched.add(target);
         continue;
       }
-      if (target.addLivePoint(round([sx + offset, sy, raw[2]]))) touched.add(target);
+      if (target.addLivePoint(round([sx + offset, sy, raw[2]]))) { touched.add(target); this.armHold(); }
     }
     for (const t of touched) t.redrawWithLive();
   }
@@ -121,10 +155,15 @@ export class InkCanvas {
   onUp(e) {
     if (e.pointerId !== this.activePointer) return;
     this.activePointer = null;
+    this.disarmHold();
     try { this.canvas.releasePointerCapture(e.pointerId); } catch (_) { /* yok sayılır */ }
-    if (this.eraseSession) {
-      if (this.eraseSession.removed) this.commit();
+    if (this.activeTool === "eraser") {
+      if (this.eraseSession && this.eraseSession.removed) this.commit();
       this.eraseSession = null;
+      return;
+    }
+    if (this.activeTool === "lasso") {
+      this.finishLasso();
       return;
     }
     if (!this.liveTarget) return;
@@ -132,15 +171,83 @@ export class InkCanvas {
     this.liveTarget = null;
   }
 
+  // ---- cetvel ve PDF satırı ----
+
+  rulerFor(p) {
+    const ruler = this.options.ruler ? this.options.ruler() : null;
+    if (!ruler) return null;
+    // Cetvelin çizim kenarı: merkezden geçen, açısı ruler.angle olan doğru; kenara 40 px'e kadar yakınlık yapışır.
+    const angle = ruler.angle * Math.PI / 180;
+    const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+    const normal = { x: -dir.y, y: dir.x };
+    const edge = { x: ruler.x + normal.x * ruler.edgeOffset, y: ruler.y + normal.y * ruler.edgeOffset };
+    const dist = Math.abs((p[0] - edge.x) * normal.x + (p[1] - edge.y) * normal.y);
+    if (dist > 40) return null;
+    return { edge, dir };
+  }
+
+  /** PDF sayfasında fosforlu: satırın ortasına, kalem: satırın altına hizalanır. */
+  textLineFor(p, tool) {
+    if (!this.options.textLines || (tool.tool !== "highlighter" && tool.tool !== "pen")) return null;
+    const lines = this.options.textLines();
+    if (!lines || !lines.length) return null;
+    let best = null;
+    for (const line of lines) {
+      if (p[0] < line.x - 6 || p[0] > line.x + line.w + 6) continue;
+      const y = tool.tool === "highlighter" ? line.y + line.h / 2 : line.y + line.h * 0.95;
+      const d = Math.abs(p[1] - y);
+      if (d < line.h * 0.9 && (!best || d < best.d)) best = { d, y, line };
+    }
+    if (!best) return null;
+    return { y: best.y, x0: best.line.x, x1: best.line.x + best.line.w, width: tool.tool === "highlighter" ? best.line.h / 2.4 : null };
+  }
+
+  snap(p) {
+    if (this.rulerLine) {
+      const { edge, dir } = this.rulerLine;
+      const t = (p[0] - edge.x) * dir.x + (p[1] - edge.y) * dir.y;
+      return [edge.x + dir.x * t, edge.y + dir.y * t, p[2]];
+    }
+    if (this.textLine) {
+      return [Math.min(Math.max(p[0], this.textLine.x0), this.textLine.x1), this.textLine.y, p[2]];
+    }
+    return p;
+  }
+
+  // ---- şekil düzeltme (sabit tutunca) ----
+
+  armHold() {
+    this.disarmHold();
+    if (!(this.options.shapeRecognition && this.options.shapeRecognition())) return;
+    if (this.rulerLine || this.textLine) return;
+    this.holdTimer = setTimeout(() => {
+      this.holdTimer = null;
+      const target = this.liveTarget;
+      if (!target || !target.live || target.live.points.length < 6) return;
+      const shape = recognizeShape(target.live.points);
+      if (!shape) return;
+      target.live.points = shape;
+      target.live.shape = true;
+      target.redrawWithLive();
+      if (navigator.vibrate) navigator.vibrate(10);
+    }, HOLD_MS);
+  }
+
+  disarmHold() {
+    if (this.holdTimer) { clearTimeout(this.holdTimer); this.holdTimer = null; }
+  }
+
   // ---- canlı çizgi (kendi tuvali ya da komşu sayfadan devralınan) ----
 
   startExternalLive(style, firstPoint) {
-    this.live = { id: uid(), tool: style.tool, color: style.color, width: style.width, pressure: style.pressure, points: [firstPoint] };
+    const width = this.textLine && this.textLine.width ? this.textLine.width / 2.4 : style.width;
+    this.live = { id: uid(), tool: style.tool, color: style.color, width, pressure: style.pressure, points: [firstPoint] };
   }
 
-  /** Nokta ekler; eklendiyse true. */
+  /** Nokta ekler; eklendiyse true. Şekle dönüştürülmüş çizgiye nokta eklenince serbest çizime dönülür. */
   addLivePoint(p) {
     if (!this.live) return false;
+    if (this.live.shape) { this.live.shape = false; }
     const last = this.live.points[this.live.points.length - 1];
     if (Math.hypot(p[0] - last[0], p[1] - last[1]) < MIN_STEP) return false;
     this.live.points.push(p);
@@ -151,6 +258,7 @@ export class InkCanvas {
     if (!this.live) return;
     const stroke = this.live;
     this.live = null;
+    delete stroke.shape;
     if (stroke.points.length === 1) {
       const [x, y, p] = stroke.points[0];
       stroke.points.push([x + 0.4, y + 0.4, p]);
@@ -165,18 +273,129 @@ export class InkCanvas {
 
   eraseAt(point, starting) {
     if (starting) this.eraseSession = { removed: false, snapshot: this.snapshot() };
-    const radius = 12;
-    const before = this.page.strokes.length;
-    this.page.strokes = this.page.strokes.filter((stroke) => !strokeHits(stroke, point, radius + stroke.width / 2));
-    if (this.page.strokes.length !== before) {
+    const prefs = this.options.eraser ? this.options.eraser() : { mode: "stroke", size: 12 };
+    const radius = prefs.size || 12;
+    const before = this.page.strokes;
+    let after;
+    if (prefs.mode === "pixel") {
+      after = [];
+      for (const stroke of before) {
+        if (!strokeHits(stroke, point, radius + stroke.width / 2)) { after.push(stroke); continue; }
+        for (const piece of cutStroke(stroke, point, radius + stroke.width / 2)) after.push(piece);
+      }
+    } else {
+      after = before.filter((stroke) => !strokeHits(stroke, point, radius + stroke.width / 2));
+    }
+    if (after.length !== before.length || after.some((s, i) => s !== before[i])) {
       if (!this.eraseSession.removed) {
         this.undoStack.push(this.eraseSession.snapshot);
         if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
         this.redoStack = [];
       }
       this.eraseSession.removed = true;
+      this.page.strokes = after;
       this.redraw();
     }
+  }
+
+  // ---- kement seçimi ----
+
+  finishLasso() {
+    const polygon = this.lasso;
+    this.lasso = null;
+    if (!polygon || polygon.length < 3) { this.redraw(); return; }
+    const ids = new Set();
+    for (const stroke of this.page.strokes) {
+      let inside = 0;
+      for (const p of stroke.points) if (pointInPolygon(p, polygon)) inside++;
+      if (inside >= Math.max(1, stroke.points.length * 0.5)) ids.add(stroke.id);
+    }
+    if (ids.size) this.selection = { ids };
+    this.redraw();
+    if (this.options.onSelection) this.options.onSelection(this.selectionBounds());
+  }
+
+  selectedStrokes() {
+    if (!this.selection) return [];
+    return this.page.strokes.filter((s) => this.selection.ids.has(s.id));
+  }
+
+  selectionBounds() {
+    const strokes = this.selectedStrokes();
+    if (!strokes.length) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of strokes) for (const p of s.points) {
+      minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]);
+    }
+    const pad = 10;
+    return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+  }
+
+  clearSelection() {
+    if (!this.selection) return;
+    this.selection = null;
+    this.redraw();
+    if (this.options.onSelection) this.options.onSelection(null);
+  }
+
+  /** Seçimi dönüştürür: önce ölçek ve döndürme merkez etrafında, sonra taşıma. */
+  transformSelection({ dx = 0, dy = 0, scale = 1, rotate = 0, center }) {
+    const strokes = this.selectedStrokes();
+    if (!strokes.length) return;
+    const rad = rotate * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    for (const stroke of strokes) {
+      stroke.points = stroke.points.map(([x, y, p]) => {
+        let px = x - center.x, py = y - center.y;
+        px *= scale; py *= scale;
+        const rx = px * cos - py * sin;
+        const ry = px * sin + py * cos;
+        return [Math.round((rx + center.x + dx) * 10) / 10, Math.round((ry + center.y + dy) * 10) / 10, p];
+      });
+      if (scale !== 1) stroke.width = Math.max(0.5, Math.round(stroke.width * scale * 10) / 10);
+    }
+    this.redraw();
+  }
+
+  beginSelectionEdit() {
+    this.pushHistory();
+    // Geri al'ın çalışması için çizgiler kopyalanır; yerinde değişen noktalar eski kopyaya dokunmaz.
+    this.page.strokes = this.page.strokes.map((s) => (this.selection && this.selection.ids.has(s.id) ? { ...s, points: s.points.slice() } : s));
+    this.editBase = new Map(this.selectedStrokes().map((s) => [s.id, { points: s.points.map((p) => p.slice()), width: s.width }]));
+  }
+
+  /** Düzenleme başındaki hâle göre toplam dönüşümü uygular (canlı sürükleme için). */
+  applySelectionTransform(transform) {
+    if (!this.editBase) this.beginSelectionEdit();
+    for (const stroke of this.selectedStrokes()) {
+      const base = this.editBase.get(stroke.id);
+      if (!base) continue;
+      stroke.points = base.points.map((p) => p.slice());
+      stroke.width = base.width;
+    }
+    this.transformSelection(transform);
+  }
+
+  deleteSelection() {
+    if (!this.selection) return;
+    this.pushHistory();
+    this.page.strokes = this.page.strokes.filter((s) => !this.selection.ids.has(s.id));
+    this.selection = null;
+    this.redraw();
+    this.commit();
+    if (this.options.onSelection) this.options.onSelection(null);
+  }
+
+  duplicateSelection() {
+    const strokes = this.selectedStrokes();
+    if (!strokes.length) return;
+    this.pushHistory();
+    const copies = strokes.map((s) => ({ ...s, id: uid(), points: s.points.map(([x, y, p]) => [x + 24, y + 24, p]) }));
+    this.page.strokes.push(...copies);
+    this.selection = { ids: new Set(copies.map((c) => c.id)) };
+    this.redraw();
+    this.commit();
+    if (this.options.onSelection) this.options.onSelection(this.selectionBounds());
   }
 
   // ---- geri al / ileri al ----
@@ -198,6 +417,8 @@ export class InkCanvas {
     if (!this.canUndo) return;
     this.redoStack.push(this.snapshot());
     this.page.strokes = this.undoStack.pop();
+    this.selection = null;
+    if (this.options.onSelection) this.options.onSelection(null);
     this.redraw();
     this.commit();
   }
@@ -206,11 +427,14 @@ export class InkCanvas {
     if (!this.canRedo) return;
     this.undoStack.push(this.snapshot());
     this.page.strokes = this.redoStack.pop();
+    this.selection = null;
+    if (this.options.onSelection) this.options.onSelection(null);
     this.redraw();
     this.commit();
   }
 
   commit() {
+    this.editBase = null;
     if (this.options.onChange) this.options.onChange();
   }
 
@@ -220,13 +444,32 @@ export class InkCanvas {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.page.size.w, this.page.size.h);
-    for (const stroke of this.page.strokes) drawStroke(ctx, stroke);
+    const selected = this.selection ? this.selection.ids : null;
+    for (const stroke of this.page.strokes) {
+      if (selected && selected.has(stroke.id)) drawHighlight(ctx, stroke);
+      drawStroke(ctx, stroke);
+    }
   }
 
   /** Canlı çizgi tek parça çizildiği için her harekette baştan çizilir; sayfa çizimleri az olduğundan ucuzdur. */
   redrawWithLive() {
     this.redraw();
     if (this.live) drawStroke(this.ctx, this.live);
+    if (this.lasso && this.lasso.length > 1) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.setLineDash([6, 5]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#5d58d6";
+      ctx.fillStyle = "rgba(93,88,214,0.08)";
+      ctx.beginPath();
+      ctx.moveTo(this.lasso[0][0], this.lasso[0][1]);
+      for (const p of this.lasso) ctx.lineTo(p[0], p[1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 }
 
@@ -252,6 +495,18 @@ function widthAt(stroke, pressure) {
   return w * (0.6 + pressure * 0.8);
 }
 
+function tracePath(ctx, pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+    const my = (pts[i][1] + pts[i + 1][1]) / 2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+  }
+  const last = pts[pts.length - 1];
+  ctx.lineTo(last[0], last[1]);
+}
+
 /** Çizgi: noktaların orta noktalarından geçen eğriler. Sabit kalınlıkta tek yol, basınçlıysa segment segment. */
 export function drawStroke(ctx, stroke) {
   const pts = stroke.points;
@@ -259,15 +514,7 @@ export function drawStroke(ctx, stroke) {
   styleFor(ctx, stroke);
   if (!stroke.pressure || stroke.tool === "highlighter") {
     ctx.lineWidth = baseWidth(stroke);
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i][0] + pts[i + 1][0]) / 2;
-      const my = (pts[i][1] + pts[i + 1][1]) / 2;
-      ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
-    }
-    const last = pts[pts.length - 1];
-    ctx.lineTo(last[0], last[1]);
+    tracePath(ctx, pts);
     ctx.stroke();
   } else {
     for (let i = 1; i < pts.length; i++) {
@@ -287,6 +534,18 @@ export function drawStroke(ctx, stroke) {
   ctx.globalCompositeOperation = "source-over";
 }
 
+function drawHighlight(ctx, stroke) {
+  if (stroke.points.length < 2) return;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(93,88,214,0.35)";
+  ctx.lineWidth = baseWidth(stroke) + 8;
+  tracePath(ctx, stroke.points);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** Sayfayı küçük bir görsele çevirir (sayfa ızgarası, şerit ve sayfa çevirme için). */
 export function renderStrokesToDataURL(page, pixelWidth) {
   const scale = pixelWidth / page.size.w;
@@ -298,6 +557,8 @@ export function renderStrokesToDataURL(page, pixelWidth) {
   for (const stroke of page.strokes) drawStroke(ctx, stroke);
   return canvas.toDataURL("image/png");
 }
+
+// ---- geometri yardımcıları ----
 
 function strokeHits(stroke, point, radius) {
   const [x, y] = point;
@@ -316,4 +577,124 @@ function segmentDistance(a, b, x, y) {
   let t = lengthSq === 0 ? 0 : ((x - a[0]) * dx + (y - a[1]) * dy) / lengthSq;
   t = Math.max(0, Math.min(1, t));
   return Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y);
+}
+
+/** Normal silgi: yarıçap içindeki noktalar atılır, kalan parçalar ayrı çizgiler olur. */
+function cutStroke(stroke, point, radius) {
+  const pieces = [];
+  let current = [];
+  for (const p of stroke.points) {
+    if (Math.hypot(p[0] - point[0], p[1] - point[1]) <= radius) {
+      if (current.length >= 2) pieces.push(current);
+      current = [];
+    } else {
+      current.push(p);
+    }
+  }
+  if (current.length >= 2) pieces.push(current);
+  return pieces.map((points, i) => ({ ...stroke, id: i === 0 ? stroke.id : uid(), points }));
+}
+
+function pointInPolygon(p, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+    const intersect = (yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / ((yj - yi) || 1e-9) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/** Çizgi / daire-elips / dikdörtgen tanıma. Uymazsa null. */
+export function recognizeShape(points) {
+  const pts = points;
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  const length = pathLength(pts);
+  if (length < 20) return null;
+  const chord = Math.hypot(last[0] - first[0], last[1] - first[1]);
+  const pressure = first[2];
+
+  // Düz çizgi: bütün noktalar kirişe yakın.
+  let maxDeviation = 0;
+  for (const p of pts) maxDeviation = Math.max(maxDeviation, segmentDistance(first, last, p[0], p[1]));
+  if (chord > 0.85 * length && maxDeviation < Math.max(4, chord * 0.05)) {
+    return [[first[0], first[1], pressure], [last[0], last[1], pressure]];
+  }
+
+  const closed = chord < Math.max(24, length * 0.18);
+  if (!closed) return null;
+
+  const box = bounds(pts);
+  const cx = (box.minX + box.maxX) / 2;
+  const cy = (box.minY + box.maxY) / 2;
+  const rx = (box.maxX - box.minX) / 2;
+  const ry = (box.maxY - box.minY) / 2;
+  if (rx < 8 || ry < 8) return null;
+
+  // Elips: noktaların normalize yarıçapı 1'e yakın.
+  let ellipseError = 0;
+  for (const p of pts) {
+    const r = Math.hypot((p[0] - cx) / rx, (p[1] - cy) / ry);
+    ellipseError += Math.abs(r - 1);
+  }
+  ellipseError /= pts.length;
+
+  // Dikdörtgen: noktalar kutu kenarlarına yakın.
+  let rectError = 0;
+  for (const p of pts) {
+    const d = Math.min(Math.abs(p[0] - box.minX), Math.abs(p[0] - box.maxX), Math.abs(p[1] - box.minY), Math.abs(p[1] - box.maxY));
+    rectError += d;
+  }
+  rectError /= pts.length * Math.min(rx, ry);
+
+  const corners = countCorners(pts);
+  if (corners >= 3 && corners <= 5 && rectError < 0.12) {
+    return [
+      [box.minX, box.minY, pressure], [box.maxX, box.minY, pressure], [box.maxX, box.maxY, pressure],
+      [box.minX, box.maxY, pressure], [box.minX, box.minY, pressure]
+    ];
+  }
+  if (ellipseError < 0.16) {
+    const out = [];
+    const n = 48;
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      out.push([Math.round((cx + Math.cos(a) * rx) * 10) / 10, Math.round((cy + Math.sin(a) * ry) * 10) / 10, pressure]);
+    }
+    return out;
+  }
+  return null;
+}
+
+function pathLength(pts) {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return total;
+}
+
+function bounds(pts) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) { minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); }
+  return { minX, minY, maxX, maxY };
+}
+
+/** Yön değişimlerini sayar: ardışık 12 px'lik adımlar arasında 60°'den keskin dönüşler köşe sayılır. */
+function countCorners(pts) {
+  const step = 12;
+  const sampled = [pts[0]];
+  for (const p of pts) {
+    const last = sampled[sampled.length - 1];
+    if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= step) sampled.push(p);
+  }
+  let corners = 0;
+  for (let i = 1; i < sampled.length - 1; i++) {
+    const a = Math.atan2(sampled[i][1] - sampled[i - 1][1], sampled[i][0] - sampled[i - 1][0]);
+    const b = Math.atan2(sampled[i + 1][1] - sampled[i][1], sampled[i + 1][0] - sampled[i][0]);
+    let d = Math.abs(b - a);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    if (d > Math.PI / 3) corners++;
+  }
+  return corners;
 }
