@@ -1225,11 +1225,20 @@ export function renderEditor(root, notebookId, initialPageId) {
   }
 
   function addCurrentToFavorites() {
-    promptDialog("Favori adı", "Örn. Kırmızı kalem", `${TOOLS[tool.tool].title} ${formatPt(tool.width)} pt`, (name) => {
-      store.addPen({ tool: tool.tool, color: tool.color, width: tool.width, name });
-      renderBench();
-      renderTopbar();
-    });
+    store.addPen({ tool: tool.tool, color: tool.color, width: tool.width, name: autoPenName() });
+    toast("Favorilere eklendi");
+    renderBench();
+    renderTopbar();
+  }
+
+  /** Otomatik ad: araç + kalınlık; aynı ad varsa numara eklenir. Uzun basıp değiştirilebilir. */
+  function autoPenName() {
+    const base = `${TOOLS[tool.tool].title} ${formatPt(tool.width)}`;
+    const names = new Set(store.settings.pens.map((p) => p.name));
+    if (!names.has(base)) return base;
+    let n = 2;
+    while (names.has(`${base} (${n})`)) n++;
+    return `${base} (${n})`;
   }
 
   /** Paletteki bir rengi değiştir, taşı, çıkar. */
@@ -1362,11 +1371,11 @@ export function renderEditor(root, notebookId, initialPageId) {
       );
     };
     function addFavorite() {
-      promptDialog("Favori adı", "Örn. Kırmızı kalem", `${TOOLS[tool.tool].title} ${formatPt(tool.width)} pt`, (name) => {
-        store.addPen({ tool: tool.tool, color: tool.color, width: tool.width, name });
-        build();
-        renderBenchKeepPopover();
-      });
+      store.addPen({ tool: tool.tool, color: tool.color, width: tool.width, name: autoPenName() });
+      toast("Favorilere eklendi");
+      build();
+      renderBenchKeepPopover();
+      renderTopbar();
     }
     build();
     popover = panel;
