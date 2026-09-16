@@ -143,6 +143,12 @@ export function renderEditor(root, notebookId, initialPageId) {
   /** Üst çubuktaki favori kalemler: dokununca seçilir, seçiliye tekrar dokununca kalem paneli açılır. */
   function favoriteStrip() {
     const strip = h("div", { class: "fav-strip", role: "group", "aria-label": "Favori kalemler" });
+    if (isInking() && !store.settings.pens.some((p) => penMatches(p))) {
+      const mini = h("button", { class: `fav-mini current ${tool.tool} selected`, type: "button", style: { "--c": tool.color }, "aria-label": "Şu anki kalem (favori değil). Dokun: ayarlar" });
+      pressable(mini, { onTap: () => openPenPanel() });
+      const add = h("button", { class: "fav-add", type: "button", "aria-label": "Bu kalemi favorilere ekle", onTap: addCurrentToFavorites }, svgIcon("plus", 14));
+      strip.append(mini, add, h("span", { class: "fav-sep" }));
+    }
     for (const pen of store.settings.pens) {
       const selected = penMatches(pen);
       const mini = h("button", { class: `fav-mini ${pen.tool}` + (selected ? " selected" : ""), type: "button", style: { "--c": pen.color },
@@ -1170,6 +1176,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     );
 
     const pensRow = h("div", { class: "pens-row" });
+    if (isInking() && !s.pens.some((p) => penMatches(p))) pensRow.append(...currentPenIndicator());
     for (const pen of s.pens) {
       const selected = penMatches(pen);
       const penBtn = h("button", { class: "pen-btn" + (selected ? " selected" : ""), type: "button", "aria-label": pen.name + ", uzun bas: düzenle", "aria-pressed": String(selected) },
@@ -1197,6 +1204,24 @@ export function renderEditor(root, notebookId, initialPageId) {
     bench.classList.toggle("collapsed", collapsed);
     bench.replaceChildren(paletteRow, pensRow);
     if (popover) bench.append(popover);
+  }
+
+  /** Seçili kalem hiçbir favoriyle eşleşmiyorsa: onu gösteren kalem + "favorilere ekle". */
+  function currentPenIndicator() {
+    const current = { tool: tool.tool, color: tool.color, width: tool.width, name: "Şu an" };
+    const shown = h("button", { class: "pen-btn selected current", type: "button", "aria-label": `Şu anki kalem: ${TOOLS[tool.tool].title}, ${formatPt(tool.width)} pt. Dokun: ayarlar` },
+      penIllustration(current), h("span", { class: "tool-caption" }, "Şu an"));
+    pressable(shown, { onTap: () => openPenPanel() });
+    const add = h("button", { class: "tool-btn add-fav", type: "button", "aria-label": "Bu kalemi favorilere ekle", onTap: addCurrentToFavorites }, svgIcon("heart", 20), h("span", { class: "tool-caption" }, "Favori"));
+    return [shown, add, h("div", { class: "bench-sep" })];
+  }
+
+  function addCurrentToFavorites() {
+    promptDialog("Favori adı", "Örn. Kırmızı kalem", `${TOOLS[tool.tool].title} ${formatPt(tool.width)} pt`, (name) => {
+      store.addPen({ tool: tool.tool, color: tool.color, width: tool.width, name });
+      renderBench();
+      renderTopbar();
+    });
   }
 
   /** Paletteki bir rengi değiştir, taşı, çıkar. */
