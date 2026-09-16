@@ -1142,8 +1142,15 @@ export function renderEditor(root, notebookId, initialPageId) {
     const palette = h("div", { class: "palette" });
     for (const hex of s.palette) {
       const selected = isInking() && hex.toUpperCase() === tool.color.toUpperCase();
-      palette.append(h("button", { class: "swatch" + (selected ? " selected" : ""), type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex,
-        onTap: () => { if (!isInking()) tool.tool = "pen"; tool.color = hex; renderBench(); applyModes(); } }));
+      palette.append(h("button", { class: "swatch" + (selected ? " selected" : ""), type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex + (selected ? ", tekrar dokun: kalem ayarları" : ""),
+        onTap: () => {
+          if (selected) { openPenPanel(); return; }   // seçili renge tekrar dokununca kalem paneli
+          if (!isInking()) tool.tool = "pen";
+          tool.color = hex;
+          renderBench();
+          renderTopbar();
+          applyModes();
+        } }));
     }
     const hasSelectedColor = s.palette.some((hex) => isInking() && hex.toUpperCase() === tool.color.toUpperCase());
     const collapsed = !!s.benchCollapsed;
