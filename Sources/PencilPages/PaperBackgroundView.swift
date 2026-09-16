@@ -1,9 +1,11 @@
 import SwiftUI
 
+// Uygulamayla gelen kağıt çizimleri. Kağıt krem rengi (05-NotEditoru.png).
 struct PaperBackgroundView: View {
     let style: PaperStyle
 
-    private let ink = Color(red: 0.80, green: 0.85, blue: 0.90)
+    static let paperColor = Color(red: 0.95, green: 0.94, blue: 0.90)
+    private let ink = Color(red: 0.74, green: 0.76, blue: 0.80)
 
     var body: some View {
         Canvas { context, size in
@@ -37,7 +39,7 @@ struct PaperBackgroundView: View {
                 }
             }
         }
-        .background(Color.white)
+        .background(Self.paperColor)
         .accessibilityHidden(true)
     }
 }

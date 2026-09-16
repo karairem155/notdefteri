@@ -6,10 +6,11 @@ import UIKit
 // Favori kalemler.
 // Bir favori = araç + renk + kalınlık üçlüsü. Kalem panelindeki "Favorilere ekle"
 // düğmesi o anki üçlüyü buraya kaydeder. Varsayılan kalem de burada tutulur.
+// Hızlı renk paleti (tezgahın üst sırası) de aynı depoda durur.
 
 struct FavoritePen: Codable, Identifiable, Equatable {
     var id: UUID
-    var tool: String        // "pen" | "pencil" | "highlighter" | "blur"
+    var tool: String        // DrawingToolChoice.rawValue: "pen" | "pencil" | "highlighter" | "blur"
     var colorHex: String    // "#1C1C1E"
     var width: Double       // punto
     var name: String        // kullanıcıya görünen ad
@@ -21,15 +22,28 @@ struct FavoritePen: Codable, Identifiable, Equatable {
         self.width = width
         self.name = name
     }
+
+    init(configuration: DrawingToolConfiguration, name: String) {
+        self.init(tool: configuration.choice.rawValue,
+                  colorHex: configuration.colorHex,
+                  width: Double(configuration.width),
+                  name: name)
+    }
+
+    var choice: DrawingToolChoice {
+        DrawingToolChoice(rawValue: tool) ?? .pen
+    }
 }
 
 @MainActor
 final class PenFavoritesStore: ObservableObject {
     @Published private(set) var favorites: [FavoritePen] = []
     @Published private(set) var defaultPenID: UUID?
+    @Published private(set) var palette: [String] = []
 
     private let favoritesKey = "notdefteri.favoritePens"
     private let defaultKey = "notdefteri.defaultPenID"
+    private let paletteKey = "notdefteri.palette"
     private let defaults: UserDefaults
 
     static let starterSet: [FavoritePen] = [
@@ -39,14 +53,26 @@ final class PenFavoritesStore: ObservableObject {
         FavoritePen(tool: "pencil", colorHex: "#3E6BB8", width: 4, name: "Kurşun")
     ]
 
+    // 05-NotEditoru.png üst sıradaki renkler + 07-KalemPaneli.png paleti.
+    static let starterPalette: [String] = [
+        "#1C1C1E", "#FFFFFF", "#E8862A", "#6BAF4A", "#A3B85C",
+        "#3B7DD8", "#2BB5B5", "#C8352B", "#E0A81E", "#9B5BD8", "#E07AA8"
+    ]
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         load()
+        var needsSave = false
         if favorites.isEmpty {
             favorites = Self.starterSet
             defaultPenID = favorites.first?.id
-            save()
+            needsSave = true
         }
+        if palette.isEmpty {
+            palette = Self.starterPalette
+            needsSave = true
+        }
+        if needsSave { save() }
     }
 
     var defaultPen: FavoritePen? {
@@ -63,6 +89,7 @@ final class PenFavoritesStore: ObservableObject {
     }
 
     func remove(_ id: UUID) {
+        guard favorites.count > 1 else { return }
         favorites.removeAll { $0.id == id }
         if defaultPenID == id { defaultPenID = favorites.first?.id }
         save()
@@ -74,6 +101,20 @@ final class PenFavoritesStore: ObservableObject {
         save()
     }
 
+    func addPaletteColor(_ hex: String) {
+        let normalized = hex.uppercased()
+        guard UIColor(hexString: normalized) != nil,
+              !palette.contains(where: { $0.caseInsensitiveCompare(normalized) == .orderedSame }) else { return }
+        palette.append(normalized)
+        save()
+    }
+
+    func removePaletteColor(_ hex: String) {
+        guard palette.count > 1 else { return }
+        palette.removeAll { $0.caseInsensitiveCompare(hex) == .orderedSame }
+        save()
+    }
+
     private func load() {
         if let data = defaults.data(forKey: favoritesKey),
            let decoded = try? JSONDecoder().decode([FavoritePen].self, from: data) {
@@ -82,6 +123,9 @@ final class PenFavoritesStore: ObservableObject {
         if let raw = defaults.string(forKey: defaultKey) {
             defaultPenID = UUID(uuidString: raw)
         }
+        if let stored = defaults.stringArray(forKey: paletteKey) {
+            palette = stored
+        }
     }
 
     private func save() {
@@ -89,21 +133,14 @@ final class PenFavoritesStore: ObservableObject {
             defaults.set(data, forKey: favoritesKey)
         }
         defaults.set(defaultPenID?.uuidString, forKey: defaultKey)
+        defaults.set(palette, forKey: paletteKey)
     }
 }
 
 // Favoriyi PencilKit aracına çevirir.
 extension FavoritePen {
     func makeTool() -> PKTool {
-        let uiColor = UIColor(hexString: colorHex) ?? .black
-        switch tool {
-        case "pencil":
-            return PKInkingTool(.pencil, color: uiColor, width: CGFloat(width))
-        case "highlighter":
-            return PKInkingTool(.marker, color: uiColor.withAlphaComponent(0.42), width: CGFloat(width))
-        default:
-            return PKInkingTool(.pen, color: uiColor, width: CGFloat(width))
-        }
+        DrawingToolConfiguration(favorite: self).makeTool()
     }
 
     var swiftUIColor: Color {

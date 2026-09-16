@@ -19,7 +19,7 @@ final class NotebookStore: ObservableObject {
         self.storageRootURL = storageRootURL
         let hadNotebookFiles = loadNotebooks()
         if notebooks.isEmpty && !hadNotebookFiles && storageMessage == nil {
-            let first = Notebook(title: "My First Notebook")
+            let first = Notebook(title: "İlk Defterim")
             notebooks = [first]
             dirtyNotebookIDs.insert(first.id)
             persist(first)
@@ -43,7 +43,7 @@ final class NotebookStore: ObservableObject {
 
     @discardableResult
     func createNotebook() -> UUID {
-        let title = "Notebook \(notebooks.count + 1)"
+        let title = "Defter \(notebooks.count + 1)"
         let notebook = Notebook(title: title)
         notebooks.append(notebook)
         dirtyNotebookIDs.insert(notebook.id)
@@ -136,7 +136,7 @@ final class NotebookStore: ObservableObject {
             writeWarnings[notebookID] = nil
             refreshStorageMessage()
         } catch {
-            writeWarnings[notebookID] = "Could not delete that notebook: \(error.localizedDescription)"
+            writeWarnings[notebookID] = "Defter silinemedi: \(error.localizedDescription)"
             refreshStorageMessage()
         }
     }
@@ -225,12 +225,12 @@ final class NotebookStore: ObservableObject {
             }
             notebooks = loaded
             if failedCount > 0 {
-                loadWarning = "\(failedCount) notebook file(s) could not be opened. The original files were not overwritten."
+                loadWarning = "\(failedCount) defter dosyası açılamadı. Özgün dosyalara dokunulmadı."
             }
             refreshStorageMessage()
             return !files.isEmpty
         } catch {
-            loadWarning = "Some notebooks could not be loaded: \(error.localizedDescription)"
+            loadWarning = "Bazı defterler yüklenemedi: \(error.localizedDescription)"
             refreshStorageMessage()
             return true
         }
@@ -250,7 +250,7 @@ final class NotebookStore: ObservableObject {
             return true
         } catch {
             dirtyNotebookIDs.insert(notebook.id)
-            writeWarnings[notebook.id] = "Could not save a notebook: \(error.localizedDescription)"
+            writeWarnings[notebook.id] = "Defter kaydedilemedi: \(error.localizedDescription)"
             refreshStorageMessage()
             return false
         }

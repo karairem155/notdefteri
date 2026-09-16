@@ -2,21 +2,25 @@ import PencilKit
 import SwiftUI
 import UIKit
 
+// Tek sayfa editörü (docs/tasarim/05-NotEditoru.png).
+// Lacivert masa, ortada krem kağıt, arkada alttaki yapraklar, altta koyu araç tezgahı.
 struct NotebookEditorView: View {
     @ObservedObject var store: NotebookStore
     let notebookID: UUID
 
+    @EnvironmentObject private var pens: PenFavoritesStore
     @State private var selectedPageID: UUID?
-    @State private var toolChoice: DrawingToolChoice = .pen
-    @State private var inkColor: InkColor = .black
-    @State private var lineWidth: CGFloat = 3
+    @State private var configuration: DrawingToolConfiguration = .fallback
+    @State private var hasAppliedDefaultPen = false
+    @State private var showingPenPanel = false
     @State private var exportDocument: ExportedNotebook?
     @State private var showingExportError = false
     @State private var showingDeletePageConfirmation = false
     @StateObject private var canvasActions = CanvasActions()
     @Environment(\.scenePhase) private var scenePhase
 
-    private let colors = InkColor.allCases
+    static let deskColor = Color(red: 0.24, green: 0.27, blue: 0.40)
+    static let barColor = Color(red: 0.30, green: 0.33, blue: 0.47)
 
     private var notebook: Notebook? { store.notebook(id: notebookID) }
 
@@ -31,22 +35,66 @@ struct NotebookEditorView: View {
         return notebook.pages.firstIndex(where: { $0.id == selectedPage.id }) ?? 0
     }
 
+    private var pageCount: Int { notebook?.pages.count ?? 0 }
+
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
-            Divider()
             pageArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(red: 0.90, green: 0.91, blue: 0.93))
             pageThumbnails
-            Divider()
-            pageControls
+            ToolBenchView(pens: pens, configuration: $configuration) {
+                showingPenPanel = true
+            }
+            .popover(isPresented: $showingPenPanel, arrowEdge: .bottom) {
+                PenPanelView(pens: pens, configuration: $configuration)
+                    .presentationCompactAdaptation(.popover)
+            }
         }
-        .navigationTitle(notebook?.title ?? "Notebook")
+        .background(Self.deskColor.ignoresSafeArea())
+        .environment(\.colorScheme, .dark)
+        .navigationTitle(notebook?.title ?? "Defter")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(uiColor: .systemBackground))
+        .toolbarBackground(Self.barColor, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { canvasActions.undo() } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .disabled(!canvasActions.canUndo)
+                .accessibilityLabel("Geri al")
+
+                Button { canvasActions.redo() } label: {
+                    Image(systemName: "arrow.uturn.forward")
+                }
+                .disabled(!canvasActions.canRedo)
+                .accessibilityLabel("İleri al")
+
+                if let selectedPage {
+                    paperMenu(for: selectedPage)
+                    pageActionsMenu(for: selectedPage)
+                }
+
+                Button {
+                    canvasActions.commitCurrentDrawing?()
+                    store.addPage(to: notebookID)
+                    selectedPageID = store.notebook(id: notebookID)?.pages.last?.id
+                } label: {
+                    Image(systemName: "plus.square")
+                }
+                .accessibilityLabel("Sayfa ekle")
+
+                pageCounter
+            }
+        }
         .onAppear {
             if selectedPageID == nil { selectedPageID = notebook?.pages.first?.id }
+            if !hasAppliedDefaultPen {
+                hasAppliedDefaultPen = true
+                if let pen = pens.defaultPen {
+                    configuration = DrawingToolConfiguration(favorite: pen)
+                }
+            }
         }
         .onChange(of: notebook?.pages.map(\.id)) { _, pageIDs in
             if let selectedPageID, pageIDs?.contains(selectedPageID) == true { return }
@@ -62,92 +110,99 @@ struct NotebookEditorView: View {
             NotebookShareSheet(fileURL: document.url)
                 .presentationDetents([.medium, .large])
         }
-        .alert("Couldn't Export Notebook", isPresented: $showingExportError) {
-            Button("OK", role: .cancel) {}
+        .alert("Defter Dışa Aktarılamadı", isPresented: $showingExportError) {
+            Button("Tamam", role: .cancel) {}
         } message: {
-            Text("The latest changes could not be saved. Check available storage and try again.")
+            Text("Son değişiklikler kaydedilemedi. Boş alanı kontrol edip yeniden dene.")
         }
-        .confirmationDialog("Delete this page?", isPresented: $showingDeletePageConfirmation, titleVisibility: .visible) {
-            Button("Delete Page", role: .destructive) { deleteSelectedPage() }
-            Button("Cancel", role: .cancel) {}
+        .confirmationDialog("Bu sayfa silinsin mi?", isPresented: $showingDeletePageConfirmation, titleVisibility: .visible) {
+            Button("Sayfayı Sil", role: .destructive) { deleteSelectedPage() }
+            Button("Vazgeç", role: .cancel) {}
         } message: {
-            Text("This removes the page and its handwriting. A notebook must keep at least one page.")
+            Text("Sayfa ve üzerindeki yazılar silinir. Defterde en az bir sayfa kalmalı.")
         }
     }
 
-    private var toolbar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(DrawingToolChoice.allCases) { choice in
-                    Button {
-                        toolChoice = choice
-                    } label: {
-                        Image(systemName: choice.symbol)
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(toolChoice == choice ? Color.accentColor : Color.primary)
-                            .frame(width: 38, height: 38)
-                            .background(toolChoice == choice ? Color.accentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
-                    }
-                    .accessibilityLabel(choice.title)
-                }
-                Divider().frame(height: 28)
-                ForEach(colors) { color in
-                    Button {
-                        inkColor = color
-                    } label: {
-                        Circle()
-                            .fill(color.color)
-                            .frame(width: 22, height: 22)
-                            .padding(4)
-                            .overlay(Circle().stroke(inkColor == color ? Color.accentColor : Color.clear, lineWidth: 2))
-                    }
-                    .accessibilityLabel("\(color.title) ink colour")
-                }
-                Menu {
-                    ForEach([CGFloat(1.5), 3, 5, 8], id: \.self) { width in
-                        Button {
-                            lineWidth = width
-                        } label: {
-                            if lineWidth == width {
-                                Label("\(Int(width)) pt", systemImage: "checkmark")
-                            } else {
-                                Text("\(Int(width)) pt")
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "lineweight")
-                }
-                .accessibilityLabel("Pen thickness")
-                Divider().frame(height: 28)
-                Button { canvasActions.undo() } label: {
-                    Image(systemName: "arrow.uturn.backward")
-                }
-                .disabled(!canvasActions.canUndo)
-                .accessibilityLabel("Undo")
-                Button { canvasActions.redo() } label: {
-                    Image(systemName: "arrow.uturn.forward")
-                }
-                .disabled(!canvasActions.canRedo)
-                .accessibilityLabel("Redo")
-                Divider().frame(height: 28)
-                Button {
-                    canvasActions.commitCurrentDrawing?()
-                    if store.saveNow(notebookID), let url = store.exportURL(for: notebookID) {
-                        exportDocument = ExportedNotebook(url: url)
-                    } else {
-                        showingExportError = true
-                    }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .accessibilityLabel("Export notebook")
+    // MARK: - Üst çubuk parçaları
+
+    private var pageCounter: some View {
+        HStack(spacing: 6) {
+            Button { movePage(by: -1) } label: {
+                Image(systemName: "chevron.left")
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .disabled(selectedIndex <= 0)
+            .accessibilityLabel("Önceki sayfa")
+
+            Text("\(selectedIndex + 1) / \(pageCount)")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+
+            Button { movePage(by: 1) } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(selectedIndex >= pageCount - 1)
+            .accessibilityLabel("Sonraki sayfa")
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.white.opacity(0.12), in: Capsule())
     }
+
+    private func paperMenu(for page: NotebookPage) -> some View {
+        Menu {
+            ForEach(PaperStyle.allCases) { style in
+                Button {
+                    store.setPaper(style, notebookID: notebookID, pageID: page.id)
+                } label: {
+                    if style == page.paper {
+                        Label(style.title, systemImage: "checkmark")
+                    } else {
+                        Text(style.title)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "doc.text.image")
+        }
+        .accessibilityLabel("Kağıt türü")
+    }
+
+    private func pageActionsMenu(for page: NotebookPage) -> some View {
+        Menu {
+            Button("Sayfayı Çoğalt", systemImage: "plus.square.on.square") {
+                canvasActions.commitCurrentDrawing?()
+                if let newPageID = store.duplicatePage(in: notebookID, pageID: page.id) {
+                    selectedPageID = newPageID
+                }
+            }
+            Button("Sayfayı Öne Taşı", systemImage: "arrow.up") {
+                store.movePage(in: notebookID, pageID: page.id, by: -1)
+            }
+            .disabled(selectedIndex == 0)
+            Button("Sayfayı Arkaya Taşı", systemImage: "arrow.down") {
+                store.movePage(in: notebookID, pageID: page.id, by: 1)
+            }
+            .disabled(selectedIndex >= pageCount - 1)
+            Divider()
+            Button("Defteri Dışa Aktar", systemImage: "square.and.arrow.up") {
+                canvasActions.commitCurrentDrawing?()
+                if store.saveNow(notebookID), let url = store.exportURL(for: notebookID) {
+                    exportDocument = ExportedNotebook(url: url)
+                } else {
+                    showingExportError = true
+                }
+            }
+            Divider()
+            Button("Sayfayı Sil", systemImage: "trash", role: .destructive) {
+                showingDeletePageConfirmation = true
+            }
+            .disabled(pageCount <= 1)
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .accessibilityLabel("Sayfa işlemleri")
+    }
+
+    // MARK: - Sayfa alanı
 
     @ViewBuilder
     private var pageArea: some View {
@@ -155,124 +210,63 @@ struct NotebookEditorView: View {
             GeometryReader { geometry in
                 let logicalWidth: CGFloat = 595
                 let logicalHeight: CGFloat = 842
-                let scale = max(0.1, min((geometry.size.width - 28) / logicalWidth, (geometry.size.height - 28) / logicalHeight))
+                let scale = max(0.1, min((geometry.size.width - 40) / logicalWidth, (geometry.size.height - 40) / logicalHeight))
                 if let drawing = page.drawing {
                     ZStack {
-                        PaperBackgroundView(style: page.paper)
-                        PencilCanvasView(
-                            drawing: drawing,
-                            toolConfiguration: DrawingToolConfiguration(choice: toolChoice, color: inkColor, width: lineWidth),
-                            actions: canvasActions
-                        ) { drawing, persistImmediately in
-                            store.updateDrawing(
-                                drawing,
-                                notebookID: notebookID,
-                                pageID: page.id,
-                                persistImmediately: persistImmediately
-                            )
+                        // Alttaki yapraklar
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(red: 0.84, green: 0.83, blue: 0.79))
+                            .offset(x: 10, y: 6)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(red: 0.90, green: 0.89, blue: 0.85))
+                            .offset(x: 5, y: 3)
+                        ZStack {
+                            PaperBackgroundView(style: page.paper)
+                            PencilCanvasView(
+                                drawing: drawing,
+                                toolConfiguration: configuration,
+                                actions: canvasActions
+                            ) { drawing, persistImmediately in
+                                store.updateDrawing(
+                                    drawing,
+                                    notebookID: notebookID,
+                                    pageID: page.id,
+                                    persistImmediately: persistImmediately
+                                )
+                            }
+                            .id(page.id)
                         }
-                        .id(page.id)
+                        .frame(width: logicalWidth, height: logicalHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
                     }
                     .frame(width: logicalWidth, height: logicalHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                    .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
+                    .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
                     .scaleEffect(scale)
                     .frame(width: logicalWidth * scale, height: logicalHeight * scale)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ContentUnavailableView(
-                        "Page Ink Can't Be Read",
+                        "Sayfa Yazısı Okunamıyor",
                         systemImage: "exclamationmark.triangle",
-                        description: Text("This page is protected from editing because its saved ink data is damaged.")
+                        description: Text("Kayıtlı çizim verisi bozuk olduğu için bu sayfa düzenlemeye kapatıldı.")
                     )
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 12)
         } else {
-            ContentUnavailableView("No Pages", systemImage: "doc", description: Text("Add a page to start writing."))
+            ContentUnavailableView("Sayfa Yok", systemImage: "doc", description: Text("Yazmaya başlamak için bir sayfa ekle."))
         }
-    }
-
-    private var pageControls: some View {
-        HStack {
-            Button {
-                movePage(by: -1)
-            } label: {
-                Label("Previous", systemImage: "chevron.left")
-            }
-            .disabled(selectedIndex <= 0)
-            Spacer()
-            Text("Page \(selectedIndex + 1) of \(notebook?.pages.count ?? 0)")
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                store.addPage(to: notebookID)
-                selectedPageID = store.notebook(id: notebookID)?.pages.last?.id
-            } label: {
-                Label("Add page", systemImage: "plus.page")
-            }
-            Button {
-                movePage(by: 1)
-            } label: {
-                Label("Next", systemImage: "chevron.right")
-            }
-            .disabled(selectedIndex >= (notebook?.pages.count ?? 1) - 1)
-            if let selectedPage {
-                Menu {
-                    ForEach(PaperStyle.allCases) { style in
-                        Button {
-                            store.setPaper(style, notebookID: notebookID, pageID: selectedPage.id)
-                        } label: {
-                            if style == selectedPage.paper {
-                                Label(style.title, systemImage: "checkmark")
-                            } else {
-                                Text(style.title)
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "doc.text.image")
-                }
-                .accessibilityLabel("Paper style")
-
-                Menu {
-                    Button("Duplicate Page", systemImage: "plus.square.on.square") {
-                        canvasActions.commitCurrentDrawing?()
-                        if let newPageID = store.duplicatePage(in: notebookID, pageID: selectedPage.id) {
-                            selectedPageID = newPageID
-                        }
-                    }
-                    Button("Move Page Earlier", systemImage: "arrow.up") {
-                        store.movePage(in: notebookID, pageID: selectedPage.id, by: -1)
-                    }
-                    .disabled(selectedIndex == 0)
-                    Button("Move Page Later", systemImage: "arrow.down") {
-                        store.movePage(in: notebookID, pageID: selectedPage.id, by: 1)
-                    }
-                    .disabled(selectedIndex >= (notebook?.pages.count ?? 1) - 1)
-                    Divider()
-                    Button("Delete Page", systemImage: "trash", role: .destructive) {
-                        showingDeletePageConfirmation = true
-                    }
-                    .disabled((notebook?.pages.count ?? 0) <= 1)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityLabel("Page actions")
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
     }
 
     private func movePage(by offset: Int) {
         guard let notebook else { return }
         let index = selectedIndex + offset
         guard notebook.pages.indices.contains(index) else { return }
+        canvasActions.commitCurrentDrawing?()
         selectedPageID = notebook.pages[index].id
     }
+
+    // MARK: - Sayfa şeridi (Sayfalar ekranı 9. adımda gelecek)
 
     @ViewBuilder
     private var pageThumbnails: some View {
@@ -282,7 +276,9 @@ struct NotebookEditorView: View {
                     ForEach(Array(pages.enumerated()), id: \.element.id) { entry in
                         let index = entry.offset
                         let page = entry.element
+                        let isSelected = selectedPageID == page.id
                         Button {
+                            canvasActions.commitCurrentDrawing?()
                             selectedPageID = page.id
                         } label: {
                             VStack(spacing: 3) {
@@ -291,28 +287,28 @@ struct NotebookEditorView: View {
                                     PageInkPreview(drawingData: page.drawingData)
                                         .allowsHitTesting(false)
                                 }
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 3)
-                                            .stroke(selectedPageID == page.id ? Color.accentColor : Color.gray.opacity(0.35), lineWidth: selectedPageID == page.id ? 2 : 0.75)
-                                    }
-                                    .frame(width: 38, height: 52)
-                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(isSelected ? Color.white : Color.white.opacity(0.25), lineWidth: isSelected ? 2 : 0.75)
+                                }
+                                .frame(width: 38, height: 52)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
                                 Text("\(index + 1)")
                                     .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(selectedPageID == page.id ? Color.accentColor : Color.secondary)
+                                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.6))
                             }
                             .padding(5)
-                            .background(selectedPageID == page.id ? Color.accentColor.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
+                            .background(isSelected ? Color.white.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Go to page \(index + 1)")
+                        .accessibilityLabel("\(index + 1). sayfaya git")
                     }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 3)
             }
             .frame(height: 72)
-            .background(Color(uiColor: .systemBackground))
+            .background(Color.black.opacity(0.18))
         }
     }
 

@@ -8,7 +8,14 @@ enum PaperStyle: String, Codable, CaseIterable, Identifiable {
     case dotted
 
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .blank: "Boş"
+        case .ruled: "Çizgili"
+        case .grid: "Kareli"
+        case .dotted: "Noktalı"
+        }
+    }
 }
 
 struct NotebookPage: Codable, Identifiable, Equatable {

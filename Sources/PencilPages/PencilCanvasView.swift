@@ -45,6 +45,8 @@ struct PencilCanvasView: UIViewRepresentable {
         canvas.tool = toolConfiguration.makeTool()
         canvas.drawing = drawing
         canvas.contentInsetAdjustmentBehavior = .never
+        // Editör koyu temada; PencilKit koyu temada mürekkep renklerini ters çevirir. Kağıt açık kalsın.
+        canvas.overrideUserInterfaceStyle = .light
         context.coordinator.appliedToolConfiguration = toolConfiguration
         actions.canvasView = canvas
         actions.commitCurrentDrawing = { [weak canvas, weak coordinator = context.coordinator] in
