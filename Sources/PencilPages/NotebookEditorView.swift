@@ -9,10 +9,12 @@ struct NotebookEditorView: View {
     let notebookID: UUID
 
     @EnvironmentObject private var pens: PenFavoritesStore
+    @EnvironmentObject private var templates: TemplateLibrary
     @State private var selectedPageID: UUID?
     @State private var configuration: DrawingToolConfiguration = .fallback
     @State private var hasAppliedDefaultPen = false
     @State private var showingPenPanel = false
+    @State private var showingAddPage = false
     @State private var exportDocument: ExportedNotebook?
     @State private var showingExportError = false
     @State private var showingDeletePageConfirmation = false
@@ -36,6 +38,13 @@ struct NotebookEditorView: View {
     }
 
     private var pageCount: Int { notebook?.pages.count ?? 0 }
+
+    private var currentTemplateSelection: TemplateSelection {
+        if let page = selectedPage, let id = page.customTemplateID, templates.template(id: id) != nil {
+            return .custom(id)
+        }
+        return .builtin(selectedPage?.paper ?? .ruled)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,8 +86,7 @@ struct NotebookEditorView: View {
 
                 Button {
                     canvasActions.commitCurrentDrawing?()
-                    store.addPage(to: notebookID)
-                    selectedPageID = store.notebook(id: notebookID)?.pages.last?.id
+                    showingAddPage = true
                 } label: {
                     Image(systemName: "plus.square")
                 }
@@ -104,6 +112,17 @@ struct NotebookEditorView: View {
             if phase != .active {
                 canvasActions.commitCurrentDrawing?()
                 store.flushPendingSaves()
+            }
+        }
+        .sheet(isPresented: $showingAddPage) {
+            AddPageSheet(
+                store: store,
+                templates: templates,
+                notebookID: notebookID,
+                currentIndex: selectedIndex,
+                initialSelection: currentTemplateSelection
+            ) { newPageID in
+                selectedPageID = newPageID
             }
         }
         .sheet(item: $exportDocument) { document in
@@ -147,23 +166,42 @@ struct NotebookEditorView: View {
         .background(Color.white.opacity(0.12), in: Capsule())
     }
 
+    // Seçili sayfanın şablonunu değiştirir: kendi şablonların ya da uygulamayla gelen desenler.
     private func paperMenu(for page: NotebookPage) -> some View {
-        Menu {
-            ForEach(PaperStyle.allCases) { style in
-                Button {
-                    store.setPaper(style, notebookID: notebookID, pageID: page.id)
-                } label: {
-                    if style == page.paper {
-                        Label(style.title, systemImage: "checkmark")
-                    } else {
-                        Text(style.title)
+        let usesCustom = page.customTemplateID != nil && templates.template(id: page.customTemplateID) != nil
+        return Menu {
+            if !templates.templates.isEmpty {
+                Section("Şablonlarım") {
+                    ForEach(templates.templates) { template in
+                        Button {
+                            store.setCustomTemplate(template.id, notebookID: notebookID, pageID: page.id)
+                        } label: {
+                            if page.customTemplateID == template.id {
+                                Label(template.name, systemImage: "checkmark")
+                            } else {
+                                Text(template.name)
+                            }
+                        }
+                    }
+                }
+            }
+            Section("Desenler") {
+                ForEach(PaperStyle.allCases) { style in
+                    Button {
+                        store.setPaper(style, notebookID: notebookID, pageID: page.id)
+                    } label: {
+                        if !usesCustom && style == page.paper {
+                            Label(style.title, systemImage: "checkmark")
+                        } else {
+                            Text(style.title)
+                        }
                     }
                 }
             }
         } label: {
             Image(systemName: "doc.text.image")
         }
-        .accessibilityLabel("Kağıt türü")
+        .accessibilityLabel("Sayfa şablonu")
     }
 
     private func pageActionsMenu(for page: NotebookPage) -> some View {
@@ -221,7 +259,7 @@ struct NotebookEditorView: View {
                             .fill(Color(red: 0.90, green: 0.89, blue: 0.85))
                             .offset(x: 5, y: 3)
                         ZStack {
-                            PaperBackgroundView(style: page.paper)
+                            PageBackgroundView(page: page)
                             PencilCanvasView(
                                 drawing: drawing,
                                 toolConfiguration: configuration,
@@ -283,7 +321,7 @@ struct NotebookEditorView: View {
                         } label: {
                             VStack(spacing: 3) {
                                 ZStack {
-                                    PaperBackgroundView(style: page.paper)
+                                    PageBackgroundView(page: page, useThumbnail: true)
                                     PageInkPreview(drawingData: page.drawingData)
                                         .allowsHitTesting(false)
                                 }

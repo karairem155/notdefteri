@@ -57,6 +57,18 @@ final class NotebookStore: ObservableObject {
         }
     }
 
+    /// Belirli bir konuma sayfa ekler. `index` 0 ise başa, n ise n. sayfadan sonra.
+    @discardableResult
+    func addPage(to notebookID: UUID, at index: Int, paper: PaperStyle, customTemplateID: UUID?) -> UUID? {
+        guard let notebook = notebook(id: notebookID) else { return nil }
+        let page = NotebookPage(paper: paper, customTemplateID: customTemplateID)
+        let insertIndex = min(max(index, 0), notebook.pages.count)
+        mutate(notebookID) { notebook in
+            notebook.pages.insert(page, at: insertIndex)
+        }
+        return page.id
+    }
+
     func renameNotebook(_ notebookID: UUID, to title: String) {
         let cleanedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanedTitle.isEmpty else { return }
@@ -99,10 +111,20 @@ final class NotebookStore: ObservableObject {
         return true
     }
 
+    /// Uygulamayla gelen desene geçer; sayfanın kendi şablonu varsa kaldırılır.
     func setPaper(_ paper: PaperStyle, notebookID: UUID, pageID: UUID) {
         mutate(notebookID) { notebook in
             guard let index = notebook.pages.firstIndex(where: { $0.id == pageID }) else { return }
             notebook.pages[index].paper = paper
+            notebook.pages[index].customTemplateID = nil
+        }
+    }
+
+    /// Sayfaya kullanıcının kendi şablonunu bağlar. `paper` yedek olarak kalır.
+    func setCustomTemplate(_ templateID: UUID, notebookID: UUID, pageID: UUID) {
+        mutate(notebookID) { notebook in
+            guard let index = notebook.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            notebook.pages[index].customTemplateID = templateID
         }
     }
 
