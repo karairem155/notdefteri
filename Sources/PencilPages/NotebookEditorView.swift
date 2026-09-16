@@ -37,12 +37,19 @@ struct NotebookEditorView: View {
     @State private var exportDocument: ExportedNotebook?
     @State private var showingExportError = false
     @State private var showingDeletePageConfirmation = false
-    @StateObject private var canvasActions = CanvasActions()
+    @StateObject private var leftCanvasActions = CanvasActions()
+    @StateObject private var rightCanvasActions = CanvasActions()
+    @State private var activeSide: PageSide = .left
     @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage("notdefteri.frosted.blur") private var frostedBlur: Double = 6
     @AppStorage("notdefteri.frosted.thickness") private var frostedThickness: Double = 28
     @AppStorage("notdefteri.frosted.revealOnTap") private var frostedRevealOnTap = true
+    @AppStorage("notdefteri.spreadMode") private var spreadMode = false
+
+    enum PageSide {
+        case left, right
+    }
 
     static let deskColor = Color(red: 0.24, green: 0.27, blue: 0.40)
     static let barColor = Color(red: 0.30, green: 0.33, blue: 0.47)
@@ -65,6 +72,47 @@ struct NotebookEditorView: View {
     }
 
     private var pageCount: Int { notebook?.pages.count ?? 0 }
+
+    /// Son çizim yapılan tarafın tuvali; geri al / ileri al ona uygulanır.
+    private var activeCanvasActions: CanvasActions {
+        activeSide == .right ? rightCanvasActions : leftCanvasActions
+    }
+
+    /// Çift sayfada soldaki sayfanın sırası: (0,1), (2,3), ...
+    private var spreadLeftIndex: Int { selectedIndex - selectedIndex % 2 }
+
+    private var spreadPages: (left: NotebookPage?, right: NotebookPage?) {
+        guard let pages = notebook?.pages else { return (nil, nil) }
+        let left = pages.indices.contains(spreadLeftIndex) ? pages[spreadLeftIndex] : nil
+        let right = pages.indices.contains(spreadLeftIndex + 1) ? pages[spreadLeftIndex + 1] : nil
+        return (left, right)
+    }
+
+    /// "Sayfa Ekle" için varsayılan konum: tek sayfada seçili sayfa, çiftte sağdaki sayfa.
+    private var insertAnchorIndex: Int {
+        spreadMode ? min(spreadLeftIndex + 1, max(pageCount - 1, 0)) : selectedIndex
+    }
+
+    private var pageCounterText: String {
+        guard spreadMode else { return "\(selectedIndex + 1) / \(pageCount)" }
+        if spreadPages.right != nil {
+            return "\(spreadLeftIndex + 1)-\(spreadLeftIndex + 2) / \(pageCount)"
+        }
+        return "\(spreadLeftIndex + 1) / \(pageCount)"
+    }
+
+    private var canGoBack: Bool {
+        spreadMode ? spreadLeftIndex > 0 : selectedIndex > 0
+    }
+
+    private var canGoForward: Bool {
+        spreadMode ? spreadLeftIndex + 2 < pageCount : selectedIndex < pageCount - 1
+    }
+
+    private func commitAllDrawings() {
+        leftCanvasActions.commitCurrentDrawing?()
+        rightCanvasActions.commitCurrentDrawing?()
+    }
 
     private var isFrostedPenActive: Bool { configuration.choice == .frosted }
 
@@ -123,16 +171,16 @@ struct NotebookEditorView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { canvasActions.undo() } label: {
+                Button { activeCanvasActions.undo() } label: {
                     Image(systemName: "arrow.uturn.backward")
                 }
-                .disabled(!canvasActions.canUndo)
+                .disabled(!activeCanvasActions.canUndo)
                 .accessibilityLabel("Geri al")
 
-                Button { canvasActions.redo() } label: {
+                Button { activeCanvasActions.redo() } label: {
                     Image(systemName: "arrow.uturn.forward")
                 }
-                .disabled(!canvasActions.canRedo)
+                .disabled(!activeCanvasActions.canRedo)
                 .accessibilityLabel("İleri al")
 
                 if let selectedPage {
@@ -141,12 +189,20 @@ struct NotebookEditorView: View {
                 }
 
                 Button {
-                    canvasActions.commitCurrentDrawing?()
+                    commitAllDrawings()
                     showingAddPage = true
                 } label: {
                     Image(systemName: "plus.square")
                 }
                 .accessibilityLabel("Sayfa ekle")
+
+                Picker("Görünüm", selection: $spreadMode) {
+                    Text("Tek").tag(false)
+                    Text("Çift").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 120)
+                .accessibilityLabel("Tek ya da çift sayfa görünümü")
 
                 pageCounter
             }
@@ -169,7 +225,7 @@ struct NotebookEditorView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active {
-                canvasActions.commitCurrentDrawing?()
+                commitAllDrawings()
                 store.flushPendingSaves()
             }
         }
@@ -178,7 +234,7 @@ struct NotebookEditorView: View {
                 store: store,
                 templates: templates,
                 notebookID: notebookID,
-                currentIndex: selectedIndex,
+                currentIndex: insertAnchorIndex,
                 initialSelection: currentTemplateSelection
             ) { newPageID in
                 selectedPageID = newPageID
@@ -236,16 +292,16 @@ struct NotebookEditorView: View {
             Button { movePage(by: -1) } label: {
                 Image(systemName: "chevron.left")
             }
-            .disabled(selectedIndex <= 0)
+            .disabled(!canGoBack)
             .accessibilityLabel("Önceki sayfa")
 
-            Text("\(selectedIndex + 1) / \(pageCount)")
+            Text(pageCounterText)
                 .font(.subheadline.weight(.semibold).monospacedDigit())
 
             Button { movePage(by: 1) } label: {
                 Image(systemName: "chevron.right")
             }
-            .disabled(selectedIndex >= pageCount - 1)
+            .disabled(!canGoForward)
             .accessibilityLabel("Sonraki sayfa")
         }
         .padding(.horizontal, 10)
@@ -294,7 +350,7 @@ struct NotebookEditorView: View {
     private func pageActionsMenu(for page: NotebookPage) -> some View {
         Menu {
             Button("Sayfayı Çoğalt", systemImage: "plus.square.on.square") {
-                canvasActions.commitCurrentDrawing?()
+                commitAllDrawings()
                 if let newPageID = store.duplicatePage(in: notebookID, pageID: page.id) {
                     selectedPageID = newPageID
                 }
@@ -309,7 +365,7 @@ struct NotebookEditorView: View {
             .disabled(selectedIndex >= pageCount - 1)
             Divider()
             Button("Defteri Dışa Aktar", systemImage: "square.and.arrow.up") {
-                canvasActions.commitCurrentDrawing?()
+                commitAllDrawings()
                 if store.saveNow(notebookID), let url = store.exportURL(for: notebookID) {
                     exportDocument = ExportedNotebook(url: url)
                 } else {
@@ -331,77 +387,30 @@ struct NotebookEditorView: View {
 
     @ViewBuilder
     private var pageArea: some View {
-        if let page = selectedPage {
+        if selectedPage != nil {
             GeometryReader { geometry in
-                let logicalWidth = Self.pageWidth
+                let logicalWidth = spreadMode ? Self.pageWidth * 2 : Self.pageWidth
                 let logicalHeight = Self.pageHeight
                 let scale = max(0.1, min((geometry.size.width - 40) / logicalWidth, (geometry.size.height - 40) / logicalHeight))
-                if let drawing = page.drawing {
-                    ZStack {
-                        // Alttaki yapraklar
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color(red: 0.84, green: 0.83, blue: 0.79))
-                            .offset(x: 10, y: 6)
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color(red: 0.90, green: 0.89, blue: 0.85))
-                            .offset(x: 5, y: 3)
-                        ZStack {
-                            PageBackgroundView(page: page)
-                            PageObjectsLayer(
-                                objects: page.overlay?.objects ?? [],
-                                selectedID: $selectedObjectID,
-                                isEditing: editingObjects,
-                                assets: assets,
-                                onChange: { updated in updateObject(updated, pageID: page.id) },
-                                onRotate90: { id in rotateObject(id, pageID: page.id) },
-                                onDuplicate: { id in duplicateObject(id, pageID: page.id) },
-                                onBringToFront: { id in bringObjectToFront(id, pageID: page.id) },
-                                onDelete: { id in deleteObject(id, pageID: page.id) }
-                            )
-                            .allowsHitTesting(editingObjects)
-                            PencilCanvasView(
-                                drawing: drawing,
-                                toolConfiguration: configuration,
-                                actions: canvasActions
-                            ) { drawing, persistImmediately in
-                                store.updateDrawing(
-                                    drawing,
-                                    notebookID: notebookID,
-                                    pageID: page.id,
-                                    persistImmediately: persistImmediately
-                                )
-                            }
-                            .id(page.id)
-                            .allowsHitTesting(!editingObjects && !isFrostedPenActive)
-                            CoverLayer(
-                                covers: page.overlay?.covers ?? [],
-                                isEditing: editingObjects,
-                                isFrostedPenActive: isFrostedPenActive && !editingObjects,
-                                frostedSettings: frostedSettings,
-                                selectedID: $selectedObjectID,
-                                onTransform: { id, rect, rotation in updateCover(id, rect: rect, rotation: rotation, pageID: page.id) },
-                                onAddCover: { cover in addCover(cover, pageID: page.id) },
-                                onRotate90: { id in rotateCover(id, pageID: page.id) },
-                                onDuplicate: { id in duplicateCover(id, pageID: page.id) },
-                                onBringToFront: { id in bringCoverToFront(id, pageID: page.id) },
-                                onDelete: { id in deleteCover(id, pageID: page.id) }
-                            )
-                        }
-                        .frame(width: logicalWidth, height: logicalHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                ZStack {
+                    // Alttaki yapraklar
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color(red: 0.84, green: 0.83, blue: 0.79))
+                        .offset(x: 10, y: 6)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color(red: 0.90, green: 0.89, blue: 0.85))
+                        .offset(x: 5, y: 3)
+                    if spreadMode {
+                        spreadContent
+                    } else if let page = selectedPage {
+                        pageStack(for: page, side: .left)
                     }
-                    .frame(width: logicalWidth, height: logicalHeight)
-                    .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-                    .scaleEffect(scale)
-                    .frame(width: logicalWidth * scale, height: logicalHeight * scale)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ContentUnavailableView(
-                        "Sayfa Yazısı Okunamıyor",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text("Kayıtlı çizim verisi bozuk olduğu için bu sayfa düzenlemeye kapatıldı.")
-                    )
                 }
+                .frame(width: logicalWidth, height: logicalHeight)
+                .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+                .scaleEffect(scale)
+                .frame(width: logicalWidth * scale, height: logicalHeight * scale)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .padding(.vertical, 12)
             .overlay(alignment: .top) {
@@ -410,6 +419,121 @@ struct NotebookEditorView: View {
         } else {
             ContentUnavailableView("Sayfa Yok", systemImage: "doc", description: Text("Yazmaya başlamak için bir sayfa ekle."))
         }
+    }
+
+    // Çift sayfa (docs/tasarim/04-CiftSayfa.png): iki sayfa yan yana, ortada cilt gölgesi.
+    private var spreadContent: some View {
+        HStack(spacing: 0) {
+            if let left = spreadPages.left {
+                pageStack(for: left, side: .left)
+            } else {
+                emptyPagePlaceholder
+            }
+            if let right = spreadPages.right {
+                pageStack(for: right, side: .right)
+            } else {
+                emptyPagePlaceholder
+            }
+        }
+        .overlay {
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.16), .black.opacity(0.28), .black.opacity(0.16), .clear],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 48)
+            .allowsHitTesting(false)
+        }
+    }
+
+    // Çiftin boş kalan yarısı: dokununca Sayfa Ekle açılır.
+    private var emptyPagePlaceholder: some View {
+        Button {
+            commitAllDrawings()
+            showingAddPage = true
+        } label: {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [12, 10]))
+                        .foregroundStyle(Color.white.opacity(0.3))
+                )
+                .overlay(
+                    VStack(spacing: 12) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 44, weight: .light))
+                        Text("Sayfa ekle")
+                            .font(.title3)
+                    }
+                    .foregroundStyle(Color.white.opacity(0.6))
+                )
+        }
+        .buttonStyle(.plain)
+        .frame(width: Self.pageWidth, height: Self.pageHeight)
+        .accessibilityLabel("Sayfa ekle")
+    }
+
+    // Tek bir sayfanın katmanları: şablon → nesneler → PencilKit → örtüler.
+    private func pageStack(for page: NotebookPage, side: PageSide) -> some View {
+        let actions = side == .right ? rightCanvasActions : leftCanvasActions
+        return Group {
+            if let drawing = page.drawing {
+                ZStack {
+                    PageBackgroundView(page: page)
+                    PageObjectsLayer(
+                        objects: page.overlay?.objects ?? [],
+                        selectedID: $selectedObjectID,
+                        isEditing: editingObjects,
+                        assets: assets,
+                        onChange: { updated in updateObject(updated, pageID: page.id) },
+                        onRotate90: { id in rotateObject(id, pageID: page.id) },
+                        onDuplicate: { id in duplicateObject(id, pageID: page.id) },
+                        onBringToFront: { id in bringObjectToFront(id, pageID: page.id) },
+                        onDelete: { id in deleteObject(id, pageID: page.id) }
+                    )
+                    .allowsHitTesting(editingObjects)
+                    PencilCanvasView(
+                        drawing: drawing,
+                        toolConfiguration: configuration,
+                        actions: actions
+                    ) { drawing, persistImmediately in
+                        activeSide = side
+                        store.updateDrawing(
+                            drawing,
+                            notebookID: notebookID,
+                            pageID: page.id,
+                            persistImmediately: persistImmediately
+                        )
+                    }
+                    .id(page.id)
+                    .allowsHitTesting(!editingObjects && !isFrostedPenActive)
+                    CoverLayer(
+                        covers: page.overlay?.covers ?? [],
+                        isEditing: editingObjects,
+                        isFrostedPenActive: isFrostedPenActive && !editingObjects,
+                        frostedSettings: frostedSettings,
+                        selectedID: $selectedObjectID,
+                        onTransform: { id, rect, rotation in updateCover(id, rect: rect, rotation: rotation, pageID: page.id) },
+                        onAddCover: { cover in addCover(cover, pageID: page.id) },
+                        onRotate90: { id in rotateCover(id, pageID: page.id) },
+                        onDuplicate: { id in duplicateCover(id, pageID: page.id) },
+                        onBringToFront: { id in bringCoverToFront(id, pageID: page.id) },
+                        onDelete: { id in deleteCover(id, pageID: page.id) }
+                    )
+                }
+            } else {
+                ContentUnavailableView(
+                    "Sayfa Yazısı Okunamıyor",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("Kayıtlı çizim verisi bozuk olduğu için bu sayfa düzenlemeye kapatıldı.")
+                )
+                .background(PaperBackgroundView.paperColor)
+                .environment(\.colorScheme, .light)
+            }
+        }
+        .frame(width: Self.pageWidth, height: Self.pageHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
     }
 
     // Kip bildirimi: nesne düzenleme veya buzlu kalem açıkken sayfanın üstünde durur.
@@ -441,17 +565,23 @@ struct NotebookEditorView: View {
     }
 
     private func movePage(by offset: Int) {
-        guard let notebook else { return }
-        let index = selectedIndex + offset
-        guard notebook.pages.indices.contains(index) else { return }
-        canvasActions.commitCurrentDrawing?()
+        guard let notebook, !notebook.pages.isEmpty else { return }
+        let index: Int
+        if spreadMode {
+            index = min(max(spreadLeftIndex + offset * 2, 0), notebook.pages.count - 1)
+            guard index != spreadLeftIndex else { return }
+        } else {
+            index = selectedIndex + offset
+            guard notebook.pages.indices.contains(index) else { return }
+        }
+        commitAllDrawings()
         selectedPageID = notebook.pages[index].id
     }
 
     // MARK: - Nesne düzenleme kipi
 
     private func setEditingObjects(_ editing: Bool) {
-        if editing { canvasActions.commitCurrentDrawing?() }
+        if editing { commitAllDrawings() }
         editingObjects = editing
         if !editing { selectedObjectID = nil }
     }
@@ -677,9 +807,11 @@ struct NotebookEditorView: View {
                     ForEach(Array(pages.enumerated()), id: \.element.id) { entry in
                         let index = entry.offset
                         let page = entry.element
-                        let isSelected = selectedPageID == page.id
+                        let isSelected = spreadMode
+                            ? (index == spreadLeftIndex || index == spreadLeftIndex + 1)
+                            : selectedPageID == page.id
                         Button {
-                            canvasActions.commitCurrentDrawing?()
+                            commitAllDrawings()
                             selectedPageID = page.id
                         } label: {
                             VStack(spacing: 3) {
