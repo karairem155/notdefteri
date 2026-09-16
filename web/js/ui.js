@@ -12,6 +12,7 @@ export function h(tag, props = {}, ...children) {
       }
     }
     else if (key === "dataset") Object.assign(el.dataset, value);
+    else if (key === "onTap" && typeof value === "function") tap(el, value);
     else if (key.startsWith("on") && typeof value === "function") el.addEventListener(key.slice(2).toLowerCase(), value);
     else if (key === "html") el.innerHTML = value;
     else if (value === true) el.setAttribute(key, "");
@@ -76,7 +77,30 @@ export function svgIcon(name, size = 20) {
 }
 
 export function iconButton(name, label, onClick, extraClass = "") {
-  return h("button", { class: "icon-btn " + extraClass, type: "button", "aria-label": label, title: label, onClick }, svgIcon(name));
+  return h("button", { class: "icon-btn " + extraClass, type: "button", "aria-label": label, title: label, onTap: onClick }, svgIcon(name));
+}
+
+/**
+ * Dokunma: pointer olaylarıyla çalışır (iPad Safari'de "click" bazı dinamik öğelerde gelmiyor).
+ * Parmak 12 px'den fazla kayarsa (kaydırma) tetiklenmez. Klavye için Enter/Space da çalışır.
+ */
+export function tap(el, handler) {
+  let start = null;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  });
+  el.addEventListener("pointerup", (e) => {
+    if (!start || e.pointerId !== start.id) return;
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 12;
+    start = null;
+    if (moved) return;
+    e.preventDefault();
+    handler(e);
+  });
+  el.addEventListener("pointercancel", () => { start = null; });
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handler(e); } });
+  if (!el.hasAttribute("tabindex") && el.tagName !== "BUTTON" && el.tagName !== "INPUT") el.setAttribute("tabindex", "0");
 }
 
 /** Uzun basma: 450 ms basılı tutunca `onLong`, kısa dokunuşta `onTap`. Sürükleyince ikisi de iptal. */
@@ -117,7 +141,8 @@ let modalRoot = null;
 export function openModal(content, { dark = false, wide = false, onClose } = {}) {
   closeModal();
   const card = h("div", { class: "modal-card" + (dark ? " dark" : "") + (wide ? " wide" : ""), role: "dialog", "aria-modal": "true" }, content);
-  modalRoot = h("div", { class: "modal-backdrop", onClick: (e) => { if (e.target === modalRoot) closeModal(); } }, card);
+  modalRoot = h("div", { class: "modal-backdrop" }, card);
+  modalRoot.addEventListener("pointerup", (e) => { if (e.target === modalRoot) closeModal(); });
   document.body.append(modalRoot);
   modalRoot._onClose = onClose;
   return closeModal;
@@ -137,12 +162,12 @@ export function actionSheet(title, actions) {
     class: "sheet-action" + (a.destructive ? " destructive" : ""),
     type: "button",
     disabled: a.disabled || null,
-    onClick: () => { closeModal(); a.onSelect(); }
+    onTap: () => { closeModal(); a.onSelect(); }
   }, a.title));
   openModal(h("div", { class: "sheet" },
     title ? h("div", { class: "sheet-title" }, title) : null,
     ...list,
-    h("button", { class: "sheet-action cancel", type: "button", onClick: closeModal }, "Vazgeç")
+    h("button", { class: "sheet-action cancel", type: "button", onTap: closeModal }, "Vazgeç")
   ));
 }
 
@@ -151,8 +176,8 @@ export function confirmDialog(title, message, confirmTitle, onConfirm, destructi
     h("h3", {}, title),
     message ? h("p", {}, message) : null,
     h("div", { class: "dialog-buttons" },
-      h("button", { class: "btn", type: "button", onClick: closeModal }, "Vazgeç"),
-      h("button", { class: "btn " + (destructive ? "danger" : "primary"), type: "button", onClick: () => { closeModal(); onConfirm(); } }, confirmTitle)
+      h("button", { class: "btn", type: "button", onTap: closeModal }, "Vazgeç"),
+      h("button", { class: "btn " + (destructive ? "danger" : "primary"), type: "button", onTap: () => { closeModal(); onConfirm(); } }, confirmTitle)
     )
   ));
 }
@@ -170,8 +195,8 @@ export function promptDialog(title, placeholder, initial, onSubmit) {
     h("h3", {}, title),
     input,
     h("div", { class: "dialog-buttons" },
-      h("button", { class: "btn", type: "button", onClick: closeModal }, "Vazgeç"),
-      h("button", { class: "btn primary", type: "button", onClick: submit }, "Kaydet")
+      h("button", { class: "btn", type: "button", onTap: closeModal }, "Vazgeç"),
+      h("button", { class: "btn primary", type: "button", onTap: submit }, "Kaydet")
     )
   ));
   setTimeout(() => input.focus(), 50);

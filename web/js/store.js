@@ -161,8 +161,12 @@ class Store extends EventTarget {
   createNotebook() {
     const notebook = newNotebook(`Defter ${this.notebooks.length + 1}`, this.settings.defaultCover);
     const template = this.initialTemplate();
-    applyTemplate(notebook.pages[0], template, this);
-    notebook.pages[0].size = { ...PAGE_SIZES[this.settings.pageSize] };
+    // Yeni defter üç sayfayla açılır; sonu gelince kendiliğinden eklenir.
+    while (notebook.pages.length < 3) notebook.pages.push(newPage());
+    for (const page of notebook.pages) {
+      applyTemplate(page, template, this);
+      page.size = { ...PAGE_SIZES[this.settings.pageSize] };
+    }
     this.notebooks.push(notebook);
     this.persist(notebook, true);
     this.emit("change");

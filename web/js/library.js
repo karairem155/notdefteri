@@ -30,8 +30,8 @@ export function renderLibrary(root) {
       h("div", { class: "topbar-title" }, showingTrash ? "Çöp Kutusu" : "Defterlerim"),
       h("div", { class: "topbar-side right" },
         !showingTrash && h("div", { class: "segmented", role: "group", "aria-label": "Görünüm" },
-          h("button", { type: "button", class: store.settings.libraryShelf ? "" : "active", "aria-label": "Liste", onClick: () => { store.setSetting("libraryShelf", false); render(); } }, svgIcon("list", 18)),
-          h("button", { type: "button", class: store.settings.libraryShelf ? "active" : "", "aria-label": "Raf", onClick: () => { store.setSetting("libraryShelf", true); render(); } }, svgIcon("books", 18))
+          h("button", { type: "button", class: store.settings.libraryShelf ? "" : "active", "aria-label": "Liste", onTap: () => { store.setSetting("libraryShelf", false); render(); } }, svgIcon("list", 18)),
+          h("button", { type: "button", class: store.settings.libraryShelf ? "active" : "", "aria-label": "Raf", onTap: () => { store.setSetting("libraryShelf", true); render(); } }, svgIcon("books", 18))
         ),
         !showingTrash && iconButton("plus", "Yeni Defter", newMenu, "accent")
       )
@@ -63,7 +63,7 @@ export function renderLibrary(root) {
     list.append(item("Tüm Notlar", null, all.length, "books"));
     list.append(h("h3", {}, "DEFTERLER"));
     for (const name of store.settings.folders) list.append(item(name, name, all.filter((n) => n.folder === name).length, "note"));
-    list.append(h("div", { class: "folder-item add", role: "button", tabindex: "0", onClick: () => promptDialog("Yeni Klasör", "Klasör adı", "", addFolder) }, svgIcon("plus", 18), "Yeni Klasör"));
+    list.append(h("div", { class: "folder-item add", role: "button", tabindex: "0", onTap: () => promptDialog("Yeni Klasör", "Klasör adı", "", addFolder) }, svgIcon("plus", 18), "Yeni Klasör"));
     return list;
   }
 
@@ -141,7 +141,7 @@ export function renderLibrary(root) {
     const grid = h("div", { class: "shelf" });
     for (const notebook of notebooks) grid.append(shelfCell(notebook));
     if (!search) {
-      grid.append(h("div", { class: "shelf-cell new", onClick: newMenu, role: "button", tabindex: "0" },
+      grid.append(h("div", { class: "shelf-cell new", onTap: newMenu, role: "button", tabindex: "0" },
         h("div", { class: "cover-wrap" }, svgIcon("plus", 30), "Yeni Defter")));
     }
     return grid;
@@ -248,12 +248,12 @@ export function renderLibrary(root) {
     for (const option of options) {
       const cell = h("div", { class: "mini-cover" + (sameCover(option, notebook.cover) ? " selected" : ""), role: "button", tabindex: "0",
         "aria-label": option.imageAsset ? "Kendi kapağım" : COVER_TITLES[option.pattern],
-        onClick: () => { store.mutate(notebook.id, (n) => { n.cover = option; }); closeModal(); } }, coverElement(option));
+        onTap: () => { store.mutate(notebook.id, (n) => { n.cover = option; }); closeModal(); } }, coverElement(option));
       grid.append(cell);
     }
     grid.append(h("div", { class: "mini-cover", role: "button", tabindex: "0", "aria-label": "Kendi kapağını ekle",
       style: { display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "8px", border: "1.5px dashed rgba(93,88,214,0.6)", color: "var(--accent)", fontSize: "14px", fontWeight: "600" },
-      onClick: async () => {
+      onTap: async () => {
         const file = await pickFile("file-image");
         if (!file) return;
         try {
@@ -268,7 +268,7 @@ export function renderLibrary(root) {
       h("h3", {}, "Kapak"),
       h("p", {}, "Bir desen seç ya da Fotoğraflar'dan kendi kapağını ekle."),
       grid,
-      h("div", { class: "dialog-buttons" }, h("button", { class: "btn", type: "button", onClick: closeModal }, "Kapat"))
+      h("div", { class: "dialog-buttons" }, h("button", { class: "btn", type: "button", onTap: closeModal }, "Kapat"))
     ));
   }
 

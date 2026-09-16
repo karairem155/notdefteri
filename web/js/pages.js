@@ -15,11 +15,11 @@ export function renderPages(root, notebookId) {
   const screen = h("div", { class: "screen screen-light" });
   const body = h("div", { class: "pages-body" });
   const topbar = h("div", { class: "topbar" },
-    h("div", { class: "topbar-side" }, h("button", { class: "back-btn", type: "button", onClick: () => navigate(`#/n/${notebookId}/p/${selectedId}`) }, svgIcon("back", 20), notebook.title)),
+    h("div", { class: "topbar-side" }, h("button", { class: "back-btn", type: "button", onTap: () => navigate(`#/n/${notebookId}/p/${selectedId}`) }, svgIcon("back", 20), notebook.title)),
     h("div", { class: "topbar-title" }, "Sayfalar"),
     h("div", { class: "topbar-side right" },
       h("button", { class: "btn small", type: "button", style: { color: "var(--accent)", background: "var(--accent-soft)" },
-        onClick: () => openAddPageSheet(notebookId, indexOf(selectedId), (id) => { selectedId = id; render(); }) }, "+ Sayfa Ekle"))
+        onTap: () => openAddPageSheet(notebookId, indexOf(selectedId), (id) => { selectedId = id; render(); }) }, "+ Sayfa Ekle"))
   );
   screen.append(topbar, body);
   root.append(screen);

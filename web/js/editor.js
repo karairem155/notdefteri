@@ -4,7 +4,7 @@
 import { store, TOOLS, uid } from "./store.js";
 import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, PAPER_COLOR } from "./paper.js";
-import { InkCanvas, drawStroke, renderStrokesToDataURL } from "./ink.js";
+import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, shrinkImage } from "./addpage.js";
 import { createFlip } from "./flip.js";
 import { attachEditorGestures } from "./gestures.js";
@@ -49,6 +49,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   let liveBand = null;
   const inks = new Map();
   let popover = null;
+  let lastPen = { ...tool };     // silgiden sonra dönülecek kalem
   let fitScale = 1;
   let zoom = 1;
   let pan = { x: 0, y: 0 };
@@ -86,11 +87,12 @@ export function renderEditor(root, notebookId, initialPageId) {
       ? (pages()[left + 1] ? `${left + 1}-${left + 2} / ${count}` : `${left + 1} / ${count}`)
       : `${selectedIndex() + 1} / ${count}`;
     const canBack = spreadMode() ? left > 0 : selectedIndex() > 0;
-    const canForward = spreadMode() ? left + 2 < count : selectedIndex() < count - 1;
+    const atEnd = spreadMode() ? left + 2 >= count : selectedIndex() >= count - 1;
+    const canForward = true;   // son sayfada ileri = yeni sayfa
     const page = selectedPage();
     topbar.replaceChildren(
       h("div", { class: "topbar-side" },
-        h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onClick: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 20)),
+        h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onTap: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 20)),
         page.pdf && h("span", { class: "badge-pdf" }, "PDF"),
         h("span", { class: "topbar-notebook" }, nb().title)),
       h("div", { class: "topbar-title" }, favoriteStrip()),
@@ -101,12 +103,12 @@ export function renderEditor(root, notebookId, initialPageId) {
         iconButton("more", "Sayfa işlemleri: çoğalt, taşı, sil", pageActionsMenu),
         iconButton("plus", "Sayfa ekle", () => openAddPageSheet(notebookId, insertAnchor(), (id) => selectPage(id))),
         h("div", { class: "segmented", role: "group", "aria-label": "Görünüm" },
-          h("button", { type: "button", class: spreadMode() ? "" : "active", onClick: () => { store.setSetting("spreadMode", false); renderStage(); } }, "Tek"),
-          h("button", { type: "button", class: spreadMode() ? "active" : "", onClick: () => { store.setSetting("spreadMode", true); renderStage(); } }, "Çift")),
+          h("button", { type: "button", class: spreadMode() ? "" : "active", onTap: () => { store.setSetting("spreadMode", false); renderStage(); } }, "Tek"),
+          h("button", { type: "button", class: spreadMode() ? "active" : "", onTap: () => { store.setSetting("spreadMode", true); renderStage(); } }, "Çift")),
         h("div", { class: "pill" },
           Object.assign(iconButton("back", "Önceki sayfa", () => movePage(-1)), { disabled: !canBack }),
           h("span", {}, counter),
-          Object.assign(iconButton("forward", "Sonraki sayfa", () => movePage(1)), { disabled: !canForward }))
+          Object.assign(iconButton(atEnd ? "plus" : "forward", atEnd ? "Yeni sayfa ekle" : "Sonraki sayfa", () => movePage(1)), { disabled: !canForward }))
       )
     );
   }
@@ -118,13 +120,25 @@ export function renderEditor(root, notebookId, initialPageId) {
       const selected = penMatches(pen);
       strip.append(h("button", { class: `fav-mini ${pen.tool}` + (selected ? " selected" : ""), type: "button", style: { "--c": pen.color },
         "aria-label": pen.name, "aria-pressed": String(selected), title: pen.name,
-        onClick: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } }));
+        onTap: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; lastPen = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } }));
     }
     return strip;
   }
 
   function insertAnchor() {
     return spreadMode() ? Math.min(spreadLeft() + 1, pages().length - 1) : selectedIndex();
+  }
+
+  /** Son sayfadan ileri geçilince yeni sayfa eklenir (son kullanılan şablonla). */
+  function ensureNextPage(dir) {
+    if (dir !== 1 || editingObjects) return;
+    const list = pages();
+    const atEnd = spreadMode() ? spreadLeft() + 2 >= list.length : selectedIndex() >= list.length - 1;
+    if (!atEnd) return;
+    const template = store.initialTemplate();
+    store.addPage(notebookId, list.length, template);
+    if (spreadMode() && pages().length % 2 === 1) store.addPage(notebookId, pages().length, template);
+    renderTopbar();
   }
 
   function flipTargetId(dir) {
@@ -141,6 +155,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   }
 
   function movePage(offset) {
+    ensureNextPage(offset);
     const target = flipTargetId(offset);
     if (!target) return;
     if (editingObjects || zoom > 1 || flip.active || !flip.run(offset, (committed) => { if (committed) selectPage(target); })) {
@@ -228,7 +243,7 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   function emptyPage(size) {
     return h("div", { class: "empty-page", style: { width: size.w + "px", height: size.h + "px" }, role: "button", tabindex: "0",
-      onClick: () => openAddPageSheet(notebookId, pages().length - 1, (id) => selectPage(id)) }, svgIcon("plus", 44), "Sayfa ekle");
+      onTap: () => openAddPageSheet(notebookId, pages().length - 1, (id) => selectPage(id)) }, svgIcon("plus", 44), "Sayfa ekle");
   }
 
   function toPageCoords(e, stackEl, page) {
@@ -258,6 +273,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       ruler: () => (ruler && selectedPageId === page.id ? ruler : null),
       textLines: () => textLines.get(page.id) || null,
       onSelection: (bounds) => renderSelection(stack, page, bounds),
+      onEraseEnd: () => { if (tool.tool === "eraser" && lastPen) { tool = { ...lastPen }; renderBench(); renderTopbar(); applyModes(); } },
       toPageCoords: (e) => toPageCoords(e, stack, page),
       neighborFor: (dir) => {
         if (!spreadMode()) return null;
@@ -317,11 +333,11 @@ export function renderEditor(root, notebookId, initialPageId) {
     });
     addHandles(box);
     const menu = h("div", { class: "object-menu", style: { left: Math.min(Math.max(bounds.x + bounds.w / 2, 150), Math.max(page.size.w - 150, 150)) + "px", top: Math.max(bounds.y - 12, 60) + "px" } },
-      h("button", { type: "button", onClick: () => ink.duplicateSelection() }, svgIcon("copy", 16), "Kopyala"),
+      h("button", { type: "button", onTap: () => ink.duplicateSelection() }, svgIcon("copy", 16), "Kopyala"),
       h("div", { class: "sep" }),
-      h("button", { type: "button", onClick: () => { const b = ink.selectionBounds(); if (!b) return; ink.beginSelectionEdit(); ink.applySelectionTransform({ rotate: 90, center: { x: b.x + b.w / 2, y: b.y + b.h / 2 } }); ink.commit(); renderSelection(stack, page, ink.selectionBounds()); } }, svgIcon("rotate", 16), "Döndür"),
+      h("button", { type: "button", onTap: () => { const b = ink.selectionBounds(); if (!b) return; ink.beginSelectionEdit(); ink.applySelectionTransform({ rotate: 90, center: { x: b.x + b.w / 2, y: b.y + b.h / 2 } }); ink.commit(); renderSelection(stack, page, ink.selectionBounds()); } }, svgIcon("rotate", 16), "Döndür"),
       h("div", { class: "sep" }),
-      h("button", { type: "button", class: "danger", onClick: () => ink.deleteSelection() }, svgIcon("trash", 16), "Sil"));
+      h("button", { type: "button", class: "danger", onTap: () => ink.deleteSelection() }, svgIcon("trash", 16), "Sil"));
     menu.addEventListener("pointerdown", (e) => e.stopPropagation());
     layer.append(box, menu);
   }
@@ -461,7 +477,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       banner.hidden = false;
       banner.replaceChildren(
         h("span", {}, selectedObjectId ? "Sürükle, köşeden büyüt, üstten döndür" : "Nesne düzenleme: bir nesneye dokun"),
-        h("button", { class: "btn small primary", type: "button", onClick: () => setEditing(false) }, "Bitti"));
+        h("button", { class: "btn small primary", type: "button", onTap: () => setEditing(false) }, "Bitti"));
     } else if (isFrosted()) {
       banner.hidden = false;
       banner.replaceChildren(svgIcon("hand", 16), h("span", {}, "Buzlu kalem: yazının üstüne çek"));
@@ -563,7 +579,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         }
         ctx.restore();
       }
-      for (const stroke of page.strokes) drawStroke(ctx, stroke);
+      for (const stroke of orderForDrawing(page.strokes)) drawStroke(ctx, stroke);
       const url = canvas.toDataURL("image/jpeg", 0.85);
       snapshots.set(page.id, { version, url });
       return url;
@@ -645,7 +661,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   function objectMenu(item, page, actions, rerender) {
     const x = Math.min(Math.max(item.rect.x + item.rect.w / 2, 150), Math.max(page.size.w - 150, 150));
     const y = Math.max(item.rect.y - 12, 60);
-    const btn = (title, icon, fn, cls = "") => h("button", { type: "button", class: cls, onClick: (e) => { e.stopPropagation(); fn(); rerender(); } }, svgIcon(icon, 16), title);
+    const btn = (title, icon, fn, cls = "") => h("button", { type: "button", class: cls, onTap: (e) => { e.stopPropagation(); fn(); rerender(); } }, svgIcon(icon, 16), title);
     const menu = h("div", { class: "object-menu", style: { left: x + "px", top: y + "px" } },
       btn("Döndür", "rotate", actions.rotate), h("div", { class: "sep" }),
       btn("Kopyala", "copy", actions.duplicate), h("div", { class: "sep" }),
@@ -717,6 +733,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         style: { "--tint": cover.tint, "--tint-opacity": String(cover.tintOpacity), "--blur": cover.blur + "px" },
         role: "button", "aria-label": "Cevap gizli, açmak için dokun" });
       el.append(frostInner(cover, page), h("div", { class: "frost-tint" }));
+      el._coverId = cover.id;
       placeItem(el, cover);
       if (editingObjects) {
         makeTransformable(el, cover, stack, page, (rect, rotation) => {
@@ -770,12 +787,34 @@ export function renderEditor(root, notebookId, initialPageId) {
   /** Uzun basınca: örtüyü sil ya da düzenleme kipine geç. */
   function coverMenu(cover, page) {
     actionSheet(cover.style === "band" ? "Buzlu şerit" : "Buzlu post-it", [
+      { title: "Bulanıklığı Ayarla", onSelect: () => coverBlurDialog(cover, page) },
       { title: "Taşı / Düzenle", onSelect: () => { selectedObjectId = cover.id; setEditing(true); } },
       { title: "Sil", destructive: true, onSelect: () => {
         store.updatePage(notebookId, page.id, (p) => { p.covers = p.covers.filter((c) => c.id !== cover.id); });
         renderStage();
       } }
     ]);
+  }
+
+  /** Tek bir örtünün bulanıklığı ve renk yoğunluğu; canlı olarak uygulanır. */
+  function coverBlurDialog(cover, page) {
+    const apply = () => {
+      store.updatePage(notebookId, page.id, (p) => { const c = p.covers.find((x) => x.id === cover.id); if (c) { c.blur = cover.blur; c.tintOpacity = cover.tintOpacity; } });
+      for (const el of stage.querySelectorAll(".cover-mark")) {
+        if (el._coverId === cover.id) { el.style.setProperty("--blur", cover.blur + "px"); el.style.setProperty("--tint-opacity", String(cover.tintOpacity)); }
+      }
+    };
+    const blurValue = h("span", { class: "value" }, cover.blur + " px");
+    const tintValue = h("span", { class: "value" }, Math.round(cover.tintOpacity * 100) + "%");
+    openModal(h("div", { class: "dialog", style: { color: "rgba(255,255,255,0.85)" } },
+      h("h3", { style: { color: "#fff" } }, "Bulanıklık"),
+      h("div", { class: "panel-row" }, h("label", {}, "Bulanıklık"), h("input", { type: "range", min: "0", max: "30", step: "1", value: String(cover.blur), "aria-label": "Bulanıklık",
+        onInput: (e) => { cover.blur = Number(e.target.value); blurValue.textContent = cover.blur + " px"; apply(); } }), blurValue),
+      h("div", { class: "panel-row" }, h("label", {}, "Renk yoğunluğu"), h("input", { type: "range", min: "0", max: "100", step: "5", value: String(Math.round(cover.tintOpacity * 100)), "aria-label": "Renk yoğunluğu",
+        onInput: (e) => { cover.tintOpacity = Number(e.target.value) / 100; tintValue.textContent = e.target.value + "%"; apply(); } }), tintValue),
+      h("div", { class: "note", style: { color: "rgba(255,255,255,0.5)" } }, "0 px bulanıklık: altı tamamen görünür; renk yoğunluğu %100: altı hiç görünmez."),
+      h("div", { class: "dialog-buttons" }, h("button", { class: "btn primary", type: "button", onTap: closeModal }, "Tamam"))
+    ), { dark: true });
   }
 
   function attachBandGesture(layer, page, stack) {
@@ -833,7 +872,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     for (const hex of s.palette) {
       const selected = isInking() && hex.toUpperCase() === tool.color.toUpperCase();
       palette.append(h("button", { class: "swatch" + (selected ? " selected" : ""), type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex,
-        onClick: () => { if (!isInking()) tool.tool = "pen"; tool.color = hex; renderBench(); applyModes(); } }));
+        onTap: () => { if (!isInking()) tool.tool = "pen"; tool.color = hex; renderBench(); applyModes(); } }));
     }
     const hasSelectedColor = s.palette.some((hex) => isInking() && hex.toUpperCase() === tool.color.toUpperCase());
     const paletteRow = h("div", { class: "palette-row" },
@@ -846,26 +885,27 @@ export function renderEditor(root, notebookId, initialPageId) {
     for (const pen of s.pens) {
       const selected = penMatches(pen);
       pensRow.append(h("button", { class: "pen-btn" + (selected ? " selected" : ""), type: "button", "aria-label": pen.name, "aria-pressed": String(selected),
-        onClick: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } }, penIllustration(pen)));
+        onTap: () => { if (selected) openPenPanel(); else { tool = { tool: pen.tool, color: pen.color, width: pen.width }; lastPen = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } },
+        penIllustration(pen), h("span", { class: "tool-caption" }, pen.name)));
     }
     pensRow.append(h("div", { class: "bench-sep" }));
     pensRow.append(h("button", { class: "tool-btn" + (tool.tool === "eraser" ? " selected" : ""), type: "button", "aria-label": "Silgi", "aria-pressed": String(tool.tool === "eraser"),
-      onClick: () => { if (tool.tool === "eraser") openEraserPanel(); else { tool.tool = "eraser"; clearSelections(); renderBench(); applyModes(); } } }, svgIcon("eraser", 22)));
-    pensRow.append(toolButton("lasso", svgIcon("lasso", 22), "Kement: seç, taşı, döndür"));
-    pensRow.append(h("button", { class: "tool-btn" + (ruler ? " selected" : ""), type: "button", "aria-label": "Cetvel", "aria-pressed": String(!!ruler), onClick: toggleRuler }, svgIcon("ruler", 22)));
-    pensRow.append(h("button", { class: "tool-btn", type: "button", "aria-label": "Çıkartma ve post-it", onClick: openStickerPanel }, svgIcon("note", 22)));
+      onTap: () => { if (tool.tool === "eraser") openEraserPanel(); else { tool.tool = "eraser"; clearSelections(); renderBench(); renderTopbar(); applyModes(); } } }, svgIcon("eraser", 22), h("span", { class: "tool-caption" }, "Silgi")));
+    pensRow.append(toolButton("lasso", svgIcon("lasso", 22), "Kement", "Seç"));
+    pensRow.append(h("button", { class: "tool-btn" + (ruler ? " selected" : ""), type: "button", "aria-label": "Cetvel", "aria-pressed": String(!!ruler), onTap: toggleRuler }, svgIcon("ruler", 22), h("span", { class: "tool-caption" }, "Cetvel")));
+    pensRow.append(h("button", { class: "tool-btn", type: "button", "aria-label": "Çıkartma ve post-it", onTap: openStickerPanel }, svgIcon("note", 22), h("span", { class: "tool-caption" }, "Post-it")));
     pensRow.append(h("button", { class: "tool-btn" + (isFrosted() ? " selected" : ""), type: "button", "aria-label": "Buzlu kalem",
-      onClick: () => { if (isFrosted()) openFrostedPanel(); else { tool.tool = "frosted"; renderBench(); applyModes(); } } }, h("div", { class: "frost-ring" })));
-    pensRow.append(h("button", { class: "tool-btn" + (editingObjects ? " selected" : ""), type: "button", "aria-label": "Fotoğraf ve nesneler", onClick: photoMenu }, svgIcon("photo", 22)));
+      onTap: () => { if (isFrosted()) openFrostedPanel(); else { tool.tool = "frosted"; renderBench(); renderTopbar(); applyModes(); } } }, h("div", { class: "frost-ring" }), h("span", { class: "tool-caption" }, "Buzlu")));
+    pensRow.append(h("button", { class: "tool-btn" + (editingObjects ? " selected" : ""), type: "button", "aria-label": "Fotoğraf ve nesneler", onTap: photoMenu }, svgIcon("photo", 22), h("span", { class: "tool-caption" }, "Fotoğraf")));
 
     bench.replaceChildren(paletteRow, pensRow);
     if (popover) bench.append(popover);
   }
 
-  function toolButton(name, icon, label) {
+  function toolButton(name, icon, label, caption) {
     const selected = tool.tool === name;
     return h("button", { class: "tool-btn" + (selected ? " selected" : ""), type: "button", "aria-label": label, "aria-pressed": String(selected),
-      onClick: () => { tool.tool = name; clearSelections(); renderBench(); renderTopbar(); applyModes(); } }, icon);
+      onTap: () => { tool.tool = name; clearSelections(); renderBench(); renderTopbar(); applyModes(); } }, icon, h("span", { class: "tool-caption" }, caption || label));
   }
 
   function clearSelections() {
@@ -880,15 +920,15 @@ export function renderEditor(root, notebookId, initialPageId) {
     const save = () => store.setSetting("eraser", { ...e });
     const tabs = h("div", { class: "segmented" });
     const buildTabs = () => tabs.replaceChildren(
-      h("button", { type: "button", class: e.mode === "stroke" ? "active" : "", onClick: () => { e.mode = "stroke"; save(); buildTabs(); } }, "Dokunduğun çizgiyi sil"),
-      h("button", { type: "button", class: e.mode === "pixel" ? "active" : "", onClick: () => { e.mode = "pixel"; save(); buildTabs(); } }, "Normal silgi"));
+      h("button", { type: "button", class: e.mode === "stroke" ? "active" : "", onTap: () => { e.mode = "stroke"; save(); buildTabs(); } }, "Dokunduğun çizgiyi sil"),
+      h("button", { type: "button", class: e.mode === "pixel" ? "active" : "", onTap: () => { e.mode = "pixel"; save(); buildTabs(); } }, "Normal silgi"));
     buildTabs();
     const value = h("span", { class: "value" }, e.size + " px");
     popover = h("div", { class: "popover", role: "dialog", style: { width: "min(460px, calc(100vw - 32px))" } },
       h("div", { class: "panel-head" }, h("h3", {}, "Silgi"), h("span", { class: "panel-hint" }, "Parmak davranışı Ayarlar'da")),
       h("div", { class: "panel-row" }, tabs),
       h("div", { class: "panel-row" }, h("label", {}, "Boyut"), h("input", { type: "range", min: "4", max: "48", step: "2", value: String(e.size), "aria-label": "Silgi boyutu", onInput: (ev) => { e.size = Number(ev.target.value); value.textContent = e.size + " px"; save(); } }), value),
-      h("div", { style: { textAlign: "right", marginTop: "12px" } }, h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onClick: closePopover }, "Kapat"))
+      h("div", { style: { textAlign: "right", marginTop: "12px" } }, h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onTap: closePopover }, "Kapat"))
     );
     bench.append(popover);
   }
@@ -907,6 +947,15 @@ export function renderEditor(root, notebookId, initialPageId) {
     if (popover) { popover.remove(); popover = null; }
   }
 
+  // Panel açıkken başka bir yere dokununca kapanır (Kapat'a basmak gerekmez).
+  const onOutsidePointer = (e) => {
+    if (!popover) return;
+    if (popover.contains(e.target)) return;
+    if (e.target.closest && e.target.closest(".modal-backdrop")) return;
+    closePopover();
+  };
+  document.addEventListener("pointerdown", onOutsidePointer, true);
+
   function openPenPanel() {
     closePopover();
     const s = store.settings;
@@ -917,18 +966,18 @@ export function renderEditor(root, notebookId, initialPageId) {
       const widthRange = h("input", { type: "range", min: "1", max: "24", step: "0.5", value: String(tool.width), "aria-label": "Kalınlık",
         onInput: (e) => { tool.width = Number(e.target.value); value.textContent = formatPt(tool.width) + " pt"; preview.firstChild.style.setProperty("--h", Math.max(2, Math.min(tool.width, 24)) + "px"); renderBenchKeepPopover(); } });
       const toolTabs = h("div", { class: "segmented" }, ...["pen", "pencil", "highlighter"].map((t) =>
-        h("button", { type: "button", class: tool.tool === t ? "active" : "", onClick: () => { tool.tool = t; build(); renderBenchKeepPopover(); } }, TOOLS[t].title)));
+        h("button", { type: "button", class: tool.tool === t ? "active" : "", onTap: () => { tool.tool = t; build(); renderBenchKeepPopover(); } }, TOOLS[t].title)));
       const palette = h("div", { class: "palette", style: { flexWrap: "wrap" } });
       for (const hex of s.palette) {
         palette.append(h("button", { class: "swatch" + (hex.toUpperCase() === tool.color.toUpperCase() ? " selected" : ""), type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex,
-          onClick: () => { tool.color = hex; build(); renderBenchKeepPopover(); } }));
+          onTap: () => { tool.color = hex; build(); renderBenchKeepPopover(); } }));
       }
       const wheel = h("div", { class: "color-input" }, h("input", { type: "color", value: toHex6(tool.color), "aria-label": "Renk çemberi", onInput: (e) => { tool.color = e.target.value.toUpperCase(); build(); renderBenchKeepPopover(); } }));
       const favs = h("div", { class: "fav-grid" });
       for (const pen of s.pens) {
         const cell = h("button", { class: "fav-cell" + (penMatches(pen) ? " selected" : ""), type: "button",
           style: { "--c": pen.color, "--h": Math.max(2, Math.min(pen.width, 14)) + "px" },
-          onClick: () => { tool = { tool: pen.tool, color: pen.color, width: pen.width }; build(); renderBenchKeepPopover(); } },
+          onTap: () => { tool = { tool: pen.tool, color: pen.color, width: pen.width }; build(); renderBenchKeepPopover(); } },
           pen.id === s.defaultPenId && h("span", { class: "star" }, svgIcon("star", 11)),
           h("div", { class: "dot" }), h("div", { class: "line" }), h("div", { class: "name" }, pen.name));
         cell.addEventListener("contextmenu", (e) => { e.preventDefault(); actionSheet(pen.name, [
@@ -937,10 +986,10 @@ export function renderEditor(root, notebookId, initialPageId) {
         ]); });
         favs.append(cell);
       }
-      favs.append(h("button", { class: "fav-cell add", type: "button", onClick: addFavorite }, svgIcon("plus", 22), h("div", { class: "name" }, "Ekle")));
+      favs.append(h("button", { class: "fav-cell add", type: "button", onTap: addFavorite }, svgIcon("plus", 22), h("div", { class: "name" }, "Ekle")));
       const def = store.defaultPen;
       panel.replaceChildren(
-        h("div", { class: "panel-head" }, toolTabs, h("button", { class: "btn small primary", type: "button", onClick: addFavorite }, "♥ Favorilere ekle")),
+        h("div", { class: "panel-head" }, toolTabs, h("button", { class: "btn small primary", type: "button", onTap: addFavorite }, "♥ Favorilere ekle")),
         h("div", { class: "panel-row" }, h("label", {}, "Kalınlık"), widthRange, value),
         preview,
         h("div", { class: "panel-row" }, h("label", {}, "Renk"), h("div", { style: { flex: "1", overflowX: "auto" } }, palette), wheel),
@@ -950,7 +999,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         h("div", { class: "default-row" },
           h("div", {}, h("div", {}, "Varsayılan kalemim"), h("div", { class: "sub" }, "Yeni sayfa açınca bu seçili gelir")),
           def && h("div", { class: "who" }, h("div", { class: "dot", style: { "--c": def.color } }), `${def.name} · ${formatPt(def.width)} pt`)),
-        h("div", { style: { textAlign: "right", marginTop: "12px" } }, h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onClick: closePopover }, "Kapat"))
+        h("div", { style: { textAlign: "right", marginTop: "12px" } }, h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onTap: closePopover }, "Kapat"))
       );
     };
     function addFavorite() {
@@ -977,13 +1026,13 @@ export function renderEditor(root, notebookId, initialPageId) {
     const f = { ...store.settings.frosted };
     const save = () => store.setSetting("frosted", { ...f });
     const toggle = h("button", { class: "toggle" + (f.revealOnTap ? " on" : ""), type: "button", role: "switch", "aria-checked": String(f.revealOnTap),
-      onClick: () => { f.revealOnTap = !f.revealOnTap; toggle.classList.toggle("on", f.revealOnTap); toggle.setAttribute("aria-checked", String(f.revealOnTap)); save(); } });
+      onTap: () => { f.revealOnTap = !f.revealOnTap; toggle.classList.toggle("on", f.revealOnTap); toggle.setAttribute("aria-checked", String(f.revealOnTap)); save(); } });
     popover = h("div", { class: "popover", role: "dialog", style: { width: "min(460px, calc(100vw - 32px))" } },
       h("div", { class: "panel-head" }, h("h3", {}, "Buzlu kalem"), h("span", { class: "panel-hint" }, "yazının üstüne çek")),
       h("div", { class: "panel-row" }, h("label", {}, "Bulanıklık"), h("input", { type: "range", min: "1", max: "24", step: "1", value: String(f.blur), "aria-label": "Bulanıklık", onInput: (e) => { f.blur = Number(e.target.value); save(); } })),
       h("div", { class: "panel-row" }, h("label", {}, "Şerit kalınlığı"), h("input", { type: "range", min: "12", max: "60", step: "2", value: String(f.thickness), "aria-label": "Şerit kalınlığı", onInput: (e) => { f.thickness = Number(e.target.value); save(); } })),
       h("div", { class: "default-row" }, h("div", {}, h("div", {}, "Dokununca açılsın"), h("div", { class: "sub" }, "Kapalıyken kalıcı bulanık kalır")), toggle),
-      h("div", { style: { textAlign: "right", marginTop: "12px" } }, h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onClick: closePopover }, "Kapat"))
+      h("div", { style: { textAlign: "right", marginTop: "12px" } }, h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onTap: closePopover }, "Kapat"))
     );
     bench.append(popover);
   }
@@ -999,24 +1048,24 @@ export function renderEditor(root, notebookId, initialPageId) {
     const tabs = h("div", { class: "segmented" });
     const build = () => {
       tabs.replaceChildren(...[["stickers", "Çıkartmalar"], ["postit", "Post-it"], ["tape", "Bant"], ["mine", "Çıkartmalarım"]].map(([k, t]) =>
-        h("button", { type: "button", class: tab === k ? "active" : "", onClick: () => { tab = k; build(); } }, t)));
+        h("button", { type: "button", class: tab === k ? "active" : "", onTap: () => { tab = k; build(); } }, t)));
       if (tab === "postit") {
         const custom = h("input", { type: "color", value: "#FFE566", "aria-label": "Kendi rengim" });
         body.replaceChildren(
           h("div", { class: "sticker-section-title" }, "DÜZ POST-IT", h("span", {}, "üstüne yazı yazılabilir")),
           h("div", { class: "postit-grid" },
-            ...plain.map(([name, hex]) => h("button", { class: "postit-cell", type: "button", onClick: () => { closeModal(); addPlainPostIt(hex); } }, h("div", { class: "paper", style: { "--tint": hex } }), name)),
-            h("div", { class: "postit-cell" }, h("div", { class: "paper custom" }, h("div", { class: "color-input", style: { width: "44px", height: "44px" } }, custom), h("button", { class: "btn small primary", type: "button", onClick: () => { closeModal(); addPlainPostIt(custom.value.toUpperCase()); } }, "Ekle")), "Kendi rengim")),
+            ...plain.map(([name, hex]) => h("button", { class: "postit-cell", type: "button", onTap: () => { closeModal(); addPlainPostIt(hex); } }, h("div", { class: "paper", style: { "--tint": hex } }), name)),
+            h("div", { class: "postit-cell" }, h("div", { class: "paper custom" }, h("div", { class: "color-input", style: { width: "44px", height: "44px" } }, custom), h("button", { class: "btn small primary", type: "button", onTap: () => { closeModal(); addPlainPostIt(custom.value.toUpperCase()); } }, "Ekle")), "Kendi rengim")),
           h("div", { class: "sticker-section-title" }, "BUZLU POST-IT", h("span", {}, "cevabı örter, dokununca açılır")),
           h("div", { class: "postit-grid" },
-            ...frosted.map(([name, hex]) => h("button", { class: "postit-cell", type: "button", onClick: () => { closeModal(); addFrostedPostIt(hex); } }, h("div", { class: "paper frosted", style: { "--tint": hex } }), name))),
+            ...frosted.map(([name, hex]) => h("button", { class: "postit-cell", type: "button", onTap: () => { closeModal(); addFrostedPostIt(hex); } }, h("div", { class: "paper frosted", style: { "--tint": hex } }), name))),
           h("div", { class: "info-box" }, svgIcon("hand", 18), h("span", {}, "Buzlu post-it'i cevabın üstüne koy. Altındaki yazı bulanık görünür; parmağınla dokununca açılır, tekrar dokununca kapanır."))
         );
       } else if (tab === "mine") {
         body.replaceChildren(
           h("div", { class: "sticker-section-title" }, "ÇIKARTMALARIM", h("span", {}, "kendi görsellerin; PNG'de saydamlık korunur")),
           h("div", { style: { display: "flex", gap: "12px" } },
-            h("button", { class: "btn", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onClick: () => { closeModal(); importImage("sticker"); } }, "Görsel Seç")),
+            h("button", { class: "btn", type: "button", style: { background: "rgba(255,255,255,0.1)", color: "#fff" }, onTap: () => { closeModal(); importImage("sticker"); } }, "Görsel Seç")),
           h("div", { class: "note", style: { color: "rgba(255,255,255,0.5)" } }, "Eklenen çıkartma sayfaya yerleşir; sürükleyip döndürebilirsin.")
         );
       } else {
@@ -1024,12 +1073,12 @@ export function renderEditor(root, notebookId, initialPageId) {
           svgIcon(tab === "stickers" ? "star" : "note", 36),
           h("div", { style: { fontSize: "17px", fontWeight: "600", color: "#fff" } }, tab === "stickers" ? "Hazır çıkartmalar yakında" : "Hazır bantlar yakında"),
           h("div", {}, tab === "stickers" ? "Şimdilik kendi görsellerini \"Çıkartmalarım\" sekmesinden ekleyebilirsin." : "Şimdilik bant yerine düz post-it ya da kendi görselini kullanabilirsin."),
-          h("button", { class: "btn primary small", type: "button", onClick: () => { tab = "mine"; build(); } }, "Çıkartmalarım'a git")));
+          h("button", { class: "btn primary small", type: "button", onTap: () => { tab = "mine"; build(); } }, "Çıkartmalarım'a git")));
       }
     };
     build();
     openModal(h("div", { class: "sticker-panel" },
-      h("div", { class: "sticker-head" }, tabs, h("button", { class: "btn ghost", type: "button", style: { color: "#8c85f5", fontWeight: "700" }, onClick: closeModal }, "Bitti")),
+      h("div", { class: "sticker-head" }, tabs, h("button", { class: "btn ghost", type: "button", style: { color: "#8c85f5", fontWeight: "700" }, onTap: closeModal }, "Bitti")),
       body), { dark: true, wide: true });
   }
 
@@ -1051,7 +1100,9 @@ export function renderEditor(root, notebookId, initialPageId) {
     getPan: () => pan,
     setZoom: (z, p) => { zoom = z; pan = p; applyTransform(); },
     beginFlip: (dir) => {
-      if (editingObjects || flip.active || !flipTargetId(dir)) return false;
+      if (editingObjects || flip.active) return false;
+      ensureNextPage(dir);
+      if (!flipTargetId(dir)) return false;
       flipDir = dir;
       return flip.begin(dir);
     },
@@ -1078,6 +1129,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       resizeObserver.disconnect();
       store.removeEventListener("settings", onSettings);
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onOutsidePointer, true);
       closePopover();
       flip.cancel();
       flushInk();

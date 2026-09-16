@@ -12,7 +12,7 @@ export function renderSettings(root) {
   const body = h("div", { class: "settings-body" });
   screen.append(
     h("div", { class: "topbar" },
-      h("div", { class: "topbar-side" }, h("button", { class: "back-btn", type: "button", onClick: () => navigate("#/") }, svgIcon("back", 20), "Defterlerim")),
+      h("div", { class: "topbar-side" }, h("button", { class: "back-btn", type: "button", onTap: () => navigate("#/") }, svgIcon("back", 20), "Defterlerim")),
       h("div", { class: "topbar-title" }, "Ayarlar"),
       h("div", { class: "topbar-side right" })),
     body
@@ -31,8 +31,8 @@ export function renderSettings(root) {
         section("KAPAK DESENLERİ", h("div", { class: "card" }, coversRow(), h("div", { class: "note" }, "Yeni defter açarken bu desenlerden seçersin. Seçili olan yeni defterlerin kapağıdır."))),
         section("YEDEKLEME", h("div", { class: "card" },
           h("div", { class: "backup-actions" },
-            h("button", { class: "btn primary", type: "button", onClick: exportBackup }, "Yedekle"),
-            h("button", { class: "btn", type: "button", onClick: importBackup }, "Yedekten Geri Yükle")),
+            h("button", { class: "btn primary", type: "button", onTap: exportBackup }, "Yedekle"),
+            h("button", { class: "btn", type: "button", onTap: importBackup }, "Yedekten Geri Yükle")),
           h("div", { class: "note" }, "Bütün defterler, ayarlar ve görseller tek bir dosyaya yazılır; Dosyalar'a ya da iCloud'a kaydet. Safari yer açmak için ana ekran uygulamasının verisini silebilir, bu yüzden ara sıra yedek al.")))
       ),
       h("div", {},
@@ -41,7 +41,7 @@ export function renderSettings(root) {
         section("SAYFA", h("div", { class: "settings-rows" },
           row("Varsayılan sayfa boyutu", select(Object.entries(PAGE_SIZES).map(([k, v]) => [k, v.title]), s.pageSize, (v) => store.setSetting("pageSize", v))),
           row("Varsayılan görünüm", select([["single", "Tek sayfa"], ["spread", "Çift sayfa"]], s.spreadMode ? "spread" : "single", (v) => store.setSetting("spreadMode", v === "spread"))),
-          row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onClick: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),
+          row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onTap: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),
           row("Basınca duyarlı kalınlık", toggle(s.pressureWidth, (v) => store.setSetting("pressureWidth", v))),
           row("Parmak ne yapsın", select([["navigate", "Sayfa çevirir, kaydırır"], ["draw", "Çizer"], ["erase", "Siler"]], s.fingerAction, (v) => store.setSetting("fingerAction", v))),
           row("Sabit tutunca şekle dönüştür", toggle(s.shapeRecognition, (v) => store.setSetting("shapeRecognition", v)))
@@ -61,7 +61,7 @@ export function renderSettings(root) {
   }
 
   function toggle(on, onChange) {
-    const el = h("button", { class: "toggle" + (on ? " on" : ""), type: "button", role: "switch", "aria-checked": String(on), onClick: () => { on = !on; el.classList.toggle("on", on); el.setAttribute("aria-checked", String(on)); onChange(on); } });
+    const el = h("button", { class: "toggle" + (on ? " on" : ""), type: "button", role: "switch", "aria-checked": String(on), onTap: () => { on = !on; el.classList.toggle("on", on); el.setAttribute("aria-checked", String(on)); onChange(on); } });
     return el;
   }
 
@@ -73,12 +73,12 @@ export function renderSettings(root) {
       const image = h("img", { alt: "", draggable: "false" });
       store.assetURL(entry.asset).then((url) => { if (url) image.src = url; });
       const cell = h("div", { class: "mini-template" + (selected ? " selected" : ""), role: "button", tabindex: "0",
-        onClick: () => { store.setSetting("newPageTemplate", selected ? null : key); render(); } },
+        onTap: () => { store.setSetting("newPageTemplate", selected ? null : key); render(); } },
         h("div", { class: "preview" }, image), h("div", { class: "name" }, entry.name));
       cell.addEventListener("contextmenu", (e) => { e.preventDefault(); templateMenu(entry); });
       scroll.append(cell);
     }
-    scroll.append(h("div", { class: "mini-template add", role: "button", tabindex: "0", onClick: async () => {
+    scroll.append(h("div", { class: "mini-template add", role: "button", tabindex: "0", onTap: async () => {
       const entry = await importTemplateFromFile();
       if (entry) { store.setSetting("newPageTemplate", "custom:" + entry.id); render(); }
     } }, h("div", { class: "preview" }, svgIcon("plus", 28)), h("div", { class: "name" }, "Ekle")));
@@ -103,7 +103,7 @@ export function renderSettings(root) {
     for (const option of options) {
       const cell = h("div", { class: "mini-cover" + (sameCover(option, store.settings.defaultCover) ? " selected" : ""), role: "button", tabindex: "0",
         "aria-label": option.imageAsset ? "Kendi kapağım" : COVER_TITLES[option.pattern],
-        onClick: () => { store.setSetting("defaultCover", option); render(); } }, coverElement(option));
+        onTap: () => { store.setSetting("defaultCover", option); render(); } }, coverElement(option));
       if (option.imageAsset) {
         cell.addEventListener("contextmenu", (e) => { e.preventDefault(); actionSheet("Kendi kapağım", [{ title: "Sil", destructive: true, onSelect: async () => {
           store.setSetting("customCovers", store.settings.customCovers.filter((a) => a !== option.imageAsset));
@@ -114,7 +114,7 @@ export function renderSettings(root) {
       }
       scroll.append(cell);
     }
-    scroll.append(h("div", { class: "mini-template add", style: { width: "112px" }, role: "button", tabindex: "0", onClick: async () => {
+    scroll.append(h("div", { class: "mini-template add", style: { width: "112px" }, role: "button", tabindex: "0", onTap: async () => {
       const file = await pickFile("file-image");
       if (!file) return;
       try {
@@ -144,7 +144,7 @@ export function renderSettings(root) {
     const scroll = h("div", { class: "hscroll", style: { alignItems: "flex-end" } });
     for (const pen of store.settings.pens) {
       const selected = pen.id === store.defaultPen.id;
-      scroll.append(h("div", { class: "pen-pick" + (selected ? " selected" : ""), role: "button", tabindex: "0", onClick: () => { store.setSetting("defaultPenId", pen.id); render(); } },
+      scroll.append(h("div", { class: "pen-pick" + (selected ? " selected" : ""), role: "button", tabindex: "0", onTap: () => { store.setSetting("defaultPenId", pen.id); render(); } },
         penIllustration(pen), h("div", { class: "name" }, pen.name)));
     }
     return scroll;

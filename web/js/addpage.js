@@ -36,7 +36,7 @@ export async function importTemplateFromFile() {
 }
 
 function templateCell(title, selected, preview, onSelect, onLong) {
-  const cell = h("div", { class: "template-cell" + (selected ? " selected" : ""), role: "button", tabindex: "0", onClick: onSelect },
+  const cell = h("div", { class: "template-cell" + (selected ? " selected" : ""), role: "button", tabindex: "0", onTap: onSelect },
     h("div", { class: "preview" }, preview), h("div", { class: "name" }, title));
   if (onLong) cell.addEventListener("contextmenu", (e) => { e.preventDefault(); onLong(); });
   return cell;
@@ -60,7 +60,7 @@ function customPreview(asset) {
 function buildGrid(container, tab, state, rerender) {
   const grid = h("div", { class: "template-grid" });
   if (tab === "mine") {
-    grid.append(h("div", { class: "template-cell add", role: "button", tabindex: "0", onClick: async () => {
+    grid.append(h("div", { class: "template-cell add", role: "button", tabindex: "0", onTap: async () => {
       const entry = await importTemplateFromFile();
       if (entry) { state.selection = "custom:" + entry.id; rerender(); }
     } }, h("div", { class: "preview" }, svgIcon("plus", 32)), h("div", { class: "name" }, "Şablon Ekle")));
@@ -103,18 +103,18 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   const gridHost = h("div");
   const note = h("div", { class: "note" });
   const tabs = h("div", { class: "segmented" });
-  const addButton = h("button", { class: "btn ghost", type: "button", onClick: add }, "Ekle");
+  const addButton = h("button", { class: "btn ghost", type: "button", onTap: add }, "Ekle");
 
   function rerender() {
     tabs.replaceChildren(
       ...[["mine", "Şablonlarım"], ["patterns", "Desenler"], ["pdf", "PDF'ten"]].map(([key, title]) =>
-        h("button", { type: "button", class: tab === key ? "active" : "", onClick: () => { tab = key; rerender(); } }, title))
+        h("button", { type: "button", class: tab === key ? "active" : "", onTap: () => { tab = key; rerender(); } }, title))
     );
     addButton.hidden = tab === "pdf";
     addButton.disabled = !state.selection;
     if (tab === "pdf") {
       gridHost.replaceChildren(h("div", {},
-        h("button", { class: "btn primary", type: "button", onClick: importPDF }, "PDF Seç"),
+        h("button", { class: "btn primary", type: "button", onTap: importPDF }, "PDF Seç"),
         h("div", { class: "note" }, "Seçtiğin PDF'in bütün sayfaları \"Ekleneceği yer\"den başlayarak defterine eklenir. PDF sayfası arkada durur, el yazın ayrı katmanda üstüne yazılır. Her sayfa kendi oranını korur.")
       ));
       note.textContent = "";
@@ -157,7 +157,7 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   rerender();
   openModal(h("div", { class: "sheet-page" },
     h("div", { class: "sheet-head" },
-      h("button", { class: "btn ghost", type: "button", onClick: closeModal }, "İptal"),
+      h("button", { class: "btn ghost", type: "button", onTap: closeModal }, "İptal"),
       h("span", {}, "Sayfa Ekle"),
       addButton),
     h("div", { class: "sheet-body" },
@@ -176,16 +176,16 @@ export function openTemplatePicker(onSelect, initial = null) {
   function rerender() {
     tabs.replaceChildren(
       ...[["mine", "Şablonlarım"], ["patterns", "Desenler"]].map(([key, title]) =>
-        h("button", { type: "button", class: tab === key ? "active" : "", onClick: () => { tab = key; rerender(); } }, title))
+        h("button", { type: "button", class: tab === key ? "active" : "", onTap: () => { tab = key; rerender(); } }, title))
     );
     buildGrid(gridHost, tab, state, rerender);
   }
   rerender();
   openModal(h("div", { class: "sheet-page" },
     h("div", { class: "sheet-head" },
-      h("button", { class: "btn ghost", type: "button", onClick: closeModal }, "İptal"),
+      h("button", { class: "btn ghost", type: "button", onTap: closeModal }, "İptal"),
       h("span", {}, "Şablon Seç"),
-      h("button", { class: "btn ghost", type: "button", onClick: () => { if (state.selection) { closeModal(); onSelect(state.selection); } } }, "Seç")),
+      h("button", { class: "btn ghost", type: "button", onTap: () => { if (state.selection) { closeModal(); onSelect(state.selection); } } }, "Seç")),
     h("div", { class: "sheet-body" }, h("div", { class: "sheet-toolbar" }, tabs), gridHost)
   ), { wide: true });
 }

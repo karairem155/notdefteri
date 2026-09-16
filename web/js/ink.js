@@ -123,7 +123,9 @@ export class InkCanvas {
       return;
     }
     if (!this.liveTarget) return;
-    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    // Birleştirilmiş olaylar boş dönerse (bazı tarayıcılar / sentetik olaylar) olayın kendisi kullanılır.
+    const coalesced = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    const events = coalesced && coalesced.length ? coalesced : [e];
     const touched = new Set();
     for (const ev of events) {
       const raw = this.rawPoint(ev);
@@ -160,6 +162,7 @@ export class InkCanvas {
     if (this.activeTool === "eraser") {
       if (this.eraseSession && this.eraseSession.removed) this.commit();
       this.eraseSession = null;
+      if (this.options.onEraseEnd && e.pointerType !== "touch") this.options.onEraseEnd();
       return;
     }
     if (this.activeTool === "lasso") {
@@ -445,7 +448,8 @@ export class InkCanvas {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.page.size.w, this.page.size.h);
     const selected = this.selection ? this.selection.ids : null;
-    for (const stroke of this.page.strokes) {
+    // Fosforlu çizgiler yazının altında kalsın diye önce çizilir.
+    for (const stroke of orderForDrawing(this.page.strokes)) {
       if (selected && selected.has(stroke.id)) drawHighlight(ctx, stroke);
       drawStroke(ctx, stroke);
     }
@@ -481,8 +485,8 @@ function styleFor(ctx, stroke) {
   ctx.lineCap = stroke.tool === "highlighter" ? "butt" : "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = stroke.color;
-  ctx.globalAlpha = stroke.tool === "highlighter" ? 0.38 : stroke.tool === "pencil" ? 0.93 : 1;
-  ctx.globalCompositeOperation = stroke.tool === "highlighter" ? "multiply" : "source-over";
+  ctx.globalAlpha = stroke.tool === "highlighter" ? 0.42 : stroke.tool === "pencil" ? 0.93 : 1;
+  ctx.globalCompositeOperation = "source-over";
 }
 
 function baseWidth(stroke) {
@@ -554,8 +558,16 @@ export function renderStrokesToDataURL(page, pixelWidth) {
   canvas.height = Math.round(page.size.h * scale);
   const ctx = canvas.getContext("2d");
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  for (const stroke of page.strokes) drawStroke(ctx, stroke);
+  for (const stroke of orderForDrawing(page.strokes)) drawStroke(ctx, stroke);
   return canvas.toDataURL("image/png");
+}
+
+/** Fosforlular önce, sonra diğerleri; kendi içlerinde çizim sırası korunur. */
+export function orderForDrawing(strokes) {
+  const highlighters = [];
+  const others = [];
+  for (const s of strokes) (s.tool === "highlighter" ? highlighters : others).push(s);
+  return highlighters.concat(others);
 }
 
 // ---- geometri yardımcıları ----
