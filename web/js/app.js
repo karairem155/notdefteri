@@ -4,6 +4,7 @@ import { requestPersistentStorage } from "./db.js";
 import { renderLibrary } from "./library.js";
 import { renderEditor } from "./editor.js";
 import { renderPages } from "./pages.js";
+import { renderFan } from "./fan.js";
 import { renderSettings } from "./settings.js";
 import { toast } from "./ui.js";
 
@@ -23,6 +24,7 @@ function route() {
   window.scrollTo(0, 0);
   if (parts[0] === "n" && parts[1] && store.notebook(parts[1])) {
     if (parts[2] === "pages") current = renderPages(app, parts[1]);
+    else if (parts[2] === "fan" || parts[2] === undefined) current = renderFan(app, parts[1]);
     else current = renderEditor(app, parts[1], parts[2] === "p" ? parts[3] : null);
   } else if (parts[0] === "settings") {
     current = renderSettings(app);

@@ -1,5 +1,5 @@
-// Kütüphane: liste (01-Main.png) ve kapak rafı (02-DefterGorunumu.png).
-// Kapağa dokununca defter yerinde açılır, sonra editöre geçilir (03-KapakAcilis.png).
+// Kütüphane, Paper (WeTransfer) tarzı: mor zeminde yatay kapak sırası, üstte ad ve sayfa sayısı,
+// altta işlem düğmeleri. Kapağa dokununca sayfa yelpazesi açılır. Liste görünümü de duruyor.
 import { store, COVER_PRESETS, COVER_TITLES } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile } from "./ui.js";
 import { coverElement, sameCover } from "./covers.js";
@@ -11,32 +11,15 @@ import { navigate } from "./app.js";
 export function renderLibrary(root) {
   let showingTrash = false;
   let search = "";
-  let opening = null;
   let currentFolder = null;   // null = Tüm Notlar
+  let currentIndex = 0;       // sıradaki (ortadaki) defter
+  let scrollTimer = null;
 
-  const screen = h("div", { class: "screen screen-light" });
-  const body = h("div", { class: "library-body" });
-  const topbar = h("div", { class: "topbar" });
+  const screen = h("div", { class: "screen screen-paper" });
+  const body = h("div", { class: "paper-body" });
+  const topbar = h("div", { class: "paper-topbar" });
   screen.append(topbar, body);
   root.append(screen);
-
-  function renderTopbar() {
-    topbar.replaceChildren(
-      h("div", { class: "topbar-side" },
-        iconButton(showingTrash ? "books" : "trash", showingTrash ? "Kütüphane" : "Çöp Kutusu", () => { showingTrash = !showingTrash; search = ""; render(); }),
-        !showingTrash && iconButton("gear", "Ayarlar", () => navigate("#/settings")),
-        !showingTrash && iconButton("share", "Yedekle", () => exportBackup())
-      ),
-      h("div", { class: "topbar-title" }, showingTrash ? "Çöp Kutusu" : "Defterlerim"),
-      h("div", { class: "topbar-side right" },
-        !showingTrash && h("div", { class: "segmented", role: "group", "aria-label": "Görünüm" },
-          h("button", { type: "button", class: store.settings.libraryShelf ? "" : "active", "aria-label": "Liste", onTap: () => { store.setSetting("libraryShelf", false); render(); } }, svgIcon("list", 18)),
-          h("button", { type: "button", class: store.settings.libraryShelf ? "active" : "", "aria-label": "Raf", onTap: () => { store.setSetting("libraryShelf", true); render(); } }, svgIcon("books", 18))
-        ),
-        !showingTrash && iconButton("plus", "Yeni Defter", newMenu, "accent")
-      )
-    );
-  }
 
   function visible() {
     let source = showingTrash ? store.trashedNotebooks : store.activeNotebooks;
@@ -46,31 +29,153 @@ export function renderLibrary(root) {
     return source.filter((n) => n.title.toLocaleLowerCase("tr").includes(needle));
   }
 
-  // ---- klasörler (01-Main.png soldaki liste) ----
+  function current() {
+    const list = visible();
+    if (!list.length) return null;
+    currentIndex = Math.min(Math.max(currentIndex, 0), list.length - 1);
+    return list[currentIndex];
+  }
 
-  function folderList() {
+  // ---------- üst çubuk ----------
+
+  function renderTopbar() {
+    topbar.replaceChildren(
+      h("div", { class: "topbar-side" },
+        iconButton("list", "Klasörler ve liste", openFoldersSheet),
+        iconButton(showingTrash ? "books" : "trash", showingTrash ? "Kütüphane" : "Çöp Kutusu", () => { showingTrash = !showingTrash; search = ""; currentIndex = 0; render(); })),
+      h("div", { class: "topbar-title" }),
+      h("div", { class: "topbar-side right" },
+        iconButton("search", "Ara", openSearch),
+        !showingTrash && iconButton("share", "Yedekle", () => exportBackup()),
+        !showingTrash && iconButton("gear", "Ayarlar", () => navigate("#/settings")))
+    );
+  }
+
+  function openSearch() {
+    promptDialog("Defterlerde ara", "Defter adı", search, (value) => { search = value; currentIndex = 0; render(); });
+  }
+
+  // ---------- gövde ----------
+
+  function render() {
+    renderTopbar();
+    const list = visible();
+    const notebook = current();
+    body.replaceChildren(
+      h("div", { class: "paper-head" },
+        h("h1", {}, notebook ? notebook.title : (showingTrash ? "Çöp Kutusu" : (currentFolder || "Defterlerim"))),
+        h("div", { class: "sub" }, notebook ? `${notebook.pages.length} sayfa${notebook.folder ? " · " + notebook.folder : ""}${search ? " · arama: " + search : ""}` : (showingTrash ? "Silinen defterler burada" : "Henüz defter yok"))),
+      list.length ? carousel(list) : emptyState(),
+      actionBar(notebook)
+    );
+    requestAnimationFrame(() => centerOn(currentIndex, false));
+  }
+
+  function emptyState() {
+    return h("div", { class: "paper-empty" },
+      svgIcon(showingTrash ? "trash" : "books", 40),
+      h("p", {}, showingTrash ? "Çöp kutusu boş." : (search ? "Bu ada uyan defter yok." : "İlk defterini + ile aç.")));
+  }
+
+  function carousel(list) {
+    const track = h("div", { class: "carousel", role: "list" });
+    for (const [index, notebook] of list.entries()) {
+      const cover = coverElement(notebook.cover);
+      const cell = h("div", { class: "carousel-item" + (index === currentIndex ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` },
+        h("div", { class: "cover-wrap" }, cover),
+        h("div", { class: "carousel-title" }, notebook.title));
+      pressable(cell, {
+        onTap: () => {
+          if (index !== currentIndex) { currentIndex = index; centerOn(index, true); updateCurrent(); return; }
+          openNotebook(notebook, cover);
+        },
+        onLong: () => showingTrash ? trashMenu(notebook) : notebookMenu(notebook)
+      });
+      track.append(cell);
+    }
+    track.addEventListener("scroll", () => {
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        const items = [...track.children];
+        const center = track.scrollLeft + track.clientWidth / 2;
+        let best = 0;
+        let bestDistance = Infinity;
+        items.forEach((item, i) => {
+          const d = Math.abs(item.offsetLeft + item.offsetWidth / 2 - center);
+          if (d < bestDistance) { bestDistance = d; best = i; }
+        });
+        if (best !== currentIndex) { currentIndex = best; updateCurrent(); }
+      }, 80);
+    }, { passive: true });
+    return track;
+  }
+
+  function centerOn(index, smooth) {
+    const track = body.querySelector(".carousel");
+    if (!track) return;
+    const item = track.children[index];
+    if (!item) return;
+    const left = item.offsetLeft + item.offsetWidth / 2 - track.clientWidth / 2;
+    track.scrollTo({ left, behavior: smooth ? "smooth" : "auto" });
+  }
+
+  /** Ortadaki defter değişince başlık, sayfa sayısı ve vurgu güncellenir; sıra yeniden kurulmaz. */
+  function updateCurrent() {
+    const notebook = current();
+    const head = body.querySelector(".paper-head");
+    if (head && notebook) {
+      head.querySelector("h1").textContent = notebook.title;
+      head.querySelector(".sub").textContent = `${notebook.pages.length} sayfa${notebook.folder ? " · " + notebook.folder : ""}`;
+    }
+    body.querySelectorAll(".carousel-item").forEach((item, i) => item.classList.toggle("current", i === currentIndex));
+    const bar = body.querySelector(".paper-actions");
+    if (bar) bar.replaceWith(actionBar(notebook));
+  }
+
+  function actionBar(notebook) {
+    const bar = h("div", { class: "paper-actions" });
+    if (notebook && !showingTrash) {
+      bar.append(
+        iconButton("more", "Defter işlemleri", () => notebookMenu(notebook)),
+        iconButton("page", "Sayfalar", () => navigate(`#/n/${notebook.id}/fan`)),
+        iconButton("trash", "Çöpe at", () => confirmDialog("Defter çöpe atılsın mı?", `"${notebook.title}" çöp kutusuna taşınır; oradan geri alınabilir.`, "Çöpe At", () => store.mutate(notebook.id, (n) => { n.isTrashed = true; })))
+      );
+    } else if (notebook && showingTrash) {
+      bar.append(
+        iconButton("undo", "Geri al", () => store.mutate(notebook.id, (n) => { n.isTrashed = false; })),
+        iconButton("trash", "Kalıcı olarak sil", () => trashMenu(notebook))
+      );
+    }
+    if (!showingTrash) bar.append(iconButton("plus", "Yeni defter", newMenu, "accent-fill"));
+    return bar;
+  }
+
+  // ---------- klasörler ve liste (sol üst) ----------
+
+  function openFoldersSheet() {
+    const list = h("div", { class: "folder-sheet" });
     const all = store.activeNotebooks;
-    const list = h("div", { class: "folders" });
     const item = (title, key, count, icon) => {
       const el = h("div", { class: "folder-item" + (currentFolder === key ? " active" : ""), role: "button", tabindex: "0" },
         svgIcon(icon, 18), h("span", {}, title), h("span", { class: "count" }, String(count)));
       pressable(el, {
-        onTap: () => { currentFolder = key; render(); },
-        onLong: key ? () => folderMenu(key) : null
+        onTap: () => { currentFolder = key; currentIndex = 0; closeModal(); render(); },
+        onLong: key ? () => { closeModal(); folderMenu(key); } : null
       });
       return el;
     };
     list.append(item("Tüm Notlar", null, all.length, "books"));
-    list.append(h("h3", {}, "DEFTERLER"));
     for (const name of store.settings.folders) list.append(item(name, name, all.filter((n) => n.folder === name).length, "note"));
-    list.append(h("div", { class: "folder-item add", role: "button", tabindex: "0", onTap: () => promptDialog("Yeni Klasör", "Klasör adı", "", addFolder) }, svgIcon("plus", 18), "Yeni Klasör"));
-    return list;
+    list.append(h("div", { class: "folder-item add", role: "button", tabindex: "0", onTap: () => { closeModal(); promptDialog("Yeni Klasör", "Klasör adı", "", addFolder); } }, svgIcon("plus", 18), "Yeni Klasör"));
+    list.append(h("div", { class: "folder-item", role: "button", tabindex: "0", onTap: () => { closeModal(); openListView(); } }, svgIcon("list", 18), "Liste görünümü"));
+    openModal(h("div", { class: "dialog", style: { width: "min(380px, 100%)" } }, h("h3", {}, "Klasörler"), list));
   }
 
   function addFolder(name) {
     if (store.settings.folders.includes(name)) { toast("Bu adda bir klasör zaten var."); return; }
     store.setSetting("folders", [...store.settings.folders, name]);
     currentFolder = name;
+    currentIndex = 0;
     render();
   }
 
@@ -96,7 +201,7 @@ export function renderLibrary(root) {
   function moveToFolderMenu(notebook) {
     const actions = [{ title: "Klasörsüz (Tüm Notlar)", onSelect: () => store.mutate(notebook.id, (n) => { n.folder = null; }) }];
     for (const name of store.settings.folders) {
-      actions.push({ title: (notebook.folder === name ? "\u2713 " : "") + name, onSelect: () => store.mutate(notebook.id, (n) => { n.folder = name; }) });
+      actions.push({ title: (notebook.folder === name ? "✓ " : "") + name, onSelect: () => store.mutate(notebook.id, (n) => { n.folder = name; }) });
     }
     actions.push({ title: "Yeni Klasör...", onSelect: () => promptDialog("Yeni Klasör", "Klasör adı", "", (name) => {
       if (!store.settings.folders.includes(name)) store.setSetting("folders", [...store.settings.folders, name]);
@@ -105,89 +210,26 @@ export function renderLibrary(root) {
     actionSheet("Klasöre Taşı", actions);
   }
 
-  function render() {
-    renderTopbar();
-    const notebooks = visible();
-    const totalPages = notebooks.reduce((sum, n) => sum + n.pages.length, 0);
-    const searchBox = h("div", { class: "search" }, svgIcon("search", 18),
-      h("input", { type: "search", placeholder: showingTrash ? "Çöp kutusunda ara" : "Defterlerde ara", value: search,
-        onInput: (e) => { search = e.target.value; renderBody(); } }));
-    const main = h("div", { class: "library-main" },
-      !showingTrash && h("div", { class: "library-head" },
-        h("h1", {}, currentFolder || "Defterlerim"),
-        h("span", { class: "muted" }, `${notebooks.length} defter · ${totalPages} sayfa`)
-      ),
-      searchBox,
-      h("div", { class: "library-content" })
-    );
-    body.replaceChildren(showingTrash ? main : h("div", { class: "library-layout" }, folderList(), main));
-    renderBody();
-    function renderBody() {
-      const content = body.querySelector(".library-content");
-      const list = visible();
-      if (list.length === 0 && (showingTrash || search)) {
-        content.replaceChildren(h("div", { class: "empty" }, svgIcon(showingTrash ? "trash" : "search", 40),
-          h("h2", {}, showingTrash ? "Çöp Kutusu Boş" : "Sonuç Yok"),
-          h("p", {}, showingTrash ? "Silinen defterler burada görünür." : "Bu ada uyan defter yok.")));
-        return;
-      }
-      if (store.settings.libraryShelf && !showingTrash) content.replaceChildren(shelf(list));
-      else content.replaceChildren(listView(list));
-    }
-    void notebooks;
-  }
-
-  function shelf(notebooks) {
-    const grid = h("div", { class: "shelf" });
-    for (const notebook of notebooks) grid.append(shelfCell(notebook));
-    if (!search) {
-      grid.append(h("div", { class: "shelf-cell new", onTap: newMenu, role: "button", tabindex: "0" },
-        h("div", { class: "cover-wrap" }, svgIcon("plus", 30), "Yeni Defter")));
-    }
-    return grid;
-  }
-
-  function shelfCell(notebook) {
-    const cover = coverElement(notebook.cover);
-    const wrap = h("div", { class: "cover-wrap" }, cover);
-    const cell = h("div", { class: "shelf-cell", role: "button", tabindex: "0", "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` },
-      wrap,
-      h("div", { class: "title" }, h("span", {}, notebook.title), notebook.isFavourite && h("span", { style: { color: "#e8a020" } }, svgIcon("star", 14))),
-      h("div", { class: "sub" }, `${notebook.pages.length} sayfa`)
-    );
-    pressable(cell, {
-      onTap: () => openNotebook(notebook, cover),
-      onLong: () => notebookMenu(notebook)
-    });
-    return cell;
-  }
-
-  function listView(notebooks) {
+  function openListView() {
     const list = h("div", { class: "list" });
-    for (const notebook of notebooks) {
+    for (const notebook of visible()) {
       const row = h("div", { class: "list-row", role: "button", tabindex: "0" },
         coverElement(notebook.cover),
         h("div", { class: "row-text" },
-          h("div", { class: "row-title" }, h("span", {}, notebook.title), notebook.isFavourite && !showingTrash && h("span", { style: { color: "#e8a020" } }, svgIcon("star", 14))),
-          h("div", { class: "row-sub" }, `${notebook.pages.length} sayfa · ${new Date(notebook.updatedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`)
-        ),
-        svgIcon("forward", 18)
-      );
-      pressable(row, {
-        onTap: () => showingTrash ? trashMenu(notebook) : navigate(`#/n/${notebook.id}`),
-        onLong: () => showingTrash ? trashMenu(notebook) : notebookMenu(notebook)
-      });
+          h("div", { class: "row-title" }, h("span", {}, notebook.title), notebook.isFavourite && h("span", { style: { color: "#e8a020" } }, svgIcon("star", 14))),
+          h("div", { class: "row-sub" }, `${notebook.pages.length} sayfa · ${new Date(notebook.updatedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`)),
+        svgIcon("forward", 18));
+      pressable(row, { onTap: () => { closeModal(); navigate(`#/n/${notebook.id}/fan`); }, onLong: () => { closeModal(); notebookMenu(notebook); } });
       list.append(row);
     }
-    return list;
+    openModal(h("div", { class: "dialog", style: { width: "min(560px, 100%)" } }, h("h3", {}, currentFolder || "Defterlerim"), list));
   }
 
+  // ---------- defter işlemleri ----------
+
   function openNotebook(notebook, cover) {
-    if (opening) return;
-    opening = notebook.id;
-    cover.append(h("div", { class: "cover-label" }, notebook.title));
-    requestAnimationFrame(() => cover.classList.add("opening"));
-    setTimeout(() => { opening = null; navigate(`#/n/${notebook.id}`); }, 600);
+    cover.classList.add("opening");
+    setTimeout(() => navigate(`#/n/${notebook.id}/fan`), 320);
   }
 
   function newMenu() {
@@ -213,7 +255,7 @@ export function renderLibrary(root) {
       }, true);
       store.addPDFPages(id, 0, asset, sizes);
       toast(`${sizes.length} sayfalık PDF defteri oluşturuldu`);
-      navigate(`#/n/${id}`);
+      navigate(`#/n/${id}/fan`);
     } catch (error) {
       toast("PDF eklenemedi: " + error.message);
     }
@@ -222,11 +264,15 @@ export function renderLibrary(root) {
   function createNotebook() {
     const id = store.createNotebook();
     if (currentFolder) store.mutate(id, (n) => { n.folder = currentFolder; }, true);
-    navigate(`#/n/${id}`);
+    promptDialog("Defter adı", "Örn. Seyahat günlüğü", `Defter ${store.notebooks.length}`, (title) => {
+      store.mutate(id, (n) => { n.title = title; }, true);
+      navigate(`#/n/${id}/fan`);
+    });
   }
 
   function notebookMenu(notebook) {
     actionSheet(notebook.title, [
+      { title: "Aç", onSelect: () => navigate(`#/n/${notebook.id}/fan`) },
       { title: "Yeniden Adlandır", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", notebook.title, (title) => store.mutate(notebook.id, (n) => { n.title = title; })) },
       { title: "Kapağı Değiştir", onSelect: () => coverPicker(notebook) },
       { title: "Klasöre Taşı", onSelect: () => moveToFolderMenu(notebook) },
