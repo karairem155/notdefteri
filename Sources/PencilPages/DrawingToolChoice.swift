@@ -8,6 +8,7 @@ enum DrawingToolChoice: String, CaseIterable, Identifiable, Equatable, Codable {
     case highlighter
     case eraser
     case lasso
+    case frosted = "blur"   // buzlu kalem: çizgi değil, yazının üstüne buzlu şerit çeker
 
     var id: String { rawValue }
 
@@ -18,6 +19,7 @@ enum DrawingToolChoice: String, CaseIterable, Identifiable, Equatable, Codable {
         case .highlighter: "Fosforlu"
         case .eraser: "Silgi"
         case .lasso: "Kement"
+        case .frosted: "Buzlu Kalem"
         }
     }
 
@@ -28,10 +30,11 @@ enum DrawingToolChoice: String, CaseIterable, Identifiable, Equatable, Codable {
         case .highlighter: "highlighter"
         case .eraser: "eraser"
         case .lasso: "lasso"
+        case .frosted: "circle.dashed"
         }
     }
 
-    /// Renk ve kalınlık taşıyan araçlar. Silgi ve kement taşımaz.
+    /// Renk ve kalınlık taşıyan araçlar. Silgi, kement ve buzlu kalem taşımaz.
     var isInking: Bool {
         self == .pen || self == .pencil || self == .highlighter
     }
@@ -50,6 +53,9 @@ enum DrawingToolChoice: String, CaseIterable, Identifiable, Equatable, Codable {
             PKEraserTool(.vector)
         case .lasso:
             PKLassoTool()
+        case .frosted:
+            // Buzlu kalemde tuval dokunuş almaz; örtü katmanı çizer. Araç yalnızca yer tutucu.
+            PKInkingTool(.pen, color: color, width: width)
         }
     }
 }

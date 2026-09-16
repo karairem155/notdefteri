@@ -129,18 +129,3 @@ final class TemplateLibrary: ObservableObject {
         try? data.write(to: indexURL, options: .atomic)
     }
 }
-
-private extension UIImage {
-    func resizedToFit(maxDimension: CGFloat) -> UIImage {
-        let pixelSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let longest = max(pixelSize.width, pixelSize.height)
-        guard longest > maxDimension else { return self }
-        let factor = maxDimension / longest
-        let target = CGSize(width: pixelSize.width * factor, height: pixelSize.height * factor)
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: target, format: format).image { _ in
-            draw(in: CGRect(origin: .zero, size: target))
-        }
-    }
-}

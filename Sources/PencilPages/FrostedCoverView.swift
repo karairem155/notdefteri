@@ -1,11 +1,53 @@
 import SwiftUI
 import UIKit
 
-// Buzlu örtü. Yazının üstünde durur, dokununca açılır, tekrar dokununca kapanır.
+// Buzlu örtünün görünüşü (docs/tasarim/09-BuzluPostIt.png, 10-BuzluKalem.png).
 //
-// .ultraThinMaterial arkasındaki her şeyi bulanıklaştırır — sayfanın şablonunu da,
-// PencilKit çizimini de. Yazının şekli seçilir ama okunmaz; istenen tam olarak bu.
+// Bulanıklık, sistem malzemesiyle sağlanır: arkasındaki her şeyi (şablonu da, çizimi de)
+// bulanıklaştırır. Yazının şekli seçilir ama okunmaz; istenen tam olarak bu.
+// `blurRadius` dört kademeye çevrilir: ultra ince → ince → normal → kalın malzeme.
+struct CoverAppearance: View {
+    let cover: CoverMark
 
+    private var tint: Color {
+        Color(UIColor(hexString: cover.tintHex) ?? .systemYellow)
+    }
+
+    private var cornerRadius: CGFloat {
+        cover.style == .frostedBand ? min(12, cover.rect.height / 2) : 3
+    }
+
+    private var material: Material {
+        switch cover.blurRadius {
+        case ..<3: .ultraThinMaterial
+        case ..<6: .thinMaterial
+        case ..<9: .regularMaterial
+        default: .thickMaterial
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            if cover.style == .postIt {
+                Rectangle()
+                    .fill(tint)
+            } else {
+                Rectangle()
+                    .fill(material)
+                    .overlay(tint.opacity(cover.tintOpacity))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .shadow(color: .black.opacity(cover.style == .frostedBand ? 0.08 : 0.2),
+                radius: cover.style == .frostedBand ? 1 : 4,
+                x: 0,
+                y: cover.style == .frostedBand ? 0 : 2)
+        .accessibilityHidden(true)
+    }
+}
+
+// Normal kipte örtü: dokununca açılır, tekrar dokununca kapanır.
+// Dokunma alanı örtünün kendi çerçevesi kadardır (position'dan ÖNCE verilir).
 struct FrostedCoverView: View {
     let cover: CoverMark
     @Binding var revealedIDs: Set<UUID>
@@ -13,55 +55,22 @@ struct FrostedCoverView: View {
     private var isRevealed: Bool { revealedIDs.contains(cover.id) }
 
     var body: some View {
-        ZStack {
-            if cover.style == .postIt {
-                Rectangle()
-                    .fill(Color(UIColor(hexString: cover.tintHex) ?? .systemYellow))
-            } else {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        Color(UIColor(hexString: cover.tintHex) ?? .systemYellow)
-                            .opacity(cover.tintOpacity)
-                    )
+        CoverAppearance(cover: cover)
+            .frame(width: cover.rect.width, height: cover.rect.height)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard cover.revealOnTap else { return }
+                if isRevealed {
+                    revealedIDs.remove(cover.id)
+                } else {
+                    revealedIDs.insert(cover.id)
+                }
             }
-        }
-        .frame(width: cover.rect.width, height: cover.rect.height)
-        .clipShape(RoundedRectangle(cornerRadius: cover.style == .frostedBand ? 10 : 3))
-        .shadow(color: .black.opacity(cover.style == .frostedBand ? 0.08 : 0.2),
-                radius: cover.style == .frostedBand ? 1 : 4,
-                x: 0,
-                y: cover.style == .frostedBand ? 0 : 2)
-        .opacity(isRevealed ? 0 : 1)
-        .animation(.easeInOut(duration: 0.18), value: isRevealed)
-        .rotationEffect(.degrees(cover.rotation))
-        .position(x: cover.rect.midX, y: cover.rect.midY)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard cover.revealOnTap else { return }
-            if isRevealed {
-                revealedIDs.remove(cover.id)
-            } else {
-                revealedIDs.insert(cover.id)
-            }
-        }
-        .accessibilityLabel(isRevealed ? "Cevap açık" : "Cevap gizli, açmak için dokun")
-    }
-}
-
-// Sayfadaki bütün örtüleri çizen katman.
-// PencilKit tuvalinin ÜSTÜNE, .overlay olarak koy.
-struct CoverLayer: View {
-    let covers: [CoverMark]
-    @State private var revealedIDs: Set<UUID> = []
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            ForEach(covers) { cover in
-                FrostedCoverView(cover: cover, revealedIDs: $revealedIDs)
-            }
-        }
-        .allowsHitTesting(true)
-        .onDisappear { revealedIDs.removeAll() }   // sayfadan çıkınca hepsi kapanır
+            .opacity(isRevealed ? 0 : 1)
+            .animation(.easeInOut(duration: 0.18), value: isRevealed)
+            .rotationEffect(.degrees(cover.rotation))
+            .position(x: cover.rect.midX, y: cover.rect.midY)
+            .accessibilityLabel(isRevealed ? "Cevap açık" : "Cevap gizli, açmak için dokun")
+            .accessibilityAddTraits(.isButton)
     }
 }

@@ -128,6 +128,25 @@ final class NotebookStore: ObservableObject {
         }
     }
 
+    /// Sayfanın fotoğraf/çıkartma ve örtü katmanını değiştirir. Boş kalırsa `nil` yazılır.
+    func updateOverlay(notebookID: UUID, pageID: UUID, _ change: (inout PageOverlayData) -> Void) {
+        mutate(notebookID) { notebook in
+            guard let index = notebook.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            var overlay = notebook.pages[index].overlay ?? PageOverlayData()
+            change(&overlay)
+            notebook.pages[index].overlay = overlay.isEmpty ? nil : overlay
+        }
+    }
+
+    /// Görsel dosyasını hâlâ kullanan bir sayfa var mı? (Silmeden önce bakılır.)
+    func isAssetReferenced(_ assetName: String) -> Bool {
+        notebooks.contains { notebook in
+            notebook.pages.contains { page in
+                page.overlay?.objects.contains { $0.assetName == assetName } ?? false
+            }
+        }
+    }
+
     func updateDrawing(_ drawing: PKDrawing, notebookID: UUID, pageID: UUID, persistImmediately: Bool = false) {
         mutate(notebookID, persistImmediately: persistImmediately) { notebook in
             guard let index = notebook.pages.firstIndex(where: { $0.id == pageID }) else { return }
