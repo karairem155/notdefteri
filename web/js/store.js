@@ -69,6 +69,7 @@ const DEFAULT_SETTINGS = {
   libraryShelf: true,
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
+  openMode: "page",          // defter açılınca: "page" doğrudan sayfa, "fan" sayfa yelpazesi
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
 };
 

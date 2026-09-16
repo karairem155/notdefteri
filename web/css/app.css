@@ -408,8 +408,8 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .paper-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.75); gap: 10px; }
 .folder-sheet { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 
-.fan-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8%; touch-action: pan-y; overflow: hidden; }
-.fan-card { position: absolute; bottom: 12%; width: min(46vw, 300px); max-height: 70%; border-radius: 8px; overflow: hidden; background: var(--paper); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35); transform-origin: 50% 240%; transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s; cursor: pointer; }
+.fan-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; touch-action: pan-y; overflow: hidden; perspective: 1400px; }
+.fan-card { position: absolute; width: min(40vw, 280px); max-height: 72%; border-radius: 8px; overflow: hidden; background: var(--paper); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35); transform-origin: center center; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s; cursor: pointer; transform-style: preserve-3d; }
 .fan-card > .page-bg, .fan-card > img.ink { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fan-card > img.ink { object-fit: contain; }
 .fan-card.current { box-shadow: 0 22px 44px rgba(0, 0, 0, 0.45); outline: 3px solid rgba(255, 255, 255, 0.9); }

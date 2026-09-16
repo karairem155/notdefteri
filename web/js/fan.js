@@ -7,8 +7,7 @@ import { renderStrokesToDataURL } from "./ink.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
-const STEP_DEG = 7;        // komşu sayfalar arası açı
-const STEP_X = 54;         // komşu sayfalar arası yatay kayma (px)
+const STEP_X = 96;         // komşu sayfalar arası yatay kayma (px)
 const VISIBLE = 5;         // ortadakinin her iki yanında görünen sayfa sayısı
 
 export function renderFan(root, notebookId) {
@@ -51,7 +50,9 @@ export function renderFan(root, notebookId) {
   function card(page, index) {
     const offset = index - center;
     const el = h("div", { class: "fan-card" + (offset === 0 ? " current" : ""), style: { aspectRatio: `${page.size.w} / ${page.size.h}`, zIndex: String(100 - Math.abs(offset)) }, role: "button", tabindex: "0", "aria-label": `${index + 1}. sayfa` });
-    el.style.transform = `translateX(${offset * STEP_X}px) rotate(${offset * STEP_DEG}deg)`;
+    // Cover-flow: yan sayfalar perspektifle dönük, ortadaki düz (Paper'daki gibi).
+    const side = Math.sign(offset);
+    el.style.transform = `translateX(${offset * STEP_X}px) translateZ(${-Math.abs(offset) * 60}px) rotateY(${-side * Math.min(Math.abs(offset), 1) * 38}deg)`;
     const bg = h("div", { class: "page-bg" });
     renderBackground(bg, page, { thumbnail: true });
     const ink = h("img", { class: "ink", alt: "", draggable: "false" });

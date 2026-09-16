@@ -217,6 +217,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     const count = pages().length;
     actionSheet(`${index + 1}. sayfa`, [
       { title: "Şablonu Değiştir", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t) => { store.setTemplate(notebookId, page.id, t); renderStage(); })) },
+      { title: "Sayfa Yelpazesi", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${page.id}`); } },
       { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
       { title: "Sayfayı Öne Taşı", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); renderStage(); } },
       { title: "Sayfayı Arkaya Taşı", disabled: index >= count - 1, onSelect: () => { store.movePage(notebookId, page.id, index + 1); renderStage(); } },

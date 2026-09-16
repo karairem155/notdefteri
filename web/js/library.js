@@ -229,7 +229,7 @@ export function renderLibrary(root) {
 
   function openNotebook(notebook, cover) {
     cover.classList.add("opening");
-    setTimeout(() => navigate(`#/n/${notebook.id}`), 320);
+    setTimeout(() => navigate(store.settings.openMode === "fan" ? `#/n/${notebook.id}/fan` : `#/n/${notebook.id}`), 320);
   }
 
   function newMenu() {
