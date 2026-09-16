@@ -1169,7 +1169,15 @@ export function renderEditor(root, notebookId, initialPageId) {
     const hasSelectedColor = s.palette.some((hex) => isInking() && hex.toUpperCase() === tool.color.toUpperCase());
     const collapsed = !!s.benchCollapsed;
     const paletteRow = h("div", { class: "palette-row" },
-      Object.assign(iconButton("plus", "Seçili rengi palete ekle", () => { store.addPaletteColor(tool.color); renderBench(); }), { disabled: !isInking() || hasSelectedColor }),
+      iconButton("plus", "Palete yeni renk ekle", () => {
+        const picker = h("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(tool.color) ? tool.color : "#5d58d6", "aria-label": "Yeni renk",
+          onChange: (e) => { const hex = e.target.value.toUpperCase(); store.addPaletteColor(hex); if (!isInking()) tool.tool = "pen"; tool.color = hex; renderBench(); renderTopbar(); applyModes(); } });
+        picker.style.position = "fixed"; picker.style.opacity = "0"; picker.style.pointerEvents = "none";
+        picker.style.left = "50%"; picker.style.bottom = "140px";
+        document.body.append(picker);
+        picker.click();
+        setTimeout(() => picker.remove(), 60000);
+      }),
       h("div", { class: "palette-scroll" }, palette),
       Object.assign(iconButton("trash", "Seçili rengi paletten çıkar", () => { store.removePaletteColor(tool.color); renderBench(); }), { disabled: s.palette.length <= 1 || !hasSelectedColor }),
       iconButton(collapsed ? "up" : "down", collapsed ? "Araçları göster" : "Araçları gizle", () => { store.setSetting("benchCollapsed", !collapsed); renderBench(); }, "bench-toggle")
