@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <title>Not Defteri</title>
+  <meta name="description" content="Her sayfası kendi şablonunu taşıyan, Apple Pencil ile yazılan kişisel defter.">
+  <meta name="theme-color" content="#3d4466">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Not Defteri">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-180.png">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+  <div id="app" aria-live="polite"></div>
+  <input type="file" id="file-image" accept="image/*" hidden>
+  <input type="file" id="file-pdf" accept="application/pdf,.pdf" hidden>
+  <input type="file" id="file-backup" accept="application/json,.json" hidden>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
