@@ -414,3 +414,19 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .fan-card > img.ink { object-fit: contain; }
 .fan-card.current { box-shadow: 0 22px 44px rgba(0, 0, 0, 0.45); outline: 3px solid rgba(255, 255, 255, 0.9); }
 .fan-num { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); background: rgba(30, 30, 40, 0.7); color: #fff; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
+
+/* Yazı nesneleri */
+.placed.text { display: flex; align-items: flex-start; }
+.placed.text .text-content { width: 100%; min-height: 100%; padding: 6px 8px; outline: none; color: var(--text-color); font-family: var(--font); font-size: var(--size); line-height: 1.25; word-break: break-word; white-space: pre-wrap; -webkit-user-select: text; user-select: text; cursor: text; }
+.placed.text .text-content:empty::before { content: "Yazı"; color: rgba(0, 0, 0, 0.3); }
+.placed.text.editing { outline: 2px dashed #8c85f5; background: rgba(255, 255, 255, 0.5); }
+.placed.text .text-content[contenteditable="false"] { pointer-events: none; }
+
+/* PDF metin seçme katmanı */
+.layer-text { pointer-events: none; }
+.layer-text.active { pointer-events: auto; -webkit-user-select: text; user-select: text; cursor: text; background: rgba(93, 88, 214, 0.04); }
+.layer-text span { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; line-height: 1; -webkit-user-select: text; user-select: text; }
+.layer-text.active span::selection { background: rgba(93, 88, 214, 0.35); }
+.layer-text.active span { color: rgba(0, 0, 0, 0.001); }
+
+.icon-btn.active-toggle { background: rgba(255, 255, 255, 0.25); }

@@ -209,3 +209,28 @@ export async function pdfTextLines(reference, pageSize) {
   pdfLines.set(key, lines);
   return lines;
 }
+
+const pdfItemsCache = new Map();
+
+/** PDF metin parçalarını tek tek verir (seçilebilir metin katmanı için): [{ x, y, w, h, str }]. */
+export async function pdfTextItems(reference, pageSize) {
+  const key = `${reference.asset}#${reference.index}`;
+  if (pdfItemsCache.has(key)) return pdfItemsCache.get(key);
+  const doc = await pdfDocument(reference.asset);
+  if (!doc) return [];
+  const page = await doc.getPage(reference.index + 1);
+  const viewport = page.getViewport({ scale: pageSize.w / page.getViewport({ scale: 1 }).width });
+  const content = await page.getTextContent();
+  const items = [];
+  for (const item of content.items) {
+    if (!item.str || !item.transform) continue;
+    const [a, b, c, d, e, f] = item.transform;
+    const fontHeight = Math.hypot(b, d) || Math.hypot(a, c) || 10;
+    const [x, yBaseline] = viewport.convertToViewportPoint(e, f);
+    const scale = viewport.scale;
+    const h = fontHeight * scale;
+    items.push({ x, y: yBaseline - h * 0.8, w: (item.width || 0) * scale, h, str: item.str, eol: !!item.hasEOL });
+  }
+  pdfItemsCache.set(key, items);
+  return items;
+}
