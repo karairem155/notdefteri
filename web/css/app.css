@@ -490,7 +490,7 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .cover-mark.postit .frost-tint { background: linear-gradient(160deg, color-mix(in srgb, var(--tint) 85%, #fff), var(--tint) 50%, color-mix(in srgb, var(--tint) 80%, #4a3e00)); }
 
 /* Kıvrılan sayfa çevirme: şeritli yaprak */
-.flip-layer { perspective: 1500px; }
+.flip-layer { perspective: 2400px; }
 .flip-strip { position: absolute; top: 0; transform-style: preserve-3d; will-change: transform; }
 .flip-strip .flip-face { border-radius: 0; }
 .flip-face-wrap { position: absolute; top: 0; }

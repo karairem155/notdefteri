@@ -7,7 +7,8 @@
 // `front`/`back` yaprağın iki yüzü; `under` yaprağın altında kalan sayfa (opsiyonel).
 
 const STRIPS = 12;      // yaprak kaç şeride bölünsün
-const BEND_MAX = 64;    // çevirmenin ortasında toplam bükülme (derece)
+const BEND_MAX = 44;    // çevirmenin ortasında toplam bükülme (derece)
+const OVERLAP = 3;      // şeritler arası bindirme (px): kenar yumuşatma çizgileri görünmesin
 
 export function createFlip(spreadEl, buildSheet) {
   let state = null;
@@ -46,10 +47,12 @@ export function createFlip(spreadEl, buildSheet) {
     const cache = new Map();
     for (let i = 0; i < STRIPS; i++) {
       const strip = el("div", "flip-strip");
-      strip.style.width = (sw + 0.8) + "px";   // şeritler arasında ince boşluk kalmasın
+      strip.style.width = (sw + OVERLAP) + "px";
       strip.style.height = H + "px";
-      strip.style.left = i === 0 ? "0px" : (left ? sw : -sw) + "px";
-      strip.style.transformOrigin = left ? "left center" : "right center";
+      // Sol menteşe: şerit 0 ciltte (x=0), sonrakiler sağa doğru. Sağ menteşe: şerit 0 sağ kenarda (x=W-sw),
+      // sonrakiler sola doğru; menteşe her şeridin kutusunda x=sw noktasıdır (bindirme payı sağa taşar).
+      strip.style.left = i === 0 ? (left ? "0px" : (W - sw) + "px") : (left ? sw : -sw) + "px";
+      strip.style.transformOrigin = left ? "left center" : `${sw}px center`;
       const frontOff = left ? i * sw : W - (i + 1) * sw;
       const backOff = left ? W - (i + 1) * sw : i * sw;
       const front = face("front", i === 0 ? sheet.front : cloneFace(sheet.front, cache), frontOff, W, H);
@@ -77,25 +80,38 @@ export function createFlip(spreadEl, buildSheet) {
     const theta = angleFor(progress);
     const dirSign = Math.sign(sheet.endAngle - sheet.startAngle) || 1;
     const lift = Math.sin(Math.PI * progress);
-    const bend = BEND_MAX * lift * dirSign;
-    const base = theta - bend;
+    let bend = BEND_MAX * lift * dirSign;
+    // Cilt tarafı düzlemin altına inmesin: taban açısı başlangıç-bitiş aralığında kalır.
+    const lo = Math.min(sheet.startAngle, sheet.endAngle);
+    const hi = Math.max(sheet.startAngle, sheet.endAngle);
+    let base = theta - bend;
+    if (base < lo) { base = lo; bend = theta - base; }
+    if (base > hi) { base = hi; bend = theta - base; }
     const delta = bend / STRIPS;
     sheetEl.style.transform = `rotateY(${base}deg)`;
     for (let i = 0; i < strips.length; i++) {
       const s = strips[i];
       s.el.style.transform = `rotateY(${delta}deg)`;
-      const a = (base + (i + 1) * delta) * Math.PI / 180;
-      const c = Math.cos(a);
-      // Öne bakan yüz düz dururken aydınlık, dikleştikçe kararır; arka yüz tersi.
-      s.front.shade.style.opacity = String(Math.min(0.75, Math.max(0, (1 - c) / 2 * 0.9)));
-      s.back.shade.style.opacity = String(Math.min(0.75, Math.max(0, (1 + c) / 2 * 0.9)));
+      // Gölge şerit içinde de akar (menteşe tarafından uzak kenara): bant bant görünmesin.
+      const a0 = (base + i * delta) * Math.PI / 180;
+      const a1 = (base + (i + 1) * delta) * Math.PI / 180;
+      const fo = (a) => Math.min(0.75, Math.max(0, (1 - Math.cos(a)) / 2 * 0.9)).toFixed(3);
+      const bo = (a) => Math.min(0.75, Math.max(0, (1 + Math.cos(a)) / 2 * 0.9)).toFixed(3);
+      s.front.shade.style.opacity = "1";
+      s.back.shade.style.opacity = "1";
+      s.front.shade.style.background = `linear-gradient(${left ? 90 : 270}deg, rgba(0,0,0,${fo(a0)}), rgba(0,0,0,${fo(a1)}))`;
+      s.back.shade.style.background = `linear-gradient(${left ? 270 : 90}deg, rgba(0,0,0,${bo(a0)}), rgba(0,0,0,${bo(a1)}))`;
     }
     // Yaprağın altındaki sayfaya düşen gölge: ciltten yaprağın izdüşümüne kadar.
     const W = sheet.width;
     const proj = W * Math.cos(theta * Math.PI / 180);
     const spineX = left ? sheet.x : sheet.x + W;
-    const x0 = Math.min(spineX, left ? spineX + proj : spineX - proj);
-    const width = Math.abs(proj);
+    // Gölge yalnızca sahnenin (sayfaların) içinde kalır; masaya taşmaz.
+    const stageW = spreadEl.clientWidth || (sheet.x + W);
+    const rawX0 = Math.min(spineX, left ? spineX + proj : spineX - proj);
+    const x0 = Math.max(0, rawX0);
+    const x1 = Math.min(stageW, rawX0 + Math.abs(proj));
+    const width = Math.max(0, x1 - x0);
     cast.style.left = x0 + "px";
     cast.style.width = width + "px";
     const towardEdge = (left ? proj >= 0 : proj < 0);
