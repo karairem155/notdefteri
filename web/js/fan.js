@@ -9,8 +9,9 @@ import { drawStroke, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
-const STRIP = 15;         // destedeki sayfalar arası kayma (px): ince şeritler görünür
-const TILT = 7;           // destedeki sayfaların hafif dönüşü (derece)
+const STRIP = 18;         // destedeki sayfalar arası kayma (px): ince şeritler görünür
+const TILT = 16;          // destedeki sayfaların dönüşü (derece)
+const OPEN = 6;           // açık çift sayfanın "V" açısı (derece)
 const VISIBLE = 9;        // her yanda kaç sayfa görünsün
 
 export function renderFan(root, notebookId) {
@@ -44,13 +45,44 @@ export function renderFan(root, notebookId) {
     return H * page.size.w / page.size.h;
   }
 
-  /** Yerleşim: ortadaki çift düz; sonrakiler sağda, öncekiler solda yatay deste (Paper). */
+  /** Yerleşim (Paper): çift sayfa hafif V; sonrakiler sağda çift sayfanın altında, şeritleri görünür;
+   *  önceki sayfa solda üçte biri görünür, gerisi şerit. x: translateX, rot: rotateY, z: sıra. */
   function placeFor(index, W) {
-    if (index === center) return { x: -W, rot: 0, z: 60 };
-    if (index === center + 1) return { x: 0, rot: 0, z: 60 };
-    if (index < center) { const k = Math.min(center - index, VISIBLE); return { x: -W - k * STRIP, rot: TILT, z: 40 - k }; }
+    const cosT = Math.cos(TILT * Math.PI / 180);
+    if (index === center) return { x: -W, rot: OPEN, z: 60, origin: "right center" };
+    if (index === center + 1) return { x: 0, rot: -OPEN, z: 60, origin: "left center" };
+    if (index < center) {
+      const k = Math.min(center - index, VISIBLE);
+      // sağ kenarı: -0.68W - k*STRIP (dönüş sağ kenar etrafında olduğundan sağ kenar sabit kalır)
+      return { x: -0.68 * W - k * STRIP - W, rot: TILT, z: 40 - k, origin: "right center" };
+    }
     const k = Math.min(index - center - 1, VISIBLE);
-    return { x: W - STRIP * 1.5 + k * STRIP, rot: -TILT, z: 40 - k };   // ilki çift sayfanın hemen altından başlar
+    // sol kenar etrafında döner; sağ kenarı W + k*STRIP olsun diye sol kenar = W + k*STRIP - W*cos
+    return { x: W + k * STRIP - W * cosT, rot: -TILT, z: 40 - k, origin: "left center" };
+  }
+
+  /** Açılış: bütün sayfalar kapalı defter gibi ortada üst üste başlar, sırayla açılıp yerlerine kayar. */
+  function intro() {
+    render(false);
+    const list = pages();
+    const W = leafWidth(list[center] || list[0]);
+    const all = [...book.querySelectorAll(".fan-leaf")];
+    for (const leaf of all) {
+      leaf.style.transition = "none";
+      leaf.style.transform = `translateX(${-W / 2}px) rotateY(0deg) scale(0.9)`;
+      leaf.style.opacity = "0";
+    }
+    void book.offsetWidth;   // yeniden akış: başlangıç konumu uygulansın
+    setTimeout(() => {
+      all.forEach((leaf) => {
+        const index = Number(leaf.dataset.index);
+        const dist = index <= center ? center - index : index - center - 1;
+        const pos = placeFor(index, W);
+        leaf.style.transition = `transform 0.75s cubic-bezier(0.22, 0.9, 0.25, 1) ${dist * 40}ms, opacity 0.3s ${dist * 40}ms`;
+        leaf.style.opacity = "1";
+        leaf.style.transform = `translateX(${pos.x}px) rotateY(${pos.rot}deg)`;
+      });
+    }, 30);
   }
 
   function render(animate = true) {
@@ -67,8 +99,8 @@ export function renderFan(root, notebookId) {
       if (!leaf) { leaf = makeLeaf(page); leaves.set(page.id, leaf); book.append(leaf); }
       const W = leafWidth(list[center]);
       const pos = placeFor(index, W);
-      leaf.style.transition = animate ? "transform 0.62s cubic-bezier(0.22, 0.9, 0.25, 1)" : "none";
-      leaf.style.transformOrigin = index <= center ? "right center" : "left center";
+      leaf.style.transition = animate ? "transform 0.55s cubic-bezier(0.25, 0.85, 0.25, 1)" : "none";
+      leaf.style.transformOrigin = pos.origin;
       leaf.style.zIndex = String(pos.z);
       leaf.style.transform = `translateX(${pos.x}px) rotateY(${pos.rot}deg)`;
       leaf.dataset.index = String(index);
@@ -149,10 +181,10 @@ export function renderFan(root, notebookId) {
     const dx = e.clientX - spineX;
     if (e.clientY < top - 20 || e.clientY > bottom + 20) return;
     const list = pages();
-    if (Math.abs(dx) <= w * 1.05) {
+    if (Math.abs(dx) <= w * 1.02) {
       const target = dx < 0 ? list[center] : (list[center + 1] || list[center]);
       if (target) navigate(`#/n/${notebookId}/p/${target.id}`);
-    } else if (Math.abs(dx) <= w * 2.4) {
+    } else if (Math.abs(dx) <= w * 2.2) {
       turn(dx < 0 ? -1 : 1);
     }
   };
@@ -173,6 +205,6 @@ export function renderFan(root, notebookId) {
     ]);
   }
 
-  render(false);
+  intro();
   return { destroy() {} };
 }
