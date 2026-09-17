@@ -68,6 +68,8 @@ const DEFAULT_SETTINGS = {
   eraser: { mode: "stroke", size: 12, onlyHighlighter: false, pressureSize: false },
   recentColors: [],          // son kullanılan renkler (Renk Seçici'de gösterilir)
   recentStickers: [],        // sık kullanılan çıkartmalar (emoji)
+  recentMedia: [],           // son eklenen fotoğraflar/dosyalar: { asset, name, kind }
+  favDock: { side: "bottom", pos: 0.5 },   // favoriler çubuğunun yeri: bottom | left | right | top
   rulerAngle: true,          // cetvelde açı rozeti
   rulerSnap: true,           // cetvele ve 15° açılara yapışma   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
   shapeRecognition: true,
@@ -352,6 +354,11 @@ class Store extends EventTarget {
     const current = this.settings.recentColors || [];
     if (current.length && current[0].toUpperCase() === normalized) return;
     this.setSetting("recentColors", [normalized, ...current.filter((c) => c.toUpperCase() !== normalized)].slice(0, 12));
+  }
+
+  noteMedia(entry) {
+    const current = (this.settings.recentMedia || []).filter((m) => m.asset !== entry.asset);
+    this.setSetting("recentMedia", [entry, ...current].slice(0, 12));
   }
 
   noteSticker(emoji) {

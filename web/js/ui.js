@@ -92,7 +92,17 @@ export function svgIcon(name, size = 20) {
     undoTool: "M8 13L4 9l4-4M4 9h9.5a5.5 5.5 0 0 1 0 11H10",
     redoTool: "M16 13l4-4-4-4M20 9h-9.5a5.5 5.5 0 0 0 0 11H14",
     postit: "M5 4h14v10l-4 4H5zM15 18v-4h4",
-    export: "M12 4v11M8 8l4-4 4 4M5 14v6h14v-6"
+    export: "M12 4v11M8 8l4-4 4 4M5 14v6h14v-6",
+    camera: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z",
+    folder: "M3 6h6l2 2h10v11H3zM3 10h18",
+    scan: "M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M7 12h10",
+    clock: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l3 2",
+    photos: "M12 3a4 4 0 0 1 4 4 4 4 0 0 1 4 4 4 4 0 0 1-4 4 4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1-4-4 4 4 0 0 1 4-4 4 4 0 0 1 4-4z",
+    translate: "M4 6h9M8.5 4v2M11 6c-1 4-3 7-6 9M6 9c1 3 3 5 6 6M13 20l4-9 4 9M14.5 17h5",
+    frost: "M12 3v18M3 12h18M6 6l12 12M18 6L6 18",
+    objects: "M4 4h7v7H4zM13 13h7v7h-7zM13 4h7v7h-7zM4 13h7v7H4z",
+    audio: "M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM6 11a6 6 0 0 0 12 0M12 17v4",
+    dragDots: "M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01"
   };
   const d = paths[name] || paths.plus;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -262,4 +272,38 @@ export function pickFile(inputId) {
 
 export function formatPt(width) {
   return Number.isInteger(width) ? String(width) : width.toFixed(1);
+}
+
+
+/**
+ * Bir düğmeye bağlı küçük menü: düğmenin hemen üstünde açılır (yer yoksa altında), ok işaretiyle.
+ * Açıkken düğme "pop-open" sınıfı alır (+ simgesi 45° dönüp × olur). Dışarı dokununca kapanır.
+ */
+export function popoverMenu(anchor, actions, { title = null } = {}) {
+  const backdrop = h("div", { class: "pop-backdrop" });
+  const menu = h("div", { class: "pop-menu", role: "menu" },
+    title ? h("div", { class: "pop-title" }, title) : null,
+    ...actions.map((a) => h("button", { class: "pop-item" + (a.destructive ? " destructive" : ""), type: "button", role: "menuitem", disabled: a.disabled || null,
+      onTap: () => { close(); a.onSelect(); } }, a.icon ? svgIcon(a.icon, 20) : null, h("span", {}, a.title))));
+  const close = () => {
+    menu.classList.remove("in");
+    anchor.classList.remove("pop-open");
+    setTimeout(() => { menu.remove(); backdrop.remove(); }, 160);
+  };
+  backdrop.addEventListener("pointerdown", (e) => { e.preventDefault(); close(); });
+  document.body.append(backdrop, menu);
+  anchor.classList.add("pop-open");
+  const r = anchor.getBoundingClientRect();
+  const w = menu.offsetWidth;
+  const hgt = menu.offsetHeight;
+  const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);
+  let top = r.top - hgt - 16;
+  let below = false;
+  if (top < 12) { top = r.bottom + 16; below = true; }
+  menu.style.left = left + "px";
+  menu.style.top = top + "px";
+  menu.style.setProperty("--arrow-x", (r.left + r.width / 2 - left) + "px");
+  menu.classList.toggle("below", below);
+  requestAnimationFrame(() => menu.classList.add("in"));
+  return close;
 }

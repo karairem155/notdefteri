@@ -1,12 +1,14 @@
 // Kütüphane, Paper (WeTransfer) tarzı: mor zeminde yatay kapak sırası, üstte ad ve sayfa sayısı,
 // altta işlem düğmeleri. Kapağa dokununca sayfa yelpazesi açılır. Liste görünümü de duruyor.
 import { store, COVER_PRESETS, COVER_TITLES } from "./store.js";
-import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile } from "./ui.js";
+import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu } from "./ui.js";
 import { coverElement, sameCover } from "./covers.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { shrinkImage } from "./addpage.js";
 import { pdfPageSizes } from "./paper.js";
 import { navigate } from "./app.js";
+import { renderBackground } from "./paper.js";
+import { renderStrokesToDataURL } from "./ink.js";
 
 export function renderLibrary(root) {
   let showingTrash = false;
@@ -81,6 +83,7 @@ export function renderLibrary(root) {
     const track = h("div", { class: "carousel", role: "list" });
     for (const [index, notebook] of list.entries()) {
       const cover = coverElement(notebook.cover);
+      coverPreview(cover, notebook);
       const cell = h("div", { class: "carousel-item" + (index === currentIndex ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` },
         h("div", { class: "cover-wrap" }, cover),
         h("div", { class: "carousel-title" }, notebook.title));
@@ -232,10 +235,11 @@ export function renderLibrary(root) {
     setTimeout(() => navigate(store.settings.openMode === "fan" ? `#/n/${notebook.id}/fan` : `#/n/${notebook.id}`), 320);
   }
 
-  function newMenu() {
-    actionSheet("Yeni", [
-      { title: "Yeni Defter", onSelect: createNotebook },
-      { title: "PDF'ten Defter", onSelect: createFromPDF }
+  function newMenu(e) {
+    const anchor = (e && e.currentTarget) || document.querySelector(".paper-actions .accent-fill");
+    popoverMenu(anchor, [
+      { title: "Yeni Defter", icon: "page", onSelect: createNotebook },
+      { title: "PDF'ten Defter", icon: "pdf", onSelect: createFromPDF }
     ]);
   }
 
@@ -332,3 +336,18 @@ export function renderLibrary(root) {
 }
 
 export { importBackup };
+
+/** Kapağın önüne defterin ilk sayfasının gerçek önizlemesi (arka plan + mürekkep) yerleştirilir. */
+function coverPreview(cover, notebook) {
+  const page = notebook.pages && notebook.pages[0];
+  const front = cover.querySelector(".cover-front");
+  if (!page || !front) return;
+  const preview = h("div", { class: "cover-preview" });
+  const bg = h("div", { class: "page-bg" });
+  renderBackground(bg, page, { thumbnail: true });
+  const ink = h("img", { class: "ink", alt: "", draggable: "false" });
+  if (page.strokes.length) ink.src = renderStrokesToDataURL(page, 360);
+  preview.append(bg, ink);
+  const sheen = front.querySelector(".cover-sheen");
+  if (sheen) front.insertBefore(preview, sheen); else front.append(preview);
+}

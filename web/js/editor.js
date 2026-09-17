@@ -8,7 +8,7 @@ import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "
 import { openAddPageSheet, shrinkImage } from "./addpage.js";
 import { createFlip } from "./flip.js";
 import { attachEditorGestures } from "./gestures.js";
-import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel } from "./panels.js";
+import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
 import { navigate } from "./app.js";
 
@@ -160,7 +160,7 @@ export function renderEditor(root, notebookId, initialPageId) {
           h("span", { class: "topbar-cover", style: { "--c": nb().coverColor || nb().cover?.color || "#F4A7C0" } }),
           h("span", { class: "topbar-notebook" }, nb().title), svgIcon("down", 16)),
         page.pdf && h("span", { class: "badge-pdf" }, "PDF")),
-      h("div", { class: "topbar-title" }, favoriteSwatches()),
+      h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },
         iconButton("export", "Dışa aktar / paylaş", openExportPanel),
         Object.assign(iconButton("undoTool", "Geri al", () => activeInk && activeInk.undo()), { disabled: !(activeInk && activeInk.canUndo) }),
@@ -178,7 +178,51 @@ export function renderEditor(root, notebookId, initialPageId) {
     );
   }
 
-  /** Üst çubuktaki favori kalemler: dokun → o kalem; seçiliye tekrar dokun → ayarlar; uzun bas → düzenle. */
+  /** Favoriler çubuğu: tutamaçtan sürükleyip istediğin kenara bırak; sağ/sol kenarda dikey, alt/üstte yatay durur. */
+  function renderFavDock() {
+    const dock = store.settings.favDock || { side: "bottom", pos: 0.5 };
+    let el = screen.querySelector(".fav-dock");
+    if (!el) {
+      el = h("div", { class: "fav-dock" });
+      const grip = h("div", { class: "fav-grip", "aria-label": "Favoriler çubuğunu taşı" }, svgIcon("dragDots", 18));
+      let session = null;
+      grip.addEventListener("pointerdown", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        try { grip.setPointerCapture(e.pointerId); } catch (_) { /* sentetik */ }
+        session = { id: e.pointerId };
+        el.classList.add("dragging");
+      });
+      grip.addEventListener("pointermove", (e) => {
+        if (!session || e.pointerId !== session.id) return;
+        e.preventDefault();
+        el.style.left = e.clientX + "px"; el.style.top = e.clientY + "px";
+        el.classList.add("free");
+      });
+      const end = (e) => {
+        if (!session || e.pointerId !== session.id) return;
+        session = null;
+        el.classList.remove("dragging", "free");
+        const W = window.innerWidth, H = window.innerHeight;
+        const dl = e.clientX, dr = W - e.clientX, dt = e.clientY, db = H - e.clientY;
+        const min = Math.min(dl, dr, dt, db);
+        const side = min === dl ? "left" : min === dr ? "right" : min === dt ? "top" : "bottom";
+        const pos = (side === "left" || side === "right") ? e.clientY / H : e.clientX / W;
+        store.setSetting("favDock", { side, pos: Math.min(0.92, Math.max(0.08, pos)) });
+        renderFavDock();
+      };
+      grip.addEventListener("pointerup", end);
+      grip.addEventListener("pointercancel", end);
+      el.append(grip, h("div", { class: "fav-dock-body" }));
+      screen.append(el);
+    }
+    el.querySelector(".fav-dock-body").replaceChildren(favoriteSwatches());
+    el.dataset.side = dock.side;
+    el.style.left = ""; el.style.top = ""; el.style.right = ""; el.style.bottom = "";
+    if (dock.side === "left" || dock.side === "right") { el.style.top = (dock.pos * 100) + "%"; }
+    else { el.style.left = (dock.pos * 100) + "%"; }
+  }
+
+  /** Favori kalemler: dokun → o kalem; seçiliye tekrar dokun → ayarlar; uzun bas → düzenle. */
   function favoriteSwatches() {
     const s = store.settings;
     const strip = h("div", { class: "fav-strip", role: "group", "aria-label": "Favori kalemler" });
@@ -490,8 +534,33 @@ export function renderEditor(root, notebookId, initialPageId) {
       });
     });
     addHandles(box);
-    layer.append(box);
-    if (!(popover && popover.dataset.kind === "selection" && popover._ink === ink)) openSelectionPanel(ink, stack, page);
+    layer.append(box, selectionBar(ink, stack, page, bounds));
+    if (popover && popover.dataset.kind === "selection") closePopover();
+  }
+
+  /** Seçimin üstünde küçük cam çubuk: taşı/kopyala/çoğalt/kes/renk/öne/arkaya/sil. Sayfayı kaplamaz. */
+  function selectionBar(ink, stack, page, bounds) {
+    const acts = selectionActions(ink);
+    const item = (icon, label, fn, cls = "") => h("button", { type: "button", class: "sel-item" + (cls ? " " + cls : ""), "aria-label": label, onTap: (e) => { e.stopPropagation(); fn(); } }, svgIcon(icon, 18), h("span", {}, label));
+    const bar = h("div", { class: "sel-bar", style: { left: Math.min(Math.max(bounds.x + bounds.w / 2, 200), Math.max(page.size.w - 200, 200)) + "px", top: Math.max(bounds.y - 14, 70) + "px" } },
+      item("copy", "Kopyala", acts.copy), item("duplicate", "Çoğalt", acts.duplicate), item("scissors", "Kes", acts.cut),
+      item("pen", "Renk", () => openColorPanel({ onPick: acts.recolor, title: "Seçim Rengi" })),
+      item("layerUp", "Öne", acts.front), item("layerDown", "Arkaya", acts.back),
+      item("trash", "Sil", acts.remove, "danger"));
+    bar.addEventListener("pointerdown", (e) => e.stopPropagation());
+    return bar;
+  }
+
+  function selectionActions(ink) {
+    return {
+      copy: () => { clipboard.strokes = ink.selectedStrokes().map((s) => structuredClone(s)); clipboard.objects = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
+      duplicate: () => ink.duplicateSelection(),
+      cut: () => { clipboard.strokes = ink.selectedStrokes().map((s) => structuredClone(s)); clipboard.objects = []; ink.deleteSelection(); toast("Kesildi; Yapıştır ile başka yere koy"); renderBench(); },
+      recolor: (hex) => ink.recolorSelection(hex),
+      front: () => { ink.bringSelectionFront(); toast("Öne alındı"); },
+      back: () => { ink.sendSelectionBack(); toast("Arkaya gönderildi"); },
+      remove: () => ink.deleteSelection()
+    };
   }
 
   // ---------- cetvel ----------
@@ -1104,13 +1173,22 @@ export function renderEditor(root, notebookId, initialPageId) {
     return { x: (page.size.w - w) / 2 + shift, y: (page.size.h - hh) / 2 + shift, w, h: hh };
   }
 
-  async function importImage(kind) {
-    const file = await pickFile("file-image");
-    if (!file) return;
+  async function importImage(kind, givenFile = null, givenAsset = null) {
+    const file = givenFile || (givenAsset ? null : await pickFile("file-image"));
+    if (!file && !givenAsset) return;
     const page = selectedPage();
     try {
-      const { blob, width, height } = await shrinkImage(file, 1600);
-      const asset = await store.importAsset(blob, file.name);
+      let asset = givenAsset;
+      let width = 0, height = 0;
+      if (!asset) {
+        const shrunk = await shrinkImage(file, 1600);
+        width = shrunk.width; height = shrunk.height;
+        asset = await store.importAsset(shrunk.blob, file.name);
+        if (kind === "photo") store.noteMedia({ asset, name: file.name, kind: "image" });
+      } else {
+        const url = await store.assetURL(asset);
+        if (url) { const im = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = url; }); width = im.width; height = im.height; }
+      }
       const maxW = kind === "sticker" ? 180 : 300;
       const maxH = kind === "sticker" ? 180 : 380;
       let w = maxW;
@@ -1124,6 +1202,70 @@ export function renderEditor(root, notebookId, initialPageId) {
     } catch (error) {
       toast("Görsel eklenemedi: " + error.message);
     }
+  }
+
+  /** Geçici dosya seçici: kamera (capture) ya da görsel+PDF. */
+  function pickTemp(accept, capture) {
+    return new Promise((resolve) => {
+      const input = h("input", { type: "file", accept });
+      if (capture) input.setAttribute("capture", "environment");
+      input.style.position = "fixed"; input.style.opacity = "0"; input.style.pointerEvents = "none";
+      input.addEventListener("change", () => { resolve(input.files[0] || null); input.remove(); });
+      document.body.append(input);
+      input.click();
+      setTimeout(() => { if (input.isConnected) input.remove(); }, 120000);
+    });
+  }
+
+  async function importFile() {
+    const file = await pickTemp("image/*,application/pdf,.pdf", false);
+    if (!file) return;
+    if (/pdf$/i.test(file.type) || /[.]pdf$/i.test(file.name)) {
+      toast("PDF açılıyor…");
+      try {
+        const asset = await store.importAsset(file, file.name);
+        const { pdfPageSizes } = await import("./paper.js");
+        const sizes = await pdfPageSizes(asset);
+        if (!sizes.length) { toast("PDF açılamadı ya da boş."); await store.removeAsset(asset); return; }
+        const id = store.addPDFPages(notebookId, selectedIndex() + 1, asset, sizes);
+        store.noteMedia({ asset, name: file.name, kind: "pdf" });
+        if (id) selectPage(id); else renderStage();
+        toast(`${sizes.length} PDF sayfası eklendi`);
+      } catch (error) { toast("PDF eklenemedi: " + error.message); }
+      return;
+    }
+    importImage("photo", file);
+  }
+
+  function openMediaPanel() {
+    mountPanel(mediaPanel({
+      close: () => closePopover(),
+      recentMedia: () => store.settings.recentMedia || [],
+      assetURL: (id) => store.assetURL(id),
+      insertRecent: (entry) => { closePopover(); if (entry.kind === "pdf") toast("PDF sayfaları için Dosyalar'dan yeniden seç"); else importImage("photo", null, entry.asset); },
+      importPhoto: () => { closePopover(); importImage("photo"); },
+      capturePhoto: async () => { closePopover(); const file = await pickTemp("image/*", true); if (file) importImage("photo", file); },
+      importFile: () => { closePopover(); importFile(); },
+      isRecording: () => !!recording,
+      toggleAudio: () => { closePopover(); toggleAudioNote(); },
+      isFrosted: () => isFrosted(),
+      toggleFrosted: () => { closePopover(); if (isFrosted()) selectTool("pen"); else { selectTool("frosted"); openFrostedPanel(); } },
+      isEditingObjects: () => editingObjects,
+      toggleEditing: () => { closePopover(); setEditing(!editingObjects); },
+      hasClipboard: () => !!(clipboard.strokes.length || clipboard.objects.length),
+      paste: () => { closePopover(); pasteClipboard(); }
+    }), "media");
+    renderBench();
+  }
+
+  function openTextPanel() {
+    mountPanel(textPanel({
+      close: () => closePopover(),
+      addText: (todo) => { closePopover(); addText(todo); },
+      addCheckBox: () => { closePopover(); addCheckBox(); },
+      openTranslate: () => { closePopover(); openTranslateDialog(getSelectionText()); }
+    }), "text");
+    renderBench();
   }
 
   function textMenu() {
@@ -1439,8 +1581,8 @@ export function renderEditor(root, notebookId, initialPageId) {
         tb("eraserTool", "Silgi", tool.tool === "eraser" ? "Silgi ayarları" : "Silgi", tool.tool === "eraser", () => { if (tool.tool === "eraser") openEraserPanel(); else selectTool("eraser"); }),
         tb("selectTool", "Seçim", "Seçim (kement)", tool.tool === "lasso", () => { if (tool.tool === "lasso") { if (activeInk && activeInk.selectionBounds()) { const stack = stage.querySelector(".page-stack:not(.static)"); openSelectionPanel(activeInk, stack, pages().find((p) => inks.get(p.id) === activeInk)); } else toast("Seçmek için çizginin çevresini kementle çiz"); } else selectTool("lasso"); }),
         tb("shapesTool", "Şekiller / Cetvel", "Şekiller ve cetvel", tool.tool === "shape" || !!ruler, () => { if (tool.tool !== "shape" && !ruler) selectTool("shape"); openShapesPanel(); }),
-        tb("mediaTool", "Medya", "Medya: fotoğraf, sesli not, buzlu kalem", editingObjects || isFrosted() || !!recording, imageMenu, recording ? "recording" : ""),
-        tb("textTool", "Metin", "Metin, yapılacaklar listesi, onay kutusu", false, textMenu),
+        tb("mediaTool", "Medya", "Medya: fotoğraf, dosya, sesli not, buzlu kalem", editingObjects || isFrosted() || !!recording || !!(popover && popover.dataset.kind === "media"), openMediaPanel, recording ? "recording" : ""),
+        tb("textTool", "Metin", "Metin, yapılacaklar listesi, onay kutusu", !!(popover && popover.dataset.kind === "text"), openTextPanel),
         tb("stickersTool", "Çıkartmalar", "Post-it ve çıkartmalar", popover && popover.dataset.kind === "stickers", openStickerPanel),
         (clipboard.strokes.length || clipboard.objects.length) ? tb("copy", "Yapıştır", "Yapıştır", false, pasteClipboard) : false,
         sep(),
@@ -1450,6 +1592,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     }
     toolbar.append(tb(collapsed ? "up" : "down", collapsed ? "Genişlet" : "Daralt", collapsed ? "Araçları göster" : "Araçları gizle", false, () => { store.setSetting("benchCollapsed", !collapsed); renderBench(); }, "tb-collapse"));
     bench.replaceChildren(toolbar);
+    renderFavDock();
     renderTopbar();
   }
 
@@ -1552,15 +1695,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   function openFavoritesPanel() { mountPanel(favoritesPanel(panelCtx), "favorites"); }
   function openColorPanel(opts) { mountPanel(colorPanel(panelCtx, opts || {}), "color"); }
   function openSelectionPanel(ink, stack, page) {
-    panelCtx.selection = {
-      copy: () => { clipboard.strokes = ink.selectedStrokes().map((s) => structuredClone(s)); clipboard.objects = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
-      duplicate: () => ink.duplicateSelection(),
-      cut: () => { clipboard.strokes = ink.selectedStrokes().map((s) => structuredClone(s)); clipboard.objects = []; ink.deleteSelection(); toast("Kesildi; Yapıştır ile başka yere koy"); renderBench(); },
-      recolor: (hex) => ink.recolorSelection(hex),
-      front: () => { ink.bringSelectionFront(); toast("Öne alındı"); },
-      back: () => { ink.sendSelectionBack(); toast("Arkaya gönderildi"); },
-      remove: () => ink.deleteSelection()
-    };
+    panelCtx.selection = selectionActions(ink);
     const el = selectionPanel(panelCtx);
     mountPanel(el, "selection");
     el._ink = ink;
@@ -1644,7 +1779,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   // ---------- kalem paneli (07-KalemPaneli.png) ----------
 
   function closePopover() {
-    if (popover) { const kind = popover.dataset.kind; popover.remove(); popover = null; if (kind === "stickers") renderBench(); }
+    if (popover) { const kind = popover.dataset.kind; popover.remove(); popover = null; if (kind === "stickers" || kind === "media" || kind === "text") renderBench(); }
   }
 
   // Panel açıkken başka bir yere dokununca kapanır (Kapat'a basmak gerekmez).
@@ -1728,7 +1863,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       flip.finish(commit, (committed) => { if (committed && target) selectPage(target); });
     }
   });
-  const onSettings = (e) => { if (e.detail && ["pens", "palette", "defaultPenId", "benchCollapsed"].includes(e.detail.key)) renderBenchKeepPopover(); };
+  const onSettings = (e) => { if (e.detail && ["pens", "palette", "defaultPenId", "benchCollapsed", "favDock"].includes(e.detail.key)) renderBenchKeepPopover(); };
   store.addEventListener("settings", onSettings);
   const onKey = (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) activeInk && activeInk.redo(); else activeInk && activeInk.undo(); }

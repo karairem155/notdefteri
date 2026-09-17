@@ -456,3 +456,48 @@ export function stickerPanel(ctx) {
   build();
   return shell("Post-it ve Sticker", ctx.close, tabs, body);
 }
+
+
+// ---------- Fotoğraf ve Dosya Ekle / Metin ----------
+
+function navRow(icon, title, onTap, sub) {
+  return h("button", { class: "sp-nav-row", type: "button", onTap },
+    h("span", { class: "sp-nav-icon" }, svgIcon(icon, 22)),
+    h("span", { class: "sp-nav-text" }, h("span", { class: "sp-nav-title" }, title), sub ? h("span", { class: "sp-row-sub" }, sub) : null),
+    svgIcon("forward", 18));
+}
+
+export function mediaPanel(ctx) {
+  const recent = ctx.recentMedia();
+  const grid = h("div", { class: "sp-recent-grid" });
+  for (const entry of recent.slice(0, 6)) {
+    const cell = h("button", { class: "sp-recent-cell", type: "button", "aria-label": entry.name || "Son eklenen", onTap: () => ctx.insertRecent(entry) });
+    if (entry.kind === "pdf") cell.append(h("div", { class: "sp-recent-doc" }, svgIcon("pdf", 26), h("span", {}, entry.name || "PDF")));
+    else { const img = h("img", { alt: "", draggable: "false" }); ctx.assetURL(entry.asset).then((url) => { if (url) img.src = url; }); cell.append(img); }
+    grid.append(cell);
+  }
+  return shell("Fotoğraf ve Dosya Ekle", ctx.close,
+    h("div", { class: "sp-nav" },
+      navRow("photos", "Fotoğraflar", () => ctx.importPhoto()),
+      navRow("camera", "Kamera", () => ctx.capturePhoto()),
+      navRow("folder", "Dosyalar", () => ctx.importFile(), "Görsel ya da PDF"),
+      navRow("scan", "Belge Tara", () => ctx.capturePhoto(true), "Kamerayla çekilir"),
+      navRow("clock", "Son Eklenenler", () => grid.scrollIntoView({ behavior: "smooth" }))),
+    h("div", { class: "sp-section-row" }, h("span", { class: "sp-section" }, "Son Eklenenler"), recent.length ? h("span", { class: "sp-row-sub" }, `${recent.length} öğe`) : null),
+    recent.length ? grid : h("p", { class: "sp-desc" }, "Eklediğin fotoğraf ve dosyalar burada birikir."),
+    h("div", { class: "sp-section" }, "Diğer"),
+    h("div", { class: "sp-nav" },
+      navRow("audio", ctx.isRecording() ? "Ses Kaydını Durdur" : "Sesli Not Kaydet", () => ctx.toggleAudio(), "Sayfaya oynatılabilir not düşer"),
+      navRow("frost", ctx.isFrosted() ? "Buzlu Kalemi Kapat" : "Buzlu Kalem", () => ctx.toggleFrosted(), "Cevabın üstünü örter; dokununca açılır"),
+      navRow("objects", ctx.isEditingObjects() ? "Düzenlemeyi Bitir" : "Nesneleri Düzenle", () => ctx.toggleEditing(), "Taşı, döndür, kes"),
+      ctx.hasClipboard() ? navRow("copy", "Yapıştır", () => ctx.paste()) : null));
+}
+
+export function textPanel(ctx) {
+  return shell("Metin", ctx.close,
+    h("div", { class: "sp-nav" },
+      navRow("textTool", "Yazı Kutusu", () => ctx.addText(false), "Klavye ya da Apple Pencil ile yaz"),
+      navRow("check", "Yapılacaklar Listesi", () => ctx.addText(true), "Onay kutulu maddeler"),
+      navRow("lassoRect", "Onay Kutusu", () => ctx.addCheckBox(), "El yazısının yanına"),
+      navRow("translate", "Çeviri", () => ctx.openTranslate(), "Yaz ya da seç, çevir")));
+}
