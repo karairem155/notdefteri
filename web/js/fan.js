@@ -45,20 +45,23 @@ export function renderFan(root, notebookId) {
     return H * page.size.w / page.size.h;
   }
 
-  /** Yerleşim (Paper): çift sayfa hafif V; sonrakiler sağda çift sayfanın altında, şeritleri görünür;
-   *  önceki sayfa solda üçte biri görünür, gerisi şerit. x: translateX, rot: rotateY, z: sıra. */
+  /** Yerleşim (Paper). Bütün yapraklar ortadan döner (merkez sabit → geçişte sıçrama olmaz).
+   *  x: yaprağın sol kenarı (translateX), rot: rotateY, z: sıra. Yaprak kutusu döndüğünde görünen genişlik W*cos. */
   function placeFor(index, W) {
     const cosT = Math.cos(TILT * Math.PI / 180);
-    if (index === center) return { x: -W, rot: OPEN, z: 60, origin: "right center" };
-    if (index === center + 1) return { x: 0, rot: -OPEN, z: 60, origin: "left center" };
+    const cosO = Math.cos(OPEN * Math.PI / 180);
+    const halfLoss = (W - W * cosT) / 2;     // dönünce her iki kenardan içeri çekilen pay
+    const halfLossO = (W - W * cosO) / 2;
+    if (index === center) return { x: -W + halfLossO, rot: OPEN, z: 60 };          // sağ kenarı ciltte
+    if (index === center + 1) return { x: -halfLossO, rot: -OPEN, z: 60 };          // sol kenarı ciltte
     if (index < center) {
       const k = Math.min(center - index, VISIBLE);
-      // sağ kenarı: -0.68W - k*STRIP (dönüş sağ kenar etrafında olduğundan sağ kenar sabit kalır)
-      return { x: -0.68 * W - k * STRIP - W, rot: TILT, z: 40 - k, origin: "right center" };
+      const rightEdge = -0.36 * W - k * STRIP;                                       // önceki sayfanın ~üçte biri görünür (Paper)
+      return { x: rightEdge - W + halfLoss, rot: TILT, z: 40 - k };
     }
     const k = Math.min(index - center - 1, VISIBLE);
-    // sol kenar etrafında döner; sağ kenarı W + k*STRIP olsun diye sol kenar = W + k*STRIP - W*cos
-    return { x: W + k * STRIP - W * cosT, rot: -TILT, z: 40 - k, origin: "left center" };
+    const rightEdge = W + k * STRIP;
+    return { x: rightEdge - W + halfLoss, rot: -TILT, z: 40 - k };
   }
 
   /** Açılış: bütün sayfalar kapalı defter gibi ortada üst üste başlar, sırayla açılıp yerlerine kayar. */
@@ -100,7 +103,7 @@ export function renderFan(root, notebookId) {
       const W = leafWidth(list[center]);
       const pos = placeFor(index, W);
       leaf.style.transition = animate ? "transform 0.55s cubic-bezier(0.25, 0.85, 0.25, 1)" : "none";
-      leaf.style.transformOrigin = pos.origin;
+      leaf.style.transformOrigin = "center center";
       leaf.style.zIndex = String(pos.z);
       leaf.style.transform = `translateX(${pos.x}px) rotateY(${pos.rot}deg)`;
       leaf.dataset.index = String(index);

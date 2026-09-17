@@ -1065,3 +1065,7 @@ body { background: var(--desk); color: #fff; }
 .fan-leaf.flat[style*="left center"] .fan-face::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0) 14%); }
 .fan-leaf:not(.flat) .fan-face::after { background: linear-gradient(90deg, rgba(20, 28, 70, 0.18), rgba(255, 255, 255, 0)); }
 .fan-face.front { border-radius: 8px; }
+
+.fan-leaf { transform-origin: center center; }
+.fan-leaf.flat[style*="right center"] .fan-face::after, .fan-leaf.flat[style*="left center"] .fan-face::after { background: none; }
+.fan-leaf.flat .fan-face::after { background: none; }
