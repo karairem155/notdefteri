@@ -9,8 +9,9 @@ import { drawStroke, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
-const STEP = 15;          // yelpazedeki yapraklar arası açı (derece)
-const VISIBLE = 5;        // her yanda kaç yaprak görünsün
+const STEP = 16;          // yelpazedeki yapraklar arası açı (derece)
+const SPREAD = 0;         // yaprakların ciltten dışarı kayma payı (px, yaprak başına)
+const VISIBLE = 4;        // her yanda kaç yaprak görünsün
 
 export function renderFan(root, notebookId) {
   const notebook = store.notebook(notebookId);
@@ -57,7 +58,10 @@ export function renderFan(root, notebookId) {
       let leaf = leaves.get(page.id);
       if (!leaf) { leaf = makeLeaf(page); leaves.set(page.id, leaf); book.append(leaf); }
       leaf.style.transition = animate ? "transform 0.7s cubic-bezier(0.3, 0.7, 0.2, 1)" : "none";
-      leaf.style.transform = `rotateY(${angleFor(index)}deg)`;
+      // Yaprak ciltten hafifçe dışarı kayar ve döner: yelpaze gibi hepsi görünür (Paper).
+      const k = Math.min(dist, VISIBLE);
+      const shift = (index <= center ? -1 : 1) * k * SPREAD;
+      leaf.style.transform = `translateX(${shift}px) rotateY(${angleFor(index)}deg)`;
       leaf.dataset.index = String(index);
       leaf.classList.toggle("flat", index === center || index === center + 1);
       leaf.querySelector(".fan-num").textContent = String(index + 1);
@@ -101,15 +105,7 @@ export function renderFan(root, notebookId) {
     const front = h("div", { class: "fan-face front" }, pageFace(page));
     const back = h("div", { class: "fan-face back" }, pageFace(page));
     leaf.append(front, back, h("div", { class: "fan-num" }));
-    pressable(leaf, {
-      onTap: () => {
-        if (dragging && dragging.moved) return;
-        const index = Number(leaf.dataset.index);
-        if (index === center || index === center + 1) navigate(`#/n/${notebookId}/p/${page.id}`);
-        else turn(index < center ? -1 : 1);
-      },
-      onLong: () => pageMenu(page)
-    });
+    pressable(leaf, { onTap: () => {}, onLong: () => pageMenu(page) });
     return leaf;
   }
 
@@ -130,7 +126,29 @@ export function renderFan(root, notebookId) {
     if (dx < -70) { dragging.done = true; turn(1); }
     else if (dx > 70) { dragging.done = true; turn(-1); }
   });
-  const endDrag = (e) => { if (dragging && e.pointerId === dragging.id) setTimeout(() => { dragging = null; }, 0); };
+  // Dokunma sahne düzeyinde, koordinatla: 3B döndürülmüş yapraklara dokunma bazı tarayıcılarda algılanmıyor.
+  const endDrag = (e) => {
+    if (!dragging || e.pointerId !== dragging.id) return;
+    const wasTap = !dragging.moved && e.type === "pointerup";
+    setTimeout(() => { dragging = null; }, 0);
+    if (!wasTap || Date.now() < busyUntil) return;
+    if (e.target && e.target.closest && e.target.closest("button")) return;
+    const flat = book.querySelector(".fan-leaf.flat");
+    if (!flat) return;
+    const w = flat.getBoundingClientRect().width || 1;
+    const br = book.getBoundingClientRect();
+    const spineX = br.left;
+    const top = br.top, bottom = br.bottom;
+    const dx = e.clientX - spineX;
+    if (e.clientY < top - 20 || e.clientY > bottom + 20) return;
+    const list = pages();
+    if (Math.abs(dx) <= w * 1.05) {
+      const target = dx < 0 ? list[center] : (list[center + 1] || list[center]);
+      if (target) navigate(`#/n/${notebookId}/p/${target.id}`);
+    } else if (Math.abs(dx) <= w * 2.4) {
+      turn(dx < 0 ? -1 : 1);
+    }
+  };
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
 

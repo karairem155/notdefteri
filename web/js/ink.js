@@ -546,6 +546,16 @@ export class InkCanvas {
 
   // ---- çizim ----
 
+  /** Tuval çözünürlüğü: yakınlaştırınca çizgiler bulanıklaşmasın diye ekran ölçeğine uyar (en çok 3x). */
+  setResolution(scale) {
+    const dpr = (window.devicePixelRatio || 1) * Math.min(3, Math.max(1, scale));
+    if (Math.abs(dpr - this.dpr) < 0.05) return;
+    this.dpr = dpr;
+    this.canvas.width = Math.round(this.page.size.w * dpr);
+    this.canvas.height = Math.round(this.page.size.h * dpr);
+    this.redraw();
+  }
+
   redraw() {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);

@@ -213,30 +213,61 @@ function cloneFace(src, cache) {
 }
 
 
-// Kağıt çevirme sesi: kısa bir gürültü patlaması, bant geçiren süzgeç ve hızlı sönüm (dosya gerektirmez).
+// Kağıt çevirme sesi: yumuşak bir "hışırtı" (yavaş başlayıp sönen gürültü, tizden pese kayan süzgeç)
+// ve sonunda hafif bir yaprak oturma sesi. Dosya gerektirmez; Ayarlar'dan kapatılabilir.
 let audioCtx = null;
+let paperClip = null;   // kullanıcının verdiği kağıt hışırtısı (gürültüsü azaltılmış)
 function playPaperSound() {
+  try {
+    if (!paperClip) { paperClip = new Audio("./sounds/page-flip.mp3"); paperClip.preload = "auto"; paperClip.volume = 0.55; }
+    const clip = paperClip.cloneNode();
+    clip.volume = 0.55;
+    const p = clip.play();
+    if (p && p.then) { p.then(() => {}).catch(() => synthPaperSound()); return; }
+    return;
+  } catch (_) { /* dosya çalmazsa üretilen ses */ }
+  synthPaperSound();
+}
+
+function synthPaperSound() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === "suspended") audioCtx.resume();
     const rate = audioCtx.sampleRate;
-    const length = Math.floor(rate * 0.22);
-    const buffer = audioCtx.createBuffer(1, length, rate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) {
-      const t = i / length;
-      const env = Math.pow(1 - t, 2.2) * (t < 0.05 ? t / 0.05 : 1);
-      data[i] = (Math.random() * 2 - 1) * env;
-    }
-    const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = 1400;
-    filter.Q.value = 0.9;
-    const gain = audioCtx.createGain();
-    gain.gain.value = 0.35;
-    src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
-    src.start();
+    const now = audioCtx.currentTime;
+    const noise = (seconds) => {
+      const length = Math.floor(rate * seconds);
+      const buffer = audioCtx.createBuffer(1, length, rate);
+      const data = buffer.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < length; i++) { const white = Math.random() * 2 - 1; last = (last + 0.35 * white) / 1.35; data[i] = last * 2.5; }   // yumuşatılmış (pembemsi) gürültü
+      const src = audioCtx.createBufferSource();
+      src.buffer = buffer;
+      return src;
+    };
+    // 1) hışırtı
+    const swish = noise(0.42);
+    const band = audioCtx.createBiquadFilter();
+    band.type = "bandpass";
+    band.Q.value = 0.7;
+    band.frequency.setValueAtTime(2600, now);
+    band.frequency.exponentialRampToValueAtTime(650, now + 0.4);
+    const g1 = audioCtx.createGain();
+    g1.gain.setValueAtTime(0.0001, now);
+    g1.gain.exponentialRampToValueAtTime(0.16, now + 0.09);
+    g1.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+    swish.connect(band); band.connect(g1); g1.connect(audioCtx.destination);
+    swish.start(now);
+    // 2) yaprağın oturması (hafif, pes)
+    const settle = noise(0.12);
+    const low = audioCtx.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.value = 900;
+    const g2 = audioCtx.createGain();
+    g2.gain.setValueAtTime(0.0001, now + 0.3);
+    g2.gain.exponentialRampToValueAtTime(0.07, now + 0.33);
+    g2.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+    settle.connect(low); low.connect(g2); g2.connect(audioCtx.destination);
+    settle.start(now + 0.3);
   } catch (_) { /* ses yoksa sessiz devam */ }
 }

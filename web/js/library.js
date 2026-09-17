@@ -83,6 +83,7 @@ export function renderLibrary(root) {
     const track = h("div", { class: "carousel", role: "list" });
     for (const [index, notebook] of list.entries()) {
       const cover = coverElement(notebook.cover);
+      cover.append(h("div", { class: "cover-hit" }));   // düz görünmez katman: 3B yüzlerde dokunma kaçmasın
       const cell = h("div", { class: "carousel-item" + (index === currentIndex ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` },
         h("div", { class: "cover-wrap" }, cover),
         h("div", { class: "carousel-title" }, notebook.title));

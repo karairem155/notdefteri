@@ -981,7 +981,7 @@ body { background: var(--desk); color: #fff; }
 .carousel-item.after { transform: scale(0.74) translateZ(-140px) translateX(-28px); }
 .carousel-item.far { opacity: 0.5; }
 .carousel-item.current { opacity: 1; transform: scale(1) translateZ(0); z-index: 2; }
-.carousel-item .cover-wrap { width: 270px; perspective: 1300px; -webkit-box-reflect: below 14px linear-gradient(transparent 62%, rgba(255, 255, 255, 0.28)); filter: drop-shadow(0 34px 30px rgba(0, 0, 0, 0.55)); }
+.carousel-item .cover-wrap { width: 270px; perspective: 1300px; filter: drop-shadow(0 34px 30px rgba(0, 0, 0, 0.55)); }
 .carousel-item .cover { --t: 26px; transform: rotateY(-14deg) rotateX(2deg); filter: none; }
 .cover { filter: none !important; }
 .carousel-item.current .cover { transform: rotateY(-13deg) rotateX(1.5deg); }
@@ -1019,3 +1019,30 @@ body { background: var(--desk); color: #fff; }
 .carousel-item .cover-wrap { perspective: 1600px; }
 .book-pages { background: repeating-linear-gradient(90deg, #f8f4ea 0 2px, #d6cfbd 2px 3px), #efe9da; }
 .carousel-item .book-pages { box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.18), inset 2px 0 0 rgba(0, 0, 0, 0.12); }
+
+/* ===== Kütüphane: Paper tarzı raf (aynı boy, önden, ince sayfa bloğu, lastik şerit) ===== */
+.carousel { gap: 40px; padding: 40px calc(50% - 120px) 60px; perspective: 1800px; }
+.carousel-item { width: 240px; opacity: 0.92; transform: scale(0.96); }
+.carousel-item.before, .carousel-item.after { transform: scale(0.96); }
+.carousel-item.far { opacity: 0.8; }
+.carousel-item.current { opacity: 1; transform: scale(1.04); }
+.carousel-item .cover-wrap { width: 220px; perspective: 1400px; -webkit-box-reflect: none; filter: drop-shadow(0 22px 22px rgba(0, 0, 0, 0.5)); }
+.carousel-item .cover, .carousel-item.current .cover, .carousel-item.before .cover, .carousel-item.after .cover { --t: 18px; transform: rotateY(-9deg) rotateX(0deg); }
+.carousel-item .cover-front { border-radius: 10px 4px 4px 10px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset -6px 0 10px -6px rgba(0, 0, 0, 0.25); }
+.carousel-item .cover-front::after { content: ""; position: absolute; top: 0; bottom: 0; right: 12%; width: 7px; background: rgba(20, 16, 30, 0.55); box-shadow: 1px 0 2px rgba(0, 0, 0, 0.3), -1px 0 2px rgba(255, 255, 255, 0.15); }
+.carousel-item .book-pages { background: repeating-linear-gradient(90deg, #f7f3e8 0 1.5px, #dad3c1 1.5px 2.5px), #efe9da; box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.15); }
+.carousel-title { margin-top: 16px; font-size: 15px; }
+.carousel-item:not(.current) .carousel-title { opacity: 0; }
+.library-body { background: none; }
+
+/* Yelpaze: geniş açıyla görünen yapraklar, daha büyük kitap */
+.screen-fan .fan-stage { perspective: 950px; perspective-origin: 50% 40%; }
+.fan-bookroot { height: min(50vh, 500px); }
+.fan-leaf:not(.flat) .fan-face::after { background: linear-gradient(90deg, rgba(30, 40, 90, 0.22), rgba(255, 255, 255, 0) 60%); }
+
+.cover-hit { position: absolute; inset: -6px -10px -6px -6px; transform: translateZ(calc(var(--t) + 2px)); background: transparent; }
+.fan-leaf { pointer-events: none; }
+.fan-leaf.flat { pointer-events: auto; }
+
+.screen-fan .fan-stage { perspective: 760px; perspective-origin: 50% 42%; }
+.fan-bookroot { height: min(44vh, 440px); }

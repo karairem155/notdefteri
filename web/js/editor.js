@@ -425,10 +425,14 @@ export function renderEditor(root, notebookId, initialPageId) {
   }
 
   /** Yakınlaştırma sayfanın ortasına göre; kaydırma ekran pikseli cinsinden. */
+  let resolutionTimer = 0;
   function applyTransform() {
     if (zoom <= 1) pan = { x: 0, y: 0 };
     stage.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${fitScale * zoom})`;
     stage.dataset.scale = String(fitScale * zoom);
+    // Yakınlaştırma bitince mürekkep tuvalleri yeni ölçekte keskin çizilir.
+    clearTimeout(resolutionTimer);
+    resolutionTimer = setTimeout(() => { for (const ink of inks.values()) ink.setResolution(fitScale * zoom); }, 160);
   }
 
   function emptyPage(size) {
@@ -1788,7 +1792,10 @@ export function renderEditor(root, notebookId, initialPageId) {
     if (popover.contains(e.target)) return;
     if (e.target.closest && e.target.closest(".modal-backdrop")) return;
     if (popover.dataset.kind === "selection" && e.target.closest && e.target.closest(".layer-select")) return;
+    // Paneli kapatmak için yapılan dokunuş sayfaya geçmesin (kalem çizmesin, nesne seçilmesin).
+    const inBench = e.target.closest && (e.target.closest(".bench") || e.target.closest(".topbar") || e.target.closest(".fav-dock"));
     closePopover();
+    if (!inBench) { e.stopPropagation(); e.preventDefault(); }
   };
   document.addEventListener("pointerdown", onOutsidePointer, true);
 
