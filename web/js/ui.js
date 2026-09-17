@@ -202,18 +202,17 @@ export function closeModal() {
 }
 
 /** Eylem sayfası: başlık + düğme listesi. Her eylem { title, destructive, onSelect, disabled }. */
+// Son dokunulan yer: menüler dokunulan düğmenin hemen yanında açılsın diye.
+let lastTap = null;
+document.addEventListener("pointerup", (e) => { lastTap = { x: e.clientX, y: e.clientY, target: e.target, at: Date.now() }; }, true);
+
+/** Eylem menüsü: son dokunulan düğmeye bağlı küçük cam menü (tam ekran liste yerine). */
 export function actionSheet(title, actions) {
-  const list = actions.map((a) => h("button", {
-    class: "sheet-action" + (a.destructive ? " destructive" : ""),
-    type: "button",
-    disabled: a.disabled || null,
-    onTap: () => { closeModal(); a.onSelect(); }
-  }, a.title));
-  openModal(h("div", { class: "sheet" },
-    title ? h("div", { class: "sheet-title" }, title) : null,
-    ...list,
-    h("button", { class: "sheet-action cancel", type: "button", onTap: closeModal }, "Vazgeç")
-  ));
+  const recent = lastTap && Date.now() - lastTap.at < 2000 ? lastTap : null;
+  const el = recent && recent.target && recent.target.closest ? recent.target.closest("button, [role=button], .swatch, .fav-row, .carousel-item, .placed, .cover-mark, .pen-btn, .tool-btn") : null;
+  const anchor = el || (recent ? { left: recent.x - 1, top: recent.y - 1, right: recent.x + 1, bottom: recent.y + 1, width: 2, height: 2 }
+    : { left: window.innerWidth / 2 - 1, top: window.innerHeight / 2 - 1, right: window.innerWidth / 2 + 1, bottom: window.innerHeight / 2 + 1, width: 2, height: 2 });
+  popoverMenu(anchor, actions, { title });
 }
 
 export function confirmDialog(title, message, confirmTitle, onConfirm, destructive = true) {
@@ -287,13 +286,13 @@ export function popoverMenu(anchor, actions, { title = null } = {}) {
       onTap: () => { close(); a.onSelect(); } }, a.icon ? svgIcon(a.icon, 20) : null, h("span", {}, a.title))));
   const close = () => {
     menu.classList.remove("in");
-    anchor.classList.remove("pop-open");
+    if (anchor.classList) anchor.classList.remove("pop-open");
     setTimeout(() => { menu.remove(); backdrop.remove(); }, 160);
   };
   backdrop.addEventListener("pointerdown", (e) => { e.preventDefault(); close(); });
   document.body.append(backdrop, menu);
-  anchor.classList.add("pop-open");
-  const r = anchor.getBoundingClientRect();
+  if (anchor.classList) anchor.classList.add("pop-open");
+  const r = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : anchor;
   const w = menu.offsetWidth;
   const hgt = menu.offsetHeight;
   const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);

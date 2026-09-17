@@ -70,7 +70,7 @@ export function renderLibrary(root) {
       list.length ? carousel(list) : emptyState(),
       actionBar(notebook)
     );
-    requestAnimationFrame(() => centerOn(currentIndex, false));
+    requestAnimationFrame(() => { centerOn(currentIndex, false); updateCurrent(); });
   }
 
   function emptyState() {
@@ -83,7 +83,6 @@ export function renderLibrary(root) {
     const track = h("div", { class: "carousel", role: "list" });
     for (const [index, notebook] of list.entries()) {
       const cover = coverElement(notebook.cover);
-      coverPreview(cover, notebook);
       const cell = h("div", { class: "carousel-item" + (index === currentIndex ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` },
         h("div", { class: "cover-wrap" }, cover),
         h("div", { class: "carousel-title" }, notebook.title));
@@ -130,7 +129,12 @@ export function renderLibrary(root) {
       head.querySelector("h1").textContent = notebook.title;
       head.querySelector(".sub").textContent = `${notebook.pages.length} sayfa${notebook.folder ? " · " + notebook.folder : ""}`;
     }
-    body.querySelectorAll(".carousel-item").forEach((item, i) => item.classList.toggle("current", i === currentIndex));
+    body.querySelectorAll(".carousel-item").forEach((item, i) => {
+      item.classList.toggle("current", i === currentIndex);
+      item.classList.toggle("before", i < currentIndex);
+      item.classList.toggle("after", i > currentIndex);
+      item.classList.toggle("far", Math.abs(i - currentIndex) > 1);
+    });
     const bar = body.querySelector(".paper-actions");
     if (bar) bar.replaceWith(actionBar(notebook));
   }
