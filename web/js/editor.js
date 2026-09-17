@@ -121,6 +121,12 @@ export function renderEditor(root, notebookId, initialPageId) {
   editorBody.append(stage, banner);
   screen.append(topbar, editorBody, bench);
   root.append(screen);
+  // Alt bar paleti: ilk kez, favori kalemlerin renkleriyle başlar; sonra kullandıkça kendi kendine sıralanır.
+  if (!store.settings.paletteSeeded) {
+    const seed = [...new Set(store.settings.pens.map((p) => p.color.toUpperCase()))];
+    store.setSetting("paletteSeeded", true);
+    if (seed.length) store.setSetting("palette", seed);
+  }
   const flip = createFlip(stage, buildSheet);
 
   const nb = () => store.notebook(notebookId);
@@ -148,7 +154,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onTap: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 20)),
         page.pdf && h("span", { class: "badge-pdf" }, "PDF"),
         h("span", { class: "topbar-notebook" }, nb().title)),
-      h("div", { class: "topbar-title" }, favoriteStrip()),
+      h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },
         iconButton("grid", "Sayfalar", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
         iconButton("books", "Açık defterler", openNotebooksMenu),
@@ -361,6 +367,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       fingerAction: () => store.settings.fingerAction,
       eraser: () => store.settings.eraser,
       shapeRecognition: () => store.settings.shapeRecognition,
+      smoothing: () => (store.settings.smoothing == null ? 2 : store.settings.smoothing),
       ruler: () => (ruler && selectedPageId === page.id ? ruler : null),
       textLines: () => textLines.get(page.id) || null,
       onSelection: (bounds) => renderSelection(stack, page, bounds),
@@ -378,7 +385,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         if (!ink) return null;
         return { ink, offset: dir === 1 ? -page.size.w : other.size.w };
       },
-      onChange: () => { activeInk = ink; store.mutate(notebookId, () => {}); renderTopbar(); invalidateSnapshot(page); refreshFrost(stack, page); }
+      onChange: () => { activeInk = ink; if (isInking()) store.noteColorUsed(tool.color); store.mutate(notebookId, () => {}); renderTopbar(); invalidateSnapshot(page); refreshFrost(stack, page); }
     });
     inks.set(page.id, ink);
     canvas.addEventListener("pointerdown", () => {
@@ -1427,6 +1434,8 @@ export function renderEditor(root, notebookId, initialPageId) {
         h("div", { class: "panel-row" }, h("label", {}, "Kalınlık"), widthRange, value),
         preview,
         h("div", { class: "panel-row" }, h("label", {}, "Renk"), h("div", { style: { flex: "1", overflowX: "auto" } }, palette), wheel),
+        h("div", { class: "panel-row" }, h("label", {}, "Yumuşatma"), h("div", { class: "segmented" }, ...["Kapalı", "Az", "Orta", "Çok"].map((t, i) =>
+          h("button", { type: "button", class: (s.smoothing == null ? 2 : s.smoothing) === i ? "active" : "", onTap: () => { store.setSetting("smoothing", i); build(); } }, t)))),
         h("div", { class: "panel-sep" }),
         h("div", { class: "panel-head" }, h("h3", {}, "Favorilerim"), h("span", { class: "panel-hint" }, "Uzun bas: varsayılan yap / sil")),
         favs,

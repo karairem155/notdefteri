@@ -64,12 +64,13 @@ const DEFAULT_SETTINGS = {
   pressureWidth: false,      // Apple Pencil basıncı kalınlığa yansısın mı
   fingerAction: "navigate",  // parmak: "navigate" sayfa çevirir/kaydırır, "draw" çizer, "erase" siler
   eraser: { mode: "stroke", size: 12 },   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
-  shapeRecognition: true,    // çizgiyi bitirmeden sabit tutunca şekle dönüşsün
+  shapeRecognition: true,
+  smoothing: 2,              // çizgi yumuşatma: 0 kapalı, 1 az, 2 orta, 3 çok    // çizgiyi bitirmeden sabit tutunca şekle dönüşsün
   spreadMode: false,
   libraryShelf: true,
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
-  openMode: "page",          // defter açılınca: "page" doğrudan sayfa, "fan" sayfa yelpazesi
+  openMode: "fan",          // defter açılınca: "page" doğrudan sayfa, "fan" sayfa yelpazesi
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
 };
 
@@ -333,6 +334,17 @@ class Store extends EventTarget {
     const normalized = hex.toUpperCase();
     if (this.settings.palette.some((c) => c.toUpperCase() === normalized)) return;
     this.setSetting("palette", [...this.settings.palette, normalized]);
+  }
+
+  /** Kullanılan renk paletin başına geçer: alt bar "son kullandığım renkler" listesidir. */
+  noteColorUsed(hex) {
+    if (!hex) return;
+    const normalized = hex.toUpperCase();
+    const current = this.settings.palette;
+    if (current.length && current[0].toUpperCase() === normalized) return;
+    const list = current.filter((c) => c.toUpperCase() !== normalized);
+    list.unshift(normalized);
+    this.setSetting("palette", list.slice(0, 12));
   }
 
   removePaletteColor(hex) {

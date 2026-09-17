@@ -488,3 +488,23 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 /* Buzlu post-it: derinlik */
 .cover-mark.postit { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 12px 22px -10px rgba(0, 0, 0, 0.5); }
 .cover-mark.postit .frost-tint { background: linear-gradient(160deg, color-mix(in srgb, var(--tint) 85%, #fff), var(--tint) 50%, color-mix(in srgb, var(--tint) 80%, #4a3e00)); }
+
+/* Kıvrılan sayfa çevirme: şeritli yaprak */
+.flip-layer { perspective: 1500px; }
+.flip-strip { position: absolute; top: 0; transform-style: preserve-3d; will-change: transform; }
+.flip-strip .flip-face { border-radius: 0; }
+.flip-face-wrap { position: absolute; top: 0; }
+.flip-face-wrap > .page-stack { box-shadow: none !important; }
+.flip-strip .flip-shade { background: #000; }
+.flip-cast { position: absolute; pointer-events: none; opacity: 0; z-index: 0; }
+
+/* Kağıt kalınlığı: sayfanın altında görünen yaprak kenarları */
+.editor-body .page-stack { box-shadow: 1px 1px 0 #ece8de, 2px 2px 0 #d2cec4, 3px 3px 0 #ece8de, 4px 4px 0 #cbc7bd, 5px 5px 0 #ece8de, 6px 6px 0 #c2beb4, 7px 7px 0 #e6e2d8, 8px 8px 0 #bab6ac, 0 36px 64px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3); }
+.editor-body .spread .page-stack:first-of-type { box-shadow: -1px 1px 0 #ece8de, -2px 2px 0 #d2cec4, -3px 3px 0 #ece8de, -4px 4px 0 #cbc7bd, -5px 5px 0 #ece8de, -6px 6px 0 #c2beb4, -7px 7px 0 #e6e2d8, -8px 8px 0 #bab6ac, 0 36px 64px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3); }
+
+/* Sayfa yelpazesi: kavisli, derin perspektif, yere düşen gölgeler */
+.fan-stage { perspective: 1000px; perspective-origin: 50% 30%; }
+.fan-stage::before { content: ""; position: absolute; left: 10%; right: 10%; bottom: 4%; height: 30%; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%); pointer-events: none; }
+.fan-card { width: min(30vw, 250px); max-height: 62%; border-radius: 10px; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s; }
+.fan-card.current { outline: none; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 6px 14px rgba(0, 0, 0, 0.35); }
+.fan-cast { position: absolute; width: min(30vw, 250px); max-height: 62%; background: rgba(4, 6, 18, 0.6); filter: blur(10px); transform-origin: top center; pointer-events: none; border-radius: 10px; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.3, 1); }

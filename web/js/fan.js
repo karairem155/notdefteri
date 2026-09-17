@@ -7,8 +7,9 @@ import { renderStrokesToDataURL } from "./ink.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
-const STEP_X = 96;         // komşu sayfalar arası yatay kayma (px)
-const VISIBLE = 5;         // ortadakinin her iki yanında görünen sayfa sayısı
+const ANGLE = 13;          // komşu sayfalar arası yay açısı (derece)
+const RADIUS = 640;        // yayın yarıçapı (px)
+const VISIBLE = 7;         // ortadakinin her iki yanında görünen sayfa sayısı
 
 export function renderFan(root, notebookId) {
   const notebook = store.notebook(notebookId);
@@ -50,9 +51,12 @@ export function renderFan(root, notebookId) {
   function card(page, index) {
     const offset = index - center;
     const el = h("div", { class: "fan-card" + (offset === 0 ? " current" : ""), style: { aspectRatio: `${page.size.w} / ${page.size.h}`, zIndex: String(100 - Math.abs(offset)) }, role: "button", tabindex: "0", "aria-label": `${index + 1}. sayfa` });
-    // Cover-flow: yan sayfalar perspektifle dönük, ortadaki düz (Paper'daki gibi).
-    const side = Math.sign(offset);
-    el.style.transform = `translateX(${offset * STEP_X}px) translateZ(${-Math.abs(offset) * 60}px) rotateY(${-side * Math.min(Math.abs(offset), 1) * 38}deg)`;
+    // Paper'daki gibi: sayfalar büyük bir silindirin yüzeyinde yay çizer; ortadaki öne, yanlar geriye ve dönük.
+    const base = `translateZ(${-RADIUS}px) rotateY(${offset * ANGLE}deg) translateZ(${RADIUS}px)`;
+    el.style.transform = base;
+    const cast = h("div", { class: "fan-cast", style: { aspectRatio: `${page.size.w} / ${page.size.h}`, zIndex: String(50 - Math.abs(offset)) } });
+    cast.style.transform = base + " translateY(100%) rotateX(74deg)";
+    stage.append(cast);
     const bg = h("div", { class: "page-bg" });
     renderBackground(bg, page, { thumbnail: true });
     const ink = h("img", { class: "ink", alt: "", draggable: "false" });

@@ -36,7 +36,7 @@ export function renderSettings(root) {
           h("div", { class: "note" }, "Bütün defterler, ayarlar ve görseller tek bir dosyaya yazılır; Dosyalar'a ya da iCloud'a kaydet. Safari yer açmak için ana ekran uygulamasının verisini silebilir, bu yüzden ara sıra yedek al.")))
       ),
       h("div", {},
-        section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Tezgahtaki hızlı renkler. Bir renge uzun basınca paletten çıkar."))),
+        section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Alt bardaki renkler: kullandığın renkler kendiliğinden başa geçer (en çok 12). Bir renge uzun basınca değiştirir, taşır ya da çıkarırsın."))),
         section("VARSAYILAN KALEM", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
         section("SAYFA", h("div", { class: "settings-rows" },
           row("Varsayılan sayfa boyutu", select(Object.entries(PAGE_SIZES).map(([k, v]) => [k, v.title]), s.pageSize, (v) => store.setSetting("pageSize", v))),
@@ -45,7 +45,8 @@ export function renderSettings(root) {
           row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onTap: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),
           row("Basınca duyarlı kalınlık", toggle(s.pressureWidth, (v) => store.setSetting("pressureWidth", v))),
           row("Parmak ne yapsın", select([["navigate", "Sayfa çevirir, kaydırır"], ["draw", "Çizer"], ["erase", "Siler"]], s.fingerAction, (v) => store.setSetting("fingerAction", v))),
-          row("Sabit tutunca şekle dönüştür", toggle(s.shapeRecognition, (v) => store.setSetting("shapeRecognition", v)))
+          row("Sabit tutunca şekle dönüştür", toggle(s.shapeRecognition, (v) => store.setSetting("shapeRecognition", v))),
+          row("Çizgi yumuşatma", select([["0", "Kapalı"], ["1", "Az"], ["2", "Orta"], ["3", "Çok"]], String(s.smoothing == null ? 2 : s.smoothing), (v) => store.setSetting("smoothing", Number(v))))
         ))
       )
     ));

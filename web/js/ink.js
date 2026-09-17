@@ -11,7 +11,7 @@
 import { uid } from "./store.js";
 
 const HISTORY_LIMIT = 60;
-const SMOOTHING = 0.55;      // 0 = ham, 1 = çok gecikmeli
+const SMOOTH_LEVELS = [0, 0.35, 0.55, 0.78];   // Kapalı, Az, Orta, Çok
 const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (px)
 const HOLD_MS = 650;         // şekil düzeltme için sabit tutma süresi
 
@@ -102,6 +102,7 @@ export class InkCanvas {
     const usePressure = this.options.pressureWidth ? this.options.pressureWidth() : false;
     this.strokeStyle = { tool: tool.tool, color: tool.color, width: tool.width, pressure: usePressure };
     this.smooth = [p[0], p[1]];
+    this.smoothing = SMOOTH_LEVELS[Math.min(3, Math.max(0, this.options.smoothing ? Number(this.options.smoothing()) : 2))] || 0;
     this.rulerLine = this.rulerFor(p);
     this.textLine = this.rulerLine ? null : this.textLineFor(p, tool);
     this.liveTarget = this;
@@ -130,8 +131,8 @@ export class InkCanvas {
     for (const ev of events) {
       const raw = this.rawPoint(ev);
       // Üstel yumuşatma: el titremesi ve sensör gürültüsü azalır.
-      this.smooth[0] += (raw[0] - this.smooth[0]) * (1 - SMOOTHING);
-      this.smooth[1] += (raw[1] - this.smooth[1]) * (1 - SMOOTHING);
+      this.smooth[0] += (raw[0] - this.smooth[0]) * (1 - this.smoothing);
+      this.smooth[1] += (raw[1] - this.smooth[1]) * (1 - this.smoothing);
       const snapped = this.snap([this.smooth[0], this.smooth[1], raw[2]]);
       const sx = snapped[0];
       const sy = snapped[1];
@@ -223,14 +224,26 @@ export class InkCanvas {
     this.disarmHold();
     if (!(this.options.shapeRecognition && this.options.shapeRecognition())) return;
     if (this.rulerLine || this.textLine) return;
+    if (this.liveTarget && this.liveTarget.live && this.liveTarget.live.shape) return;
     this.holdTimer = setTimeout(() => {
       this.holdTimer = null;
       const target = this.liveTarget;
       if (!target || !target.live || target.live.points.length < 6) return;
-      const shape = recognizeShape(target.live.points);
+      const raw = target.live.points;
+      const handle = raw[raw.length - 1];
+      const shape = recognizeShape(raw);
       if (!shape) return;
+      const box = bounds(shape);
+      const anchor = shape.length === 2
+        ? [shape[0][0], shape[0][1]]
+        : [Math.abs(handle[0] - box.minX) > Math.abs(handle[0] - box.maxX) ? box.minX : box.maxX,
+           Math.abs(handle[1] - box.minY) > Math.abs(handle[1] - box.maxY) ? box.minY : box.maxY];
       target.live.points = shape;
       target.live.shape = true;
+      target.live.shapeBase = shape.map((q) => q.slice());
+      target.live.shapeHandle = [handle[0], handle[1]];
+      target.live.shapeAnchor = anchor;
+      target.live.shapeUniform = !!shape.uniform;
       target.redrawWithLive();
       if (navigator.vibrate) navigator.vibrate(10);
     }, HOLD_MS);
@@ -250,7 +263,19 @@ export class InkCanvas {
   /** Nokta ekler; eklendiyse true. Şekle dönüştürülmüş çizgiye nokta eklenince serbest çizime dönülür. */
   addLivePoint(p) {
     if (!this.live) return false;
-    if (this.live.shape) { this.live.shape = false; }
+    if (this.live.shape) {
+      // Şekle dönüşmüş çizgi: kalem hâlâ basılıyken sürüklemek şekli büyütür/küçültür.
+      const { shapeBase, shapeAnchor: a, shapeHandle: hd } = this.live;
+      if (Math.hypot(p[0] - hd[0], p[1] - hd[1]) < 1.5) return false;
+      if (shapeBase.length === 2) { this.live.points = [shapeBase[0], [p[0], p[1], shapeBase[0][2]]]; return true; }
+      const dx = hd[0] - a[0];
+      const dy = hd[1] - a[1];
+      let sx = Math.abs(dx) > 10 ? (p[0] - a[0]) / dx : 1;
+      let sy = Math.abs(dy) > 10 ? (p[1] - a[1]) / dy : 1;
+      if (this.live.shapeUniform) { const u = (Math.abs(sx) + Math.abs(sy)) / 2; sx = Math.sign(sx || 1) * u; sy = Math.sign(sy || 1) * u; }
+      this.live.points = shapeBase.map((q) => [a[0] + (q[0] - a[0]) * sx, a[1] + (q[1] - a[1]) * sy, q[2]]);
+      return true;
+    }
     const last = this.live.points[this.live.points.length - 1];
     if (Math.hypot(p[0] - last[0], p[1] - last[1]) < MIN_STEP) return false;
     this.live.points.push(p);
@@ -262,6 +287,10 @@ export class InkCanvas {
     const stroke = this.live;
     this.live = null;
     delete stroke.shape;
+    delete stroke.shapeBase;
+    delete stroke.shapeHandle;
+    delete stroke.shapeAnchor;
+    delete stroke.shapeUniform;
     if (stroke.points.length === 1) {
       const [x, y, p] = stroke.points[0];
       stroke.points.push([x + 0.4, y + 0.4, p]);
@@ -618,7 +647,7 @@ function pointInPolygon(p, polygon) {
   return inside;
 }
 
-/** Çizgi / daire-elips / dikdörtgen tanıma. Uymazsa null. */
+/** Çizgi, kırık çizgi, üçgen/dörtgen/çokgen, kare/dikdörtgen, daire/elips tanıma. Uymazsa null. */
 export function recognizeShape(points) {
   const pts = points;
   const first = pts[0];
@@ -635,8 +664,19 @@ export function recognizeShape(points) {
     return [[first[0], first[1], pressure], [last[0], last[1], pressure]];
   }
 
+  const eps = Math.max(5, length * 0.03);
   const closed = chord < Math.max(24, length * 0.18);
-  if (!closed) return null;
+  if (!closed) {
+    // Açık kırık çizgi: 2-5 uzun düz parça (L, V, zikzak, ok gövdesi...).
+    const simple = simplify(pts, eps);
+    if (simple.length >= 3 && simple.length <= 6) {
+      const minSeg = Math.max(18, length * 0.12);
+      let ok = true;
+      for (let i = 1; i < simple.length; i++) if (Math.hypot(simple[i][0] - simple[i - 1][0], simple[i][1] - simple[i - 1][1]) < minSeg) ok = false;
+      if (ok) { const out = simple.map((q) => [q[0], q[1], pressure]); snapEdges(out); return densify(out); }
+    }
+    return null;
+  }
 
   const box = bounds(pts);
   const cx = (box.minX + box.maxX) / 2;
@@ -645,39 +685,97 @@ export function recognizeShape(points) {
   const ry = (box.maxY - box.minY) / 2;
   if (rx < 8 || ry < 8) return null;
 
-  // Elips: noktaların normalize yarıçapı 1'e yakın.
+  // Kapalı çokgen: köşeleri sadeleştirilmiş yoldan al.
+  let verts = simplify(pts.concat([[first[0], first[1], pressure]]), eps).slice(0, -1);
+  while (verts.length > 1 && Math.hypot(verts[verts.length - 1][0] - verts[0][0], verts[verts.length - 1][1] - verts[0][1]) < eps * 2) verts.pop();
+  if (verts.length >= 3 && verts.length <= 6) {
+    if (verts.length === 4 && axisAligned(verts)) {
+      let x0 = box.minX, x1 = box.maxX, y0 = box.minY, y1 = box.maxY;
+      if (Math.abs(rx - ry) < 0.12 * Math.max(rx, ry)) { const r = (rx + ry) / 2; x0 = cx - r; x1 = cx + r; y0 = cy - r; y1 = cy + r; }   // kare
+      return densify([[x0, y0, pressure], [x1, y0, pressure], [x1, y1, pressure], [x0, y1, pressure], [x0, y0, pressure]]);
+    }
+    const out = verts.map((q) => [q[0], q[1], pressure]);
+    out.push([out[0][0], out[0][1], pressure]);
+    snapEdges(out);
+    return densify(out);
+  }
+
+  // Elips / daire: noktaların normalize yarıçapı 1'e yakın.
   let ellipseError = 0;
   for (const p of pts) {
     const r = Math.hypot((p[0] - cx) / rx, (p[1] - cy) / ry);
     ellipseError += Math.abs(r - 1);
   }
   ellipseError /= pts.length;
-
-  // Dikdörtgen: noktalar kutu kenarlarına yakın.
-  let rectError = 0;
-  for (const p of pts) {
-    const d = Math.min(Math.abs(p[0] - box.minX), Math.abs(p[0] - box.maxX), Math.abs(p[1] - box.minY), Math.abs(p[1] - box.maxY));
-    rectError += d;
-  }
-  rectError /= pts.length * Math.min(rx, ry);
-
-  const corners = countCorners(pts);
-  if (corners >= 3 && corners <= 5 && rectError < 0.12) {
-    return [
-      [box.minX, box.minY, pressure], [box.maxX, box.minY, pressure], [box.maxX, box.maxY, pressure],
-      [box.minX, box.maxY, pressure], [box.minX, box.minY, pressure]
-    ];
-  }
-  if (ellipseError < 0.16) {
+  if (ellipseError < 0.2) {
+    const circle = Math.abs(rx - ry) < 0.15 * Math.max(rx, ry);
+    const ex = circle ? (rx + ry) / 2 : rx;
+    const ey = circle ? ex : ry;
     const out = [];
     const n = 48;
     for (let i = 0; i <= n; i++) {
       const a = (i / n) * Math.PI * 2;
-      out.push([Math.round((cx + Math.cos(a) * rx) * 10) / 10, Math.round((cy + Math.sin(a) * ry) * 10) / 10, pressure]);
+      out.push([Math.round((cx + Math.cos(a) * ex) * 10) / 10, Math.round((cy + Math.sin(a) * ey) * 10) / 10, pressure]);
     }
+    out.uniform = circle;
     return out;
   }
   return null;
+}
+
+/** Köşeler keskin kalsın diye kenarlara 3 px aralıkla ara nokta ekler (çizim yumuşatması köşeleri yuvarlamasın). */
+function densify(out) {
+  const dense = [out[0]];
+  for (let i = 1; i < out.length; i++) {
+    const p = out[i - 1];
+    const q = out[i];
+    const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 3));
+    for (let k = 1; k <= n; k++) dense.push([p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n, q[2]]);
+  }
+  return dense;
+}
+
+/** Ramer-Douglas-Peucker sadeleştirme: eps'ten az sapan ara noktalar atılır. */
+function simplify(pts, eps) {
+  if (pts.length < 3) return pts.slice();
+  const a = pts[0];
+  const b = pts[pts.length - 1];
+  let maxD = -1;
+  let idx = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = segmentDistance(a, b, pts[i][0], pts[i][1]);
+    if (d > maxD) { maxD = d; idx = i; }
+  }
+  if (maxD > eps) {
+    const l = simplify(pts.slice(0, idx + 1), eps);
+    const r = simplify(pts.slice(idx), eps);
+    return l.slice(0, -1).concat(r);
+  }
+  return [a, b];
+}
+
+/** Dört kenar da yatay/dikeye 14° içinde mi? */
+function axisAligned(verts) {
+  for (let i = 0; i < verts.length; i++) {
+    const p = verts[i];
+    const q = verts[(i + 1) % verts.length];
+    const deg = Math.abs(Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI) % 90;
+    if (Math.min(deg, 90 - deg) > 14) return false;
+  }
+  return true;
+}
+
+/** Yataya/dikeye 8° içindeki kenarları tam yatay/dikey yapar (üçgen tabanı, zikzak kolları). */
+function snapEdges(out) {
+  for (let i = 1; i < out.length; i++) {
+    const p = out[i - 1];
+    const q = out[i];
+    const deg = Math.abs(Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI);
+    if (deg < 8 || deg > 172) { const y = (p[1] + q[1]) / 2; p[1] = y; q[1] = y; }
+    else if (Math.abs(deg - 90) < 8) { const x = (p[0] + q[0]) / 2; p[0] = x; q[0] = x; }
+  }
+  if (out.length > 2 && out[0][0] === out[out.length - 1][0] && out[0][1] === out[out.length - 1][1]) return;
+  if (out.length > 2 && Math.hypot(out[0][0] - out[out.length - 1][0], out[0][1] - out[out.length - 1][1]) < 0.01) return;
 }
 
 function pathLength(pts) {
