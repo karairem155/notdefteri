@@ -75,7 +75,8 @@ const DEFAULT_SETTINGS = {
   libraryShelf: true,
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
-  openMode: "fan",          // defter açılınca: "page" doğrudan sayfa, "fan" sayfa yelpazesi
+  openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
+  openMode: "page",         // defter açılınca: "page" doğrudan sayfa (tasarım), "fan" sayfa yelpazesi (isteğe bağlı)
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
 };
 
@@ -129,6 +130,8 @@ class Store extends EventTarget {
     for (const row of settingsRows) {
       if (row.key in DEFAULT_SETTINGS) this.settings[row.key] = row.value;
     }
+    // Yelpaze bir dönem varsayılandı; kullanıcı kendisi seçmediyse doğrudan sayfaya dön.
+    if (this.settings.openMode === "fan" && !this.settings.openModeByUser) this.settings.openMode = "page";
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
     if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {

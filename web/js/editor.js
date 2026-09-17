@@ -653,8 +653,35 @@ export function renderEditor(root, notebookId, initialPageId) {
         el.style.setProperty("--font", object.font || TEXT_FONTS[1][0]);
         el.style.setProperty("--size", (object.size || 22) + "px");
         el.style.setProperty("--text-color", object.color || "#1C1C1E");
+        if (object.todo && object.id !== editingTextId) {
+          // Yapılacaklar listesi: her satırın başında dokununca işaretlenen kutu.
+          el.classList.add("todo");
+          const list = h("div", { class: "text-content todo-list" });
+          (object.text || "").split("\n").forEach((line, i) => {
+            const m = /^\[( |x)\]\s?(.*)$/i.exec(line);
+            const checked = m ? m[1].toLowerCase() === "x" : false;
+            const label = m ? m[2] : line;
+            const box = h("button", { class: "todo-box" + (checked ? " checked" : ""), type: "button", "aria-label": checked ? "İşareti kaldır" : "İşaretle",
+              onTap: (e) => { e.stopPropagation(); toggleTodoLine(object, page, i); renderObjects(layer, page, stack); } }, svgIcon("check", 14));
+            box.addEventListener("pointerdown", (e) => e.stopPropagation());
+            list.append(h("div", { class: "todo-row" + (checked ? " done" : "") }, box, h("span", {}, label)));
+          });
+          el.append(list);
+          placeItem(el, object);
+          if (editingObjects) {
+            makeTransformable(el, object, stack, page, (rect, rotation) => {
+              store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
+              placeItem(el, object);
+              touchPage(page);
+            }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); });
+            if (object.id === selectedObjectId) { addHandles(el); layer.append(objectMenu(object, page, textActions(object, page, stack, layer), () => { touchPage(page); renderObjects(layer, page, stack); renderBanner(); })); }
+          }
+          layer.append(el);
+          continue;
+        }
         const content = h("div", { class: "text-content", contenteditable: object.id === editingTextId ? "true" : "false", spellcheck: "false" }, object.text || "");
         content.addEventListener("input", () => { object.text = content.textContent; });
+        if (object.todo) content.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); document.execCommand("insertText", false, "\n[ ] "); } });
         content.addEventListener("blur", () => {
           store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.text = content.textContent; });
           touchPage(page);
@@ -663,6 +690,11 @@ export function renderEditor(root, notebookId, initialPageId) {
         content.addEventListener("pointerdown", (e) => { if (object.id === editingTextId) e.stopPropagation(); });
         el.append(content);
         if (object.id === editingTextId) setTimeout(() => { content.focus(); }, 30);
+      } else if (object.kind === "check") {
+        const box = h("button", { class: "todo-box" + (object.checked ? " checked" : ""), type: "button", "aria-label": object.checked ? "İşareti kaldır" : "İşaretle",
+          onTap: (e) => { e.stopPropagation(); store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.checked = !o.checked; }); touchPage(page); renderObjects(layer, page, stack); } }, svgIcon("check", 20));
+        if (!editingObjects) box.addEventListener("pointerdown", (e) => e.stopPropagation());
+        el.append(box);
       } else if (object.kind === "audio") {
         const audio = h("audio", { preload: "metadata" });
         store.assetURL(object.asset).then((url) => { if (url) audio.src = url; });
@@ -683,16 +715,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); });
         if (object.id === selectedObjectId) {
           addHandles(el);
-          layer.append(objectMenu(object, page, {
-            edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
-            cut: (object.kind === "photo" || object.kind === "sticker") ? () => startCut(object, page, stack) : null,
-            font: object.kind === "text" ? () => textStyleMenu(object, page) : null,
-            translate: object.kind === "text" ? () => openTranslate(object.text) : null,
-            rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
-            duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
-            front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
-            remove: () => { store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); }); selectedObjectId = null; store.removeUnreferencedAssets(); }
-          }, () => { touchPage(page); renderObjects(layer, page, stack); renderBanner(); }));
+          layer.append(objectMenu(object, page, textActions(object, page, stack, layer), () => { touchPage(page); renderObjects(layer, page, stack); renderBanner(); }));
         }
       }
       layer.append(el);
@@ -700,6 +723,44 @@ export function renderEditor(root, notebookId, initialPageId) {
     if (editingObjects) {
       layer.addEventListener("pointerdown", (e) => { if (e.target === layer) { selectedObjectId = null; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); } });
     }
+  }
+
+  function textActions(object, page, stack, layer) {
+    return {
+            edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
+            todo: object.kind === "text" ? () => toggleTodoMode(object, page) : null,
+            cut: (object.kind === "photo" || object.kind === "sticker") ? () => startCut(object, page, stack) : null,
+            font: object.kind === "text" ? () => textStyleMenu(object, page) : null,
+            translate: object.kind === "text" ? () => openTranslate(object.text) : null,
+            rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
+            duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
+            front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
+            remove: () => { store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); }); selectedObjectId = null; store.removeUnreferencedAssets(); }
+    };
+  }
+
+  /** Bir satırın onay kutusunu değiştirir: "[ ] " ↔ "[x] ". */
+  function toggleTodoLine(object, page, index) {
+    const lines = (object.text || "").split("\n");
+    const line = lines[index] || "";
+    if (/^\[x\]/i.test(line)) lines[index] = "[ ]" + line.slice(3);
+    else if (/^\[ \]/.test(line)) lines[index] = "[x]" + line.slice(3);
+    else lines[index] = "[x] " + line;
+    object.text = lines.join("\n");
+    store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.text = object.text; });
+    touchPage(page);
+  }
+
+  /** Yazı kutusunu yapılacaklar listesine çevirir (ya da geri): satır başlarına kutu ekler/kaldırır. */
+  function toggleTodoMode(object, page) {
+    const on = !object.todo;
+    const lines = (object.text || "").split("\n").map((line) => on
+      ? (/^\[( |x)\]/i.test(line) ? line : "[ ] " + line)
+      : line.replace(/^\[( |x)\]\s?/i, ""));
+    object.todo = on;
+    object.text = lines.join("\n");
+    store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.todo = on; o.text = object.text; } });
+    touchPage(page);
   }
 
   function maxZ(page) {
@@ -745,11 +806,18 @@ export function renderEditor(root, notebookId, initialPageId) {
           ctx.fillStyle = object.tint || "#F5D76E";
           ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
           ctx.globalAlpha = 1;
+        } else if (object.kind === "check") {
+          const r = object.rect.w / 2;
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = object.checked ? "#f27ab0" : "#1c1c1e";
+          ctx.fillStyle = object.checked ? "#f27ab0" : "rgba(255,255,255,0.7)";
+          ctx.beginPath(); ctx.roundRect(-r, -r, r * 2, r * 2, 8); ctx.fill(); ctx.stroke();
+          if (object.checked) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-r * 0.5, 0); ctx.lineTo(-r * 0.1, r * 0.4); ctx.lineTo(r * 0.55, -r * 0.4); ctx.stroke(); }
         } else if (object.kind === "text") {
           ctx.fillStyle = object.color || "#1C1C1E";
           ctx.font = `${object.size || 24}px ${object.font || "sans-serif"}`;
           ctx.textBaseline = "top";
-          const words = (object.text || "").split(/\s+/);
+          const words = (object.text || "").replace(/\[x\]/gi, "\u2611").replace(/\[ \]/g, "\u2610").split(/\s+/);
           let line = "";
           let y = -object.rect.h / 2 + 6;
           const maxW = object.rect.w - 16;
@@ -854,6 +922,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     const btn = (title, icon, fn, cls = "") => h("button", { type: "button", class: cls, onTap: (e) => { e.stopPropagation(); fn(); rerender(); } }, svgIcon(icon, 16), title);
     const menu = h("div", { class: "object-menu", style: { left: x + "px", top: y + "px" } },
       actions.edit && btn("Düzenle", "pen", actions.edit), actions.edit && h("div", { class: "sep" }),
+      actions.todo && btn(item.todo ? "Kutuları kaldır" : "Onay kutuları", "check", actions.todo), actions.todo && h("div", { class: "sep" }),
       actions.cut && btn("Kes", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
       actions.font && btn("Yazı tipi", "note", actions.font), actions.font && h("div", { class: "sep" }),
       actions.translate && btn("Çevir", "share", actions.translate), actions.translate && h("div", { class: "sep" }),
@@ -1017,9 +1086,27 @@ export function renderEditor(root, notebookId, initialPageId) {
     }
   }
 
-  function addText() {
+  function textMenu() {
+    actionSheet("Yazı", [
+      { title: "Yazı Kutusu (klavye ya da Apple Pencil)", onSelect: () => addText(false) },
+      { title: "Yapılacaklar Listesi (onay kutulu)", onSelect: () => addText(true) },
+      { title: "Onay Kutusu (el yazısının yanına)", onSelect: addCheckBox }
+    ]);
+  }
+
+  function addCheckBox() {
     const page = selectedPage();
-    const object = { id: uid(), kind: "text", text: "", font: TEXT_FONTS[1][0], size: 24, color: isInking() ? tool.color : "#1C1C1E", rect: centeredRect(page, 260, 90), rotation: 0, z: maxZ(page) + 1 };
+    const object = { id: uid(), kind: "check", checked: false, rect: centeredRect(page, 38, 38), rotation: 0, z: maxZ(page) + 1 };
+    store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
+    touchPage(page);
+    selectedObjectId = object.id;
+    setEditing(true);
+    toast("Kutuyu yazının yanına sürükle, sonra Bitti");
+  }
+
+  function addText(todo = false) {
+    const page = selectedPage();
+    const object = { id: uid(), kind: "text", todo, text: todo ? "[ ] " : "", font: TEXT_FONTS[1][0], size: 24, color: isInking() ? tool.color : "#1C1C1E", rect: centeredRect(page, 260, todo ? 140 : 90), rotation: 0, z: maxZ(page) + 1 };
     store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
     selectedObjectId = object.id;
     editingTextId = object.id;
@@ -1326,7 +1413,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         tb("ruler", ruler ? "Şekiller ve cetvel" : "Cetvel", !!ruler, () => { if (ruler) openShapesPanel(); else toggleRuler(); }),
         tb("shapes", "Şekiller", tool.tool === "shape", () => { if (tool.tool !== "shape") selectTool("shape"); openShapesPanel(); }),
         tb("photo", "Fotoğraf, çıkartma, post-it", editingObjects || isFrosted(), imageMenu),
-        tb("text", "Yazı", false, addText),
+        tb("text", "Yazı, yapılacaklar listesi, onay kutusu", false, textMenu),
         tb("mic", recording ? "Kaydı durdur" : "Sesli not", !!recording, toggleAudioNote, recording ? "recording" : ""),
         (clipboard.strokes.length || clipboard.objects.length) ? tb("copy", "Yapıştır", false, pasteClipboard) : false,
         sep(),
@@ -1341,6 +1428,8 @@ export function renderEditor(root, notebookId, initialPageId) {
     actionSheet("Ekle", [
       { title: "Fotoğraf Ekle", onSelect: () => importImage("photo") },
       { title: "Çıkartma, Post-it, Bant", onSelect: openStickerPanel },
+      { title: "Yapılacaklar Listesi", onSelect: () => addText(true) },
+      { title: "Onay Kutusu", onSelect: addCheckBox },
       { title: isFrosted() ? "\u2713 Buzlu Kalem (kapat)" : "Buzlu Kalem (cevabı örter)", onSelect: () => { if (isFrosted()) selectTool("pen"); else { selectTool("frosted"); openFrostedPanel(); } } },
       { title: editingObjects ? "Düzenlemeyi Bitir" : "Nesneleri Düzenle (taşı, döndür, kes)", onSelect: () => setEditing(!editingObjects) },
       (clipboard.strokes.length || clipboard.objects.length) ? { title: "Yapıştır", onSelect: pasteClipboard } : null

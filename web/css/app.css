@@ -677,3 +677,15 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .palette-pill .swatch.current svg { position: relative; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8)); }
 .sp-two { display: flex; gap: 10px; }
 .sp-two .sp-outline-btn { flex: 1; }
+
+/* Yapılacaklar: onay kutuları */
+.placed.text.todo .todo-list { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; width: 100%; min-height: 100%; }
+.todo-row { display: flex; align-items: flex-start; gap: 8px; font-family: var(--font); font-size: var(--size); color: var(--text-color); line-height: 1.25; word-break: break-word; }
+.todo-row.done span { text-decoration: line-through; opacity: 0.55; }
+.todo-box { width: 1.1em; height: 1.1em; flex: none; border: 2px solid currentColor; border-radius: 5px; background: rgba(255, 255, 255, 0.5); color: var(--text-color, #1c1c1e); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; margin-top: 0.08em; pointer-events: auto; touch-action: manipulation; }
+.todo-box svg { opacity: 0; width: 78%; height: 78%; }
+.todo-box.checked { background: var(--pink); border-color: var(--pink); color: #fff; }
+.todo-box.checked svg { opacity: 1; }
+.placed.check { pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+.placed.check .todo-box { width: 100%; height: 100%; border-width: 2.5px; border-radius: 8px; background: rgba(255, 255, 255, 0.75); color: #1c1c1e; margin: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+.placed.check .todo-box svg { width: 70%; height: 70%; }
