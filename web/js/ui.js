@@ -80,7 +80,19 @@ export function svgIcon(name, size = 20) {
     duplicate: "M8 8h12v12H8zM4 16V4h12M14 11v6M11 14h6",
     layerUp: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5",
     layerDown: "M3 8l9-5 9 5-9 5zM3 16l9 5 9-5M12 10v6",
-    play: "M7 5l12 7-12 7z"
+    play: "M7 5l12 7-12 7z",
+    libraryBook: "M4 5h16v14H4zM12 5v14M7 9h2M15 9h2",
+    penTool: "M4 20l3.5-1L19 7.5 16.5 5 5 16.5zM14 7.5l2.5 2.5M4 20l1-3.5",
+    eraserTool: "M9 20H5l-2-2 9-9 6 6-5 5zM12 9l6 6",
+    selectTool: "M4 4h3M10.5 4h3M17 4h3M4 20h3M10.5 20h3M17 20h3M4 4v3M4 10.5v3M4 17v3M20 4v3M20 10.5v3M20 17v3",
+    shapesTool: "M8 4.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM15 11.5l5 8H10z",
+    mediaTool: "M3.5 5h17v14h-17zM6.5 16l3.5-4.5 3 3 2-2 3.5 3.5M15.5 8.5h.01",
+    textTool: "M6 5h12M8 5v1.5M16 5v1.5M12 5v14M9.5 19h5",
+    stickersTool: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM9 10h.01M15 10h.01M8.5 14a4.5 3 0 0 0 7 0",
+    undoTool: "M8 13L4 9l4-4M4 9h9.5a5.5 5.5 0 0 1 0 11H10",
+    redoTool: "M16 13l4-4-4-4M20 9h-9.5a5.5 5.5 0 0 0 0 11H14",
+    postit: "M5 4h14v10l-4 4H5zM15 18v-4h4",
+    export: "M12 4v11M8 8l4-4 4 4M5 14v6h14v-6"
   };
   const d = paths[name] || paths.plus;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

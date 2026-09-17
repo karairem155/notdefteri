@@ -13,9 +13,11 @@ export function mm(width) {
 // ---------- ortak parçalar ----------
 
 export function shell(title, onClose, ...children) {
+  let icon = null;
+  if (typeof title === "object") { icon = title.icon; title = title.title; }
   return h("div", { class: "side-panel", role: "dialog", "aria-label": title },
-    h("div", { class: "sp-head" }, h("h2", {}, title), h("button", { class: "sp-close", type: "button", "aria-label": "Kapat", onTap: onClose }, svgIcon("close", 18))),
-    h("div", { class: "sp-body" }, ...children));
+    h("div", { class: "sp-head" }, h("h2", {}, icon ? h("span", { class: "sp-title-icon" }, svgIcon(icon, 24)) : null, title), h("button", { class: "sp-close", type: "button", "aria-label": "Kapat", onTap: onClose }, svgIcon("close", 18))),
+    h("div", { class: "sp-body" }, ...children.filter(Boolean)));
 }
 
 function section(text) {
@@ -80,13 +82,11 @@ function heartButton(text, onTap) {
 // ---------- Kalem Ayarları ----------
 
 export function penPanel(ctx) {
-  const t = ctx.tool();
   const s = ctx.store.settings;
-  const hl = t.tool === "highlighter";
-  const alpha = t.alpha == null ? 1 : t.alpha;
   const body = h("div");
   const build = () => {
     const tool = ctx.tool();
+    const hl = tool.tool === "highlighter";
     const a = tool.alpha == null ? 1 : tool.alpha;
     const widthValue = h("span", { class: "sp-value" }, mm(tool.width));
     const opacityValue = h("span", { class: "sp-value" }, "%" + Math.round(a * 100));
@@ -96,8 +96,8 @@ export function penPanel(ctx) {
     const preview = previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? tool.width * 1.4 : tool.width, hl ? 0.42 * a : a);
     body.replaceChildren(...[
       preview,
-      !hl && section("Uç Tipi"),
-      !hl && optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }],
+      section("Uç Tipi"),
+      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }],
         tool.tool, (k) => { ctx.setTool({ tool: k }); build(); }),
       h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Kalınlık"), widthValue),
       slider({ min: hl ? 4 : 0.8, max: hl ? 24 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
@@ -121,7 +121,7 @@ export function penPanel(ctx) {
     ].filter(Boolean));
   };
   build();
-  return shell(hl ? "Fosforlu Ayarları" : "Kalem Ayarları", ctx.close, body);
+  return shell("Kalem Ayarları", ctx.close, body);
 }
 
 // ---------- Silgi Ayarları ----------
@@ -131,9 +131,9 @@ export function eraserPanel(ctx) {
   const save = () => ctx.store.setSetting("eraser", { ...e });
   const body = h("div");
   const build = () => {
-    const sizeValue = h("span", { class: "sp-value" }, String(e.size));
+    const sizeValue = h("span", { class: "sp-value" }, e.size + " px");
     body.replaceChildren(
-      previewCard("Silgi Önizleme", "#ffffff", Math.min(14, e.size / 3), 0.95),
+      Object.assign(previewCard("Önizleme", "#f27ab0", Math.min(16, e.size / 3 + 4), 1), { className: "sp-card checker" }),
       section("Silgi Modu"),
       optionCards([
         { key: "pixel", title: "Piksel", icon: "eraser", sub: "Tam hassasiyetle tek tek siler." },
@@ -141,8 +141,8 @@ export function eraserPanel(ctx) {
         { key: "area", title: "Alan", icon: "lassoRect", sub: "Çizdiğin kutunun içindeki her şeyi siler." }
       ], e.mode, (k) => { e.mode = k; save(); build(); }),
       h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Boyut"), sizeValue),
-      slider({ min: 4, max: 60, step: 1, value: e.size, label: "Silgi boyutu", onInput: (v) => { e.size = v; sizeValue.textContent = String(v); save(); } }),
-      presetRow([5, 10, 20, 30, 50], e.size, (v) => { e.size = v; save(); build(); }, (v) => String(v)),
+      slider({ min: 4, max: 80, step: 1, value: e.size, label: "Silgi boyutu", onInput: (v) => { e.size = v; sizeValue.textContent = v + " px"; save(); } }),
+      presetRow([6, 12, 20, 28, 48, 80], e.size, (v) => { e.size = v; save(); build(); }, (v) => String(v)),
       h("div", { class: "sp-sep" }),
       toggleRow("Yalnız fosforluyu sil", "Sadece fosforlu kalem izlerini siler.", !!e.onlyHighlighter, (v) => { e.onlyHighlighter = v; save(); }),
       toggleRow("Basınca göre boyut", "Kalem baskısına göre silgi boyutunu ayarla.", !!e.pressureSize, (v) => { e.pressureSize = v; save(); }),
@@ -244,7 +244,7 @@ export function favoritesPanel(ctx) {
       list.append(row);
     });
     body.replaceChildren(
-      h("p", { class: "sp-desc" }, "Sık kullandığınız kalem, renk ve ayarları favorilerinize ekleyin. Sürükleyerek sıralayın."),
+      h("p", { class: "sp-desc" }, "Sık kullandığın kalem ayarlarını kaydet, hemen ulaş ve notlarını daha hızlı al. Sürükleyerek sırala."),
       list,
       h("button", { class: "sp-outline-btn wide", type: "button", onTap: () => { ctx.addFavorite(); build(); } }, svgIcon("plus", 18), "Yeni favori"));
   };
@@ -257,7 +257,7 @@ export function favoritesPanel(ctx) {
     ]);
   };
   build();
-  return shell("Favoriler", ctx.close, body);
+  return shell({ title: "Favoriler", icon: "star" }, ctx.close, body);
 }
 
 // ---------- Renk Seçici ----------
@@ -353,10 +353,11 @@ export function colorPanel(ctx, opts = {}) {
     sv.firstChild.style.top = ((1 - state.v) * 100) + "%";
     hueBar.firstChild.style.top = (state.h / 360 * 100) + "%";
     fields.replaceChildren(
-      field("HEX", hx, (v) => { if (/^#?[0-9a-f]{6}$/i.test(v)) { Object.assign(state, rgbToHsv(hexToRgb(v.startsWith("#") ? v : "#" + v))); paint(); emit(); } }, "hex"),
-      field("R", rgb.r, (v) => setRgb({ ...rgb, r: Number(v) })),
-      field("G", rgb.g, (v) => setRgb({ ...rgb, g: Number(v) })),
-      field("B", rgb.b, (v) => setRgb({ ...rgb, b: Number(v) })));
+      h("div", { class: "cp-hexrow" }, field("HEX", hx, (v) => { if (/^#?[0-9a-f]{6}$/i.test(v)) { Object.assign(state, rgbToHsv(hexToRgb(v.startsWith("#") ? v : "#" + v))); paint(); emit(); } }, "hex")),
+      h("div", { class: "cp-rgbrow" },
+        field("R", rgb.r, (v) => setRgb({ ...rgb, r: Number(v) })),
+        field("G", rgb.g, (v) => setRgb({ ...rgb, g: Number(v) })),
+        field("B", rgb.b, (v) => setRgb({ ...rgb, b: Number(v) }))));
     const s = ctx.store.settings;
     favRow.replaceChildren(
       ...s.palette.map((c) => swatch(c, hx)),
@@ -396,10 +397,62 @@ export function colorPanel(ctx, opts = {}) {
   return shell(opts.title || "Renk Seçici", ctx.close,
     h("div", { class: "cp-head" }, bigDot, h("div", {}, h("div", { class: "sp-row-sub" }, "Seçilen Renk"), nameEl)),
     h("div", { class: "cp-pickers" }, sv, hueBar),
-    h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Opaklık"), alphaValue),
-    h("div", { class: "cp-alpha" }, alphaSlider),
+    h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Opaklık")),
+    h("div", { class: "cp-alpha" }, alphaSlider, h("span", { class: "cp-alpha-value" }, alphaValue)),
     fields,
     section("Favori Renkler"), favRow,
     section("Son Kullanılan Renkler"), recentRow,
-    heartButton("Favori rengi kaydet", () => { ctx.store.addPaletteColor(hex()); paint(); toast("Favori renklere eklendi"); }));
+    h("button", { class: "sp-primary-btn", type: "button", onTap: () => { ctx.store.addPaletteColor(hex()); paint(); toast("Favori renklere eklendi"); } }, svgIcon("heart", 20), "Favori rengi kaydet"));
+}
+
+
+// ---------- Post-it ve Sticker ----------
+
+const POSTITS = [
+  ["Sarı", "#FFE566", "plain"], ["Pembe", "#FFB8CC", "plain"], ["Mavi", "#A9D3F5", "plain"],
+  ["Kareli", "#FFFFFF", "grid"], ["Çizgili", "#FFE566", "lined"], ["Mor", "#D9C8F5", "plain"],
+  ["Yeşil", "#B4E6A8", "plain"], ["Yırtık", "#FFB8CC", "torn"], ["Kraft", "#C9A87A", "kraft"]
+];
+const FROSTED = [["Buzlu sarı", "#F6EEC2"], ["Buzlu pembe", "#F6CDD6"], ["Buzlu mavi", "#CBDFF0"], ["Buzlu gri", "#E3E3E7"], ["Buzlu yeşil", "#D2EAD0"]];
+const STICKERS = ["\u2764\uFE0F", "\u2B50", "\u2728", "\u{1F60A}", "\u{1F331}", "\u2615", "\u{1F4A1}", "\u2600\uFE0F", "\u{1F338}", "\u{1F380}", "\u{1F431}", "\u{1F43E}", "\u{1F389}", "\u{1F3AF}", "\u{1F4DA}", "\u{1F4DD}", "\u{1F35C}", "\u{1F3B5}", "\u{1F4F7}", "\u{1F308}", "\u{1F340}", "\u{1F525}", "\u{1F62D}", "\u{1F914}"];
+const MARKS = ["\u2705", "\u{1F6A9}", "\u{1F4CC}", "\u{1F4D6}", "\u2757", "\u2753", "\u27A1\uFE0F", "\u2B06\uFE0F", "\u274C", "\u2714\uFE0F", "\u{1F4CD}", "\u{1F511}", "\u23F0", "\u{1F4C5}", "\u{1F4B0}", "\u{1F449}"];
+const TAPES = [["Sarı bant", "#F5D76E", "plain"], ["Pembe bant", "#F4A7C0", "plain"], ["Mavi bant", "#8FC6F0", "plain"], ["Çizgili", "#F4A7C0", "stripes"], ["Puantiyeli", "#F5D76E", "dots"], ["Pötikare", "#9EDCC6", "gingham"]];
+
+export function stickerPanel(ctx) {
+  let tab = "postit";
+  const tabs = h("div", { class: "sp-tabs" });
+  const body = h("div");
+  const emojiGrid = (list) => h("div", { class: "st-grid emoji" }, ...list.map((e) =>
+    h("button", { class: "st-cell", type: "button", "aria-label": "Çıkartma " + e, onTap: () => ctx.addEmoji(e) }, e)));
+  const build = () => {
+    tabs.replaceChildren(...[["postit", "Post-it"], ["sticker", "Sticker"], ["marks", "İşaretler"], ["recent", "Sık Kullanılanlar"]].map(([k, t]) =>
+      h("button", { type: "button", class: tab === k ? "active" : "", onTap: () => { tab = k; build(); } }, t)));
+    if (tab === "postit") {
+      body.replaceChildren(
+        section("Post-it"),
+        h("div", { class: "st-grid" }, ...POSTITS.map(([name, hex, style]) =>
+          h("button", { class: "st-cell", type: "button", "aria-label": name + " post-it", onTap: () => ctx.addPostIt(hex, style) }, h("div", { class: "st-postit " + style, style: { "--tint": hex } })))),
+        section("Buzlu post-it"),
+        h("p", { class: "sp-desc" }, "Cevabın üstünü örter; dokununca açılır, tekrar dokununca kapanır."),
+        h("div", { class: "st-grid" }, ...FROSTED.map(([name, hex]) =>
+          h("button", { class: "st-cell", type: "button", "aria-label": name, onTap: () => ctx.addFrosted(hex) }, h("div", { class: "st-postit frosted", style: { "--tint": hex } })))),
+        section("Sticker"),
+        emojiGrid(STICKERS.slice(0, 16)));
+    } else if (tab === "sticker") {
+      body.replaceChildren(section("Sticker"), emojiGrid(STICKERS),
+        section("Kendi görselim"),
+        h("button", { class: "sp-outline-btn", type: "button", onTap: () => ctx.importSticker() }, svgIcon("photo", 18), "Fotoğraflar'dan çıkartma ekle"));
+    } else if (tab === "marks") {
+      body.replaceChildren(section("İşaretler"), emojiGrid(MARKS),
+        section("Bant"),
+        h("div", { class: "st-grid" }, ...TAPES.map(([name, hex, pattern]) =>
+          h("button", { class: "st-cell", type: "button", "aria-label": name, onTap: () => ctx.addTape(hex, pattern) }, h("div", { class: "tape-preview " + pattern, style: { "--tint": hex } }, h("div", { class: "tape-body" }))))));
+    } else {
+      const recent = ctx.store.settings.recentStickers || [];
+      body.replaceChildren(section("Sık Kullanılanlar"),
+        recent.length ? emojiGrid(recent) : h("p", { class: "sp-desc" }, "Kullandığın çıkartmalar burada birikir."));
+    }
+  };
+  build();
+  return shell("Post-it ve Sticker", ctx.close, tabs, body);
 }

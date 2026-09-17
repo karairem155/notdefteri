@@ -67,6 +67,7 @@ const DEFAULT_SETTINGS = {
   fingerAction: "navigate",  // parmak: "navigate" sayfa çevirir/kaydırır, "draw" çizer, "erase" siler
   eraser: { mode: "stroke", size: 12, onlyHighlighter: false, pressureSize: false },
   recentColors: [],          // son kullanılan renkler (Renk Seçici'de gösterilir)
+  recentStickers: [],        // sık kullanılan çıkartmalar (emoji)
   rulerAngle: true,          // cetvelde açı rozeti
   rulerSnap: true,           // cetvele ve 15° açılara yapışma   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
   shapeRecognition: true,
@@ -76,7 +77,7 @@ const DEFAULT_SETTINGS = {
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
-  openMode: "page",         // defter açılınca: "page" doğrudan sayfa (tasarım), "fan" sayfa yelpazesi (isteğe bağlı)
+  openMode: "fan",          // defter açılınca: "fan" açık defter yelpazesi (tasarım), "page" doğrudan sayfa
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
 };
 
@@ -130,8 +131,8 @@ class Store extends EventTarget {
     for (const row of settingsRows) {
       if (row.key in DEFAULT_SETTINGS) this.settings[row.key] = row.value;
     }
-    // Yelpaze bir dönem varsayılandı; kullanıcı kendisi seçmediyse doğrudan sayfaya dön.
-    if (this.settings.openMode === "fan" && !this.settings.openModeByUser) this.settings.openMode = "page";
+    // Kullanıcı kendisi seçmediyse tasarımdaki açılış (yelpaze) kullanılır.
+    if (!this.settings.openModeByUser) this.settings.openMode = "fan";
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
     if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {
@@ -351,6 +352,11 @@ class Store extends EventTarget {
     const current = this.settings.recentColors || [];
     if (current.length && current[0].toUpperCase() === normalized) return;
     this.setSetting("recentColors", [normalized, ...current.filter((c) => c.toUpperCase() !== normalized)].slice(0, 12));
+  }
+
+  noteSticker(emoji) {
+    const current = this.settings.recentStickers || [];
+    this.setSetting("recentStickers", [emoji, ...current.filter((e) => e !== emoji)].slice(0, 16));
   }
 
   removePaletteColor(hex) {
