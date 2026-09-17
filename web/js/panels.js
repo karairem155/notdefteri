@@ -94,7 +94,7 @@ export function penPanel(ctx) {
     const SMOOTH = ["Kapalı", "Düşük", "Orta", "Yüksek"];
     const smoothValue = h("span", { class: "sp-value" }, SMOOTH[smoothing]);
     const preview = previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? tool.width * 1.4 : tool.width, hl ? 0.42 * a : a);
-    body.replaceChildren(
+    body.replaceChildren(...[
       preview,
       !hl && section("Uç Tipi"),
       !hl && optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }],
@@ -112,8 +112,13 @@ export function penPanel(ctx) {
       h("div", { class: "sp-scale" }, ...SMOOTH.map((x) => h("span", {}, x))),
       h("div", { class: "sp-sep" }),
       colorRow("Mevcut Renk", tool.color, () => ctx.openColor()),
-      heartButton("Favorilere ekle", () => ctx.addFavorite())
-    );
+      (s.recentColors || []).length ? section("Son Kullanılan Renkler") : null,
+      (s.recentColors || []).length ? h("div", { class: "cp-swatches" }, ...(s.recentColors || []).slice(0, 8).map((c) =>
+        h("button", { class: "cp-swatch" + (c.toUpperCase() === tool.color.toUpperCase() ? " selected" : ""), type: "button", style: { "--c": c }, "aria-label": "Renk " + c, onTap: () => { ctx.setColor(c); build(); } }))) : null,
+      h("div", { class: "sp-two" },
+        heartButton("Favorilere ekle", () => ctx.addFavorite()),
+        h("button", { class: "sp-outline-btn", type: "button", onTap: () => ctx.openFavorites() }, svgIcon("drag", 18), "Favorilerim"))
+    ].filter(Boolean));
   };
   build();
   return shell(hl ? "Fosforlu Ayarları" : "Kalem Ayarları", ctx.close, body);

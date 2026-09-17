@@ -1297,28 +1297,21 @@ export function renderEditor(root, notebookId, initialPageId) {
     const s = store.settings;
     const collapsed = !!s.benchCollapsed;
     const current = usesColor() ? tool.color.toUpperCase() : null;
-    const pill = h("div", { class: "palette-pill", role: "group", "aria-label": "Renkler" });
-    pill.append(h("button", { class: "swatch heart", type: "button", "aria-label": "Favori kalemler", onTap: openFavoritesPanel }, svgIcon("heart", 18)));
-    if (current && !s.palette.some((c) => c.toUpperCase() === current)) {
-      pill.append(h("button", { class: "swatch selected", type: "button", style: { "--c": tool.color }, "aria-label": "Şu anki renk, dokun: renk seçici", onTap: () => openColorPanel() }));
-    }
-    for (const hex of s.palette) {
-      const selected = current === hex.toUpperCase();
-      const sw = h("button", { class: "swatch" + (selected ? " selected" : ""), type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex + (selected ? ", tekrar dokun: renk seçici" : "") + ", uzun bas: düzenle" });
+    // Renk hapı = favori kalemler: dokun → o kalem; seçiliye tekrar dokun → ayarlar; uzun bas → düzenle.
+    const pill = h("div", { class: "palette-pill", role: "group", "aria-label": "Favori kalemler" });
+    pill.append(h("button", { class: "swatch heart", type: "button", "aria-label": "Favori kalemler listesi", onTap: openFavoritesPanel }, svgIcon("heart", 18)));
+    for (const pen of s.pens) {
+      const selected = penMatches(pen);
+      const sw = h("button", { class: `swatch ${pen.tool}` + (selected ? " selected" : ""), type: "button", style: { "--c": pen.color }, "aria-label": pen.name + (selected ? ", tekrar dokun: kalem ayarları" : "") + ", uzun bas: düzenle" });
       pressable(sw, {
-        onTap: () => {
-          if (selected) { openColorPanel(); return; }
-          if (!usesColor()) selectTool("pen");
-          tool.color = hex.toUpperCase();
-          lastPen = { ...tool };
-          renderBench();
-          applyModes();
-        },
-        onLong: () => paletteColorMenu(hex)
+        onTap: () => { if (selected) openPenPanel(); else panelCtx.applyPen(pen); },
+        onLong: () => penMenu(pen)
       });
       pill.append(sw);
     }
-    pill.append(h("button", { class: "swatch more", type: "button", "aria-label": "Renk seçici", onTap: () => openColorPanel() }, svgIcon("plus", 16)));
+    if (usesColor() && !s.pens.some((p) => penMatches(p))) {
+      pill.append(h("button", { class: "swatch current", type: "button", style: { "--c": tool.color }, "aria-label": "Şu anki kalem favori değil; dokun: favorilere ekle", onTap: addCurrentToFavorites }, svgIcon("plus", 14)));
+    }
 
     const tb = (icon, label, active, onTap, extra = "") => h("button", { class: "tb-btn" + (active ? " active" : "") + (extra ? " " + extra : ""), type: "button", "aria-label": label, "aria-pressed": String(!!active), onTap }, svgIcon(icon, 24));
     const sep = () => h("div", { class: "tb-sep" });
@@ -1412,6 +1405,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       renderBench();
     },
     openColor: (opts) => openColorPanel(opts),
+    openFavorites: () => openFavoritesPanel(),
     addFavorite: () => addCurrentToFavorites(),
     applyPen: (pen) => { tool = { tool: pen.tool, color: pen.color, width: pen.width, alpha: 1 }; lastPen = { ...tool }; toolMemory[groupOf(pen.tool)] = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); },
     penMatches,

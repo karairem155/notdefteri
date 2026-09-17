@@ -669,3 +669,11 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .placed.audio.playing .audio-wave i:nth-child(even) { animation-delay: 0.15s; }
 @keyframes wave-bounce { to { transform: scaleY(0.4); } }
 .audio-time { font-size: 13px; color: #444; font-variant-numeric: tabular-nums; }
+
+/* Renk hapı: favori kalemler */
+.palette-pill .swatch.highlighter::before { border-radius: 9px; opacity: 0.85; }
+.palette-pill .swatch.pencil::before { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35); }
+.palette-pill .swatch.current { color: #fff; display: inline-flex; align-items: center; justify-content: center; outline: 2px dashed rgba(255, 255, 255, 0.7); outline-offset: 3px; }
+.palette-pill .swatch.current svg { position: relative; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8)); }
+.sp-two { display: flex; gap: 10px; }
+.sp-two .sp-outline-btn { flex: 1; }
