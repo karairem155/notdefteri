@@ -1069,3 +1069,18 @@ body { background: var(--desk); color: #fff; }
 .fan-leaf { transform-origin: center center; }
 .fan-leaf.flat[style*="right center"] .fan-face::after, .fan-leaf.flat[style*="left center"] .fan-face::after { background: none; }
 .fan-leaf.flat .fan-face::after { background: none; }
+
+/* ===== Ciltli kitap yelpazesi (son) ===== */
+.screen-fan .fan-stage { perspective: 1500px; perspective-origin: 50% 46%; }
+.fan-bookroot { position: relative; width: 0; height: min(46vh, 460px); transform-style: preserve-3d; }
+.fan-bookroot::before { content: ""; display: block; position: absolute; left: -3px; top: -4px; bottom: -4px; width: 6px; border-radius: 3px; background: linear-gradient(180deg, #d9c9a8, #b9a37e); box-shadow: 0 0 8px rgba(0, 0, 0, 0.4); transform: translateZ(-1px); }
+.fan-leaf { position: absolute; left: 0; top: 0; height: 100%; width: auto; transform-origin: left center !important; transform-style: preserve-3d; will-change: transform; cursor: pointer; pointer-events: none; }
+.fan-leaf.flat { pointer-events: auto; }
+.fan-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; background: #f7f7fb; border-radius: 0 10px 10px 0; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), inset 8px 0 16px -10px rgba(0, 0, 0, 0.35); display: block; }
+.fan-face.back { display: block; transform: rotateY(180deg); border-radius: 10px 0 0 10px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), inset -8px 0 16px -10px rgba(0, 0, 0, 0.35); }
+.fan-face-content { position: relative; height: 100%; width: auto; }
+.fan-leaf .fan-face::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(20, 28, 70, 0.12), rgba(255, 255, 255, 0) 45%); }
+.fan-leaf.flat .fan-face::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0) 12%); }
+.fan-leaf.flat .fan-face.back::after { background: linear-gradient(270deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0) 12%); }
+.fan-leaf.flat .fan-face { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.3); }
+.fan-leaf:not(.flat) .fan-num { display: none; }
