@@ -155,6 +155,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     topbar.replaceChildren(
       h("div", { class: "topbar-side" },
         h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onTap: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 24)),
+        h("span", { class: "topbar-notebook" }, nb().title),
         page.pdf && h("span", { class: "badge-pdf" }, "PDF")),
       h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },

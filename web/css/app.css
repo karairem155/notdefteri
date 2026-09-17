@@ -528,7 +528,7 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .screen-dark .pill { background: rgba(255, 255, 255, 0.1); padding: 5px 10px; font-size: 16px; }
 .screen-dark .pill .icon-btn { width: 32px; height: 32px; }
 .editor-body { background: none; }
-.topbar-notebook { display: none; }
+.screen-dark .topbar-notebook { font-size: 20px; font-weight: 700; color: #fff; max-width: 34vw; margin-left: 4px; }
 
 /* Defter: kalın kitap gibi katmanlı sayfa kenarları */
 .back-sheets { display: none; }
