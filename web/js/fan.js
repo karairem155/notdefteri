@@ -4,8 +4,8 @@
 // Düz duran sayfaya dokununca editör açılır.
 import { store } from "./store.js";
 import { h, svgIcon, pressable, actionSheet, confirmDialog } from "./ui.js";
-import { renderBackground } from "./paper.js";
-import { renderStrokesToDataURL } from "./ink.js";
+import { paintPaper, drawImageURL, pdfPageImage } from "./paper.js";
+import { drawStroke, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
@@ -64,18 +64,34 @@ export function renderFan(root, notebookId) {
     });
     for (const [id, leaf] of leaves) if (!keep.has(id)) { leaf.remove(); leaves.delete(id); }
     foot.replaceChildren(
-      h("button", { class: "fan-round small", type: "button", "aria-label": "Sayfa ekle", onTap: () => openAddPageSheet(notebookId, center + 1, (id) => { center = pages().findIndex((p) => p.id === id); render(); }) }, svgIcon("plus", 18)),
-      h("div", { class: "fan-count" }, `${center + 1} / ${list.length}`)
+      h("div", { class: "fan-nav" },
+        Object.assign(h("button", { class: "fan-round small", type: "button", "aria-label": "Önceki sayfa", onTap: () => turn(-1) }, svgIcon("back", 18)), { disabled: center <= 0 }),
+        h("button", { class: "fan-round small", type: "button", "aria-label": "Sayfa ekle", onTap: () => openAddPageSheet(notebookId, center + 1, (id) => { center = pages().findIndex((p) => p.id === id); render(); }) }, svgIcon("plus", 18)),
+        Object.assign(h("button", { class: "fan-round small", type: "button", "aria-label": "Sonraki sayfa", onTap: () => turn(1) }, svgIcon("forward", 18)), { disabled: center + 2 >= list.length })),
+      h("div", { class: "fan-count" }, `${center + 1}${list[center + 1] ? "-" + (center + 2) : ""} / ${list.length}`)
     );
   }
 
+  /** Sayfanın gerçek küçük resmi: kağıt deseni gerçek oranla, üstüne mürekkep (editördeki görünümün aynısı). */
   function pageFace(page) {
     const face = h("div", { class: "fan-face-content", style: { aspectRatio: `${page.size.w} / ${page.size.h}` } });
-    const bg = h("div", { class: "page-bg" });
-    renderBackground(bg, page, { thumbnail: true });
-    const ink = h("img", { class: "ink", alt: "", draggable: "false" });
-    if (page.strokes.length) ink.src = renderStrokesToDataURL(page, 520);
-    face.append(bg, ink);
+    const img = h("img", { class: "ink", alt: "", draggable: "false" });
+    face.append(img);
+    const scale = 0.75;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(page.size.w * scale);
+    canvas.height = Math.round(page.size.h * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    const finish = () => { for (const stroke of orderForDrawing(page.strokes)) drawStroke(ctx, stroke); img.src = canvas.toDataURL("image/jpeg", 0.85); };
+    if (page.pdf) {
+      pdfPageImage(page.pdf, 600).then((url) => url ? drawImageURL(ctx, url, 0, 0, page.size.w, page.size.h) : false).then((ok) => { if (!ok) paintPaper(ctx, "blank", page.size.w, page.size.h); finish(); }).catch(() => { paintPaper(ctx, "blank", page.size.w, page.size.h); finish(); });
+    } else if (page.templateAsset) {
+      store.assetURL(page.templateAsset).then((url) => url ? drawImageURL(ctx, url, 0, 0, page.size.w, page.size.h) : false).then((ok) => { if (!ok) paintPaper(ctx, "blank", page.size.w, page.size.h); finish(); }).catch(() => { paintPaper(ctx, "blank", page.size.w, page.size.h); finish(); });
+    } else {
+      paintPaper(ctx, page.paper, page.size.w, page.size.h);
+      finish();
+    }
     return face;
   }
 
@@ -90,23 +106,31 @@ export function renderFan(root, notebookId) {
         if (dragging && dragging.moved) return;
         const index = Number(leaf.dataset.index);
         if (index === center || index === center + 1) navigate(`#/n/${notebookId}/p/${page.id}`);
-        else { center = index - (index % 2); render(); }
+        else turn(index < center ? -1 : 1);
       },
       onLong: () => pageMenu(page)
     });
     return leaf;
   }
 
-  // Yatay kaydırma: sola → sonraki çift sayfa (yaprak cilt üstünden döner), sağa → önceki.
-  stage.addEventListener("pointerdown", (e) => { dragging = { x: e.clientX, moved: false, done: false }; });
+  // Yatay kaydırma: her jestte yalnızca BİR yaprak döner (sola → sonraki, sağa → önceki). Parmak kalkmadan ikinci dönüş olmaz.
+  let busyUntil = 0;
+  function turn(dir) {
+    const now = Date.now();
+    if (now < busyUntil) return;
+    busyUntil = now + 750;
+    center += dir * 2;
+    render();
+  }
+  stage.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse" && e.button !== 0) return; dragging = { id: e.pointerId, x: e.clientX, moved: false, done: false }; });
   stage.addEventListener("pointermove", (e) => {
-    if (!dragging || dragging.done) return;
+    if (!dragging || dragging.done || e.pointerId !== dragging.id) return;
     const dx = e.clientX - dragging.x;
     if (Math.abs(dx) > 14) dragging.moved = true;
-    if (dx < -60) { dragging.done = true; center += 2; render(); }
-    else if (dx > 60) { dragging.done = true; center -= 2; render(); }
+    if (dx < -70) { dragging.done = true; turn(1); }
+    else if (dx > 70) { dragging.done = true; turn(-1); }
   });
-  const endDrag = () => { setTimeout(() => { dragging = null; }, 0); };
+  const endDrag = (e) => { if (dragging && e.pointerId === dragging.id) setTimeout(() => { dragging = null; }, 0); };
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
 

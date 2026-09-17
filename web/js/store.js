@@ -30,6 +30,10 @@ export const TOOLS = {
 };
 
 export const COVER_PRESETS = [
+  { pattern: "plain", color: "#F6A9C6" },
+  { pattern: "plain", color: "#A9C7F5" },
+  { pattern: "plain", color: "#C9B8F0" },
+  { pattern: "plain", color: "#B7E3CF" },
   { pattern: "hearts", color: "#F7C6D3" },
   { pattern: "gingham", color: "#F5DE8C" },
   { pattern: "grid", color: "#CFC6F2" },
@@ -56,7 +60,7 @@ const DEFAULT_SETTINGS = {
   pens: STARTER_PENS,
   defaultPenId: "pen-1",
   palette: STARTER_PALETTE,
-  defaultCover: COVER_PRESETS[5],
+  defaultCover: COVER_PRESETS[0],
   customCovers: [],          // asset kimlikleri
   templates: [],             // { id, name, asset }
   pageSize: "a4",
@@ -71,7 +75,8 @@ const DEFAULT_SETTINGS = {
   recentMedia: [],           // son eklenen fotoğraflar/dosyalar: { asset, name, kind }
   favDock: { side: "bottom", pos: 0.5 },   // favoriler çubuğunun yeri: bottom | left | right | top
   rulerAngle: true,          // cetvelde açı rozeti
-  rulerSnap: true,           // cetvele ve 15° açılara yapışma   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
+  rulerSnap: true,           // cetvele ve 15° açılara yapışma
+  flipSound: true,           // sayfa çevirme sesi   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
   shapeRecognition: true,
   smoothing: 2,              // çizgi yumuşatma: 0 kapalı, 1 az, 2 orta, 3 çok    // çizgiyi bitirmeden sabit tutunca şekle dönüşsün
   spreadMode: false,
@@ -133,6 +138,10 @@ class Store extends EventTarget {
     for (const row of settingsRows) {
       if (row.key in DEFAULT_SETTINGS) this.settings[row.key] = row.value;
     }
+    // Eski varsayılan (mavi kareli) kapak → düz pembe.
+    const oldDefault = { pattern: "grid", color: "#BFD8F4" };
+    if (this.settings.defaultCover && this.settings.defaultCover.pattern === oldDefault.pattern && this.settings.defaultCover.color === oldDefault.color) this.settings.defaultCover = COVER_PRESETS[0];
+    for (const n of this.notebooks) if (n.cover && n.cover.pattern === oldDefault.pattern && n.cover.color === oldDefault.color && !n.cover.imageAsset) n.cover = { ...COVER_PRESETS[0] };
     // Kullanıcı kendisi seçmediyse tasarımdaki açılış (yelpaze) kullanılır.
     if (!this.settings.openModeByUser) this.settings.openMode = "fan";
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.

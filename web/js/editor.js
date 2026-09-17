@@ -131,7 +131,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     store.setSetting("paletteSeeded", true);
     if (seed.length) store.setSetting("palette", seed);
   }
-  const flip = createFlip(stage, buildSheet);
+  const flip = createFlip(stage, buildSheet, { sound: () => store.settings.flipSound !== false });
 
   const nb = () => store.notebook(notebookId);
   const pages = () => nb().pages;
@@ -1573,7 +1573,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     };
     const sep = () => h("div", { class: "tb-sep" });
     const toolbar = h("div", { class: "toolbar" + (collapsed ? " collapsed" : "") });
-    toolbar.append(tb("libraryBook", "Kütüphane", "Kütüphane", false, () => { flushInk(); navigate("#/"); }));
+    toolbar.append(tb("grid", "Sayfalar", "Sayfalar: gör, sırala, sil", false, () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }));
     if (!collapsed) {
       const penActive = isPenTool() || tool.tool === "highlighter";
       toolbar.append(...[sep(),

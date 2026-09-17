@@ -10,7 +10,7 @@ const STRIPS = 12;      // yaprak kaç şeride bölünsün
 const BEND_MAX = 44;    // çevirmenin ortasında toplam bükülme (derece)
 const OVERLAP = 3;      // şeritler arası bindirme (px): kenar yumuşatma çizgileri görünmesin
 
-export function createFlip(spreadEl, buildSheet) {
+export function createFlip(spreadEl, buildSheet, options = {}) {
   let state = null;
   let raf = 0;
 
@@ -95,8 +95,8 @@ export function createFlip(spreadEl, buildSheet) {
       // Gölge şerit içinde de akar (menteşe tarafından uzak kenara): bant bant görünmesin.
       const a0 = (base + i * delta) * Math.PI / 180;
       const a1 = (base + (i + 1) * delta) * Math.PI / 180;
-      const fo = (a) => Math.min(0.75, Math.max(0, (1 - Math.cos(a)) / 2 * 0.9)).toFixed(3);
-      const bo = (a) => Math.min(0.75, Math.max(0, (1 + Math.cos(a)) / 2 * 0.9)).toFixed(3);
+      const fo = (a) => Math.min(0.42, Math.max(0, (1 - Math.cos(a)) / 2 * 0.5)).toFixed(3);
+      const bo = (a) => Math.min(0.42, Math.max(0, (1 + Math.cos(a)) / 2 * 0.5)).toFixed(3);
       s.front.shade.style.opacity = "1";
       s.back.shade.style.opacity = "1";
       s.front.shade.style.background = `linear-gradient(${left ? 90 : 270}deg, rgba(0,0,0,${fo(a0)}), rgba(0,0,0,${fo(a1)}))`;
@@ -116,9 +116,9 @@ export function createFlip(spreadEl, buildSheet) {
     cast.style.width = width + "px";
     const towardEdge = (left ? proj >= 0 : proj < 0);
     cast.style.background = towardEdge
-      ? "linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.55))"
-      : "linear-gradient(270deg, rgba(0,0,0,0.05), rgba(0,0,0,0.55))";
-    cast.style.opacity = String(lift * 0.7);
+      ? "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.28))"
+      : "linear-gradient(270deg, rgba(0,0,0,0), rgba(0,0,0,0.28))";
+    cast.style.opacity = String(lift * 0.5);
   }
 
   function update(progress) {
@@ -132,6 +132,7 @@ export function createFlip(spreadEl, buildSheet) {
   function finish(commit, onDone) {
     if (!state) return;
     const current = state;
+    if (commit && options.sound && options.sound()) playPaperSound();
     const target = commit ? 1 : 0;
     const from = current.progress;
     const remaining = Math.abs(target - from);
@@ -209,4 +210,33 @@ function cloneFace(src, cache) {
     c.replaceWith(img);
   });
   return clone;
+}
+
+
+// Kağıt çevirme sesi: kısa bir gürültü patlaması, bant geçiren süzgeç ve hızlı sönüm (dosya gerektirmez).
+let audioCtx = null;
+function playPaperSound() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const rate = audioCtx.sampleRate;
+    const length = Math.floor(rate * 0.22);
+    const buffer = audioCtx.createBuffer(1, length, rate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      const env = Math.pow(1 - t, 2.2) * (t < 0.05 ? t / 0.05 : 1);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 1400;
+    filter.Q.value = 0.9;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.35;
+    src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+    src.start();
+  } catch (_) { /* ses yoksa sessiz devam */ }
 }

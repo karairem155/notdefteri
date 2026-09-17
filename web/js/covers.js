@@ -55,20 +55,26 @@ function patternGroup(pattern) {
 /** Kapak öğesi. `cover` = { pattern, color, imageAsset? }. Oran 100:135. */
 export function coverElement(cover, { className = "" } = {}) {
   const c = cover || store.settings.defaultCover || COVER_PRESETS[5];
-  const wrap = h("div", { class: "cover " + className });
-  const pages = h("div", { class: "cover-pages" });
+  // Gerçek 3B kitap: arka kapak (z=0), sırt (sol yüz), sayfa bloğu (sağ, üst, alt yüzler), ön kapak (z=kalınlık).
+  const wrap = h("div", { class: "cover " + className, style: { "--cover": c.color } });
   const front = h("div", { class: "cover-front", style: { background: c.color } });
   if (c.imageAsset) {
     const image = h("img", { alt: "", draggable: "false" });
     store.assetURL(c.imageAsset).then((url) => { if (url) image.src = url; });
     front.append(image);
-  } else {
+  } else if (c.pattern && c.pattern !== "plain") {
     const svg = svgEl("svg", { viewBox: "0 0 100 135", preserveAspectRatio: "none", "aria-hidden": "true" });
     svg.append(patternGroup(c.pattern));
     front.append(svg);
   }
-  front.append(h("div", { class: "cover-sheen" }), h("div", { class: "cover-spine" }));
-  wrap.append(pages, front);
+  front.append(h("div", { class: "cover-sheen" }));
+  wrap.append(
+    h("div", { class: "cover-back" }),
+    h("div", { class: "book-spine" }),
+    h("div", { class: "book-pages" }),
+    h("div", { class: "book-top" }),
+    h("div", { class: "book-bottom" }),
+    front);
   return wrap;
 }
 

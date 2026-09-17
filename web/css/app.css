@@ -955,3 +955,67 @@ body { background: var(--desk); color: #fff; }
 .pop-menu { max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: none; }
 .pop-menu::-webkit-scrollbar { display: none; }
 .pop-item { font-size: 16px; padding: 11px 14px; }
+
+/* ===== 3B kitap ===== */
+.cover { --t: 24px; position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transform: rotateY(-14deg) rotateX(2deg); filter: none; transform-origin: center center; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.cover > * { position: absolute; }
+.cover-front { inset: 0; right: 0; border-radius: 14px 6px 6px 14px; overflow: hidden; transform: translateZ(var(--t)); background: var(--cover); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset -8px 0 14px -8px rgba(0, 0, 0, 0.28), inset 1px 0 0 rgba(255, 255, 255, 0.15); }
+.cover-front svg, .cover-front img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover-sheen { position: absolute; inset: 0; background: linear-gradient(110deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.06) 35%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.1) 100%); }
+.cover-back { inset: 0; border-radius: 14px 6px 6px 14px; background: color-mix(in srgb, var(--cover) 62%, #1a1f3a); }
+.book-spine { top: 0; height: 100%; right: 100%; width: var(--t); transform-origin: right center; transform: rotateY(90deg); background: linear-gradient(90deg, color-mix(in srgb, var(--cover) 70%, #000), color-mix(in srgb, var(--cover) 88%, #000)); border-radius: 8px 0 0 8px; }
+.book-pages { top: 2.5%; height: 95%; left: 100%; width: var(--t); transform-origin: left center; transform: rotateY(-90deg) translateX(-1px); background: repeating-linear-gradient(90deg, #f7f3e8 0 2px, #dcd6c4 2px 3px); box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15); }
+.book-top { left: 3%; width: 95%; bottom: 100%; height: var(--t); transform-origin: bottom center; transform: rotateX(-90deg) translateY(1px); background: repeating-linear-gradient(180deg, #faf7ee 0 2px, #e2dccb 2px 3px); }
+.book-bottom { left: 3%; width: 95%; top: 100%; height: var(--t); transform-origin: top center; transform: rotateX(90deg) translateY(-1px); background: repeating-linear-gradient(180deg, #e6e0cf 0 2px, #cfc8b5 2px 3px); }
+.cover-pages, .cover-spine { display: none; }
+.cover.opening { transform: rotateY(-100deg); }
+.list-row .cover { --t: 5px; transform: rotateY(-12deg); }
+.list-row .cover-front { border-radius: 5px 2px 2px 5px; }
+.mini-cover .cover { --t: 10px; }
+.cover-label { display: none; }
+
+/* Kütüphane: ortadaki büyük ve öne dönük, yanlardakiler geride ve küçük; yerde yansıma */
+.carousel { gap: 34px; padding: 40px calc(50% - 150px) 90px; perspective: 1500px; }
+.carousel-item { width: 300px; opacity: 0.8; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.35s; transform: scale(0.74) translateZ(-140px); }
+.carousel-item.before { transform: scale(0.74) translateZ(-140px) translateX(28px); }
+.carousel-item.after { transform: scale(0.74) translateZ(-140px) translateX(-28px); }
+.carousel-item.far { opacity: 0.5; }
+.carousel-item.current { opacity: 1; transform: scale(1) translateZ(0); z-index: 2; }
+.carousel-item .cover-wrap { width: 270px; perspective: 1300px; -webkit-box-reflect: below 14px linear-gradient(transparent 62%, rgba(255, 255, 255, 0.28)); filter: drop-shadow(0 34px 30px rgba(0, 0, 0, 0.55)); }
+.carousel-item .cover { --t: 26px; transform: rotateY(-14deg) rotateX(2deg); filter: none; }
+.cover { filter: none !important; }
+.carousel-item.current .cover { transform: rotateY(-13deg) rotateX(1.5deg); }
+.carousel-item.before .cover { transform: rotateY(-24deg); }
+.carousel-item.after .cover { transform: rotateY(-6deg); }
+.carousel-item .cover-front { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset -10px 0 18px -10px rgba(0, 0, 0, 0.3), inset 1px 0 0 rgba(255, 255, 255, 0.2); }
+.carousel-title { font-size: 17px; margin-top: 26px; color: #fff; }
+.carousel-item:not(.current) .carousel-title { color: rgba(255, 255, 255, 0.6); font-size: 15px; }
+.library-body { background: radial-gradient(ellipse at 50% 100%, rgba(255, 255, 255, 0.07), transparent 55%); }
+
+.fan-nav { display: flex; align-items: center; gap: 14px; }
+.fan-round:disabled { opacity: 0.35; }
+
+/* Sayfa çevirme: yumuşak gölgeler, ince cilt */
+.spread .spine { width: 10px; background: linear-gradient(90deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.32) 50%, rgba(0, 0, 0, 0.08)); }
+.flip-cast { mix-blend-mode: multiply; }
+.flip-strip .flip-face { box-shadow: none; }
+
+/* Üst bar: ince */
+.screen-dark .topbar { padding: 3px 10px; margin-top: calc(var(--safe-top) + 6px); gap: 6px; border-radius: 16px; }
+.screen-dark .icon-btn { width: 36px; height: 36px; }
+.screen-dark .segmented { padding: 2px; margin-left: 6px; }
+.screen-dark .segmented button { padding: 5px 14px; font-size: 15px; }
+.screen-dark .pill { padding: 3px 8px; font-size: 15px; }
+.screen-dark .pill .icon-btn { width: 28px; height: 28px; }
+.topbar-title-btn { font-size: 18px; padding: 4px 6px; }
+.topbar-cover { width: 15px; height: 20px; }
+.screen-dark .back-btn { padding: 4px; }
+
+/* Kitap: kalın sayfa bloğu, daha belirgin açı */
+.carousel-item .cover { --t: 46px; transform: rotateY(-24deg) rotateX(-2deg); }
+.carousel-item.current .cover { transform: rotateY(-22deg) rotateX(-2deg); }
+.carousel-item.before .cover { transform: rotateY(-30deg) rotateX(-2deg); }
+.carousel-item.after .cover { transform: rotateY(-16deg) rotateX(-2deg); }
+.carousel-item .cover-wrap { perspective: 1600px; }
+.book-pages { background: repeating-linear-gradient(90deg, #f8f4ea 0 2px, #d6cfbd 2px 3px), #efe9da; }
+.carousel-item .book-pages { box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.18), inset 2px 0 0 rgba(0, 0, 0, 0.12); }
