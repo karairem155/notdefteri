@@ -7,8 +7,9 @@ import { renderStrokesToDataURL } from "./ink.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
-const ANGLE = 13;          // komşu sayfalar arası yay açısı (derece)
-const RADIUS = 640;        // yayın yarıçapı (px)
+const FAN_TILT = 7;        // komşu sayfalar arası yelpaze açısı (derece, aşağıdaki eksen etrafında)
+const FAN_TURN = 16;       // komşu sayfalar arası 3B dönüş (derece)
+const FAN_DEPTH = 36;      // her komşu için geriye kayma (px)
 const VISIBLE = 7;         // ortadakinin her iki yanında görünen sayfa sayısı
 
 export function renderFan(root, notebookId) {
@@ -51,11 +52,13 @@ export function renderFan(root, notebookId) {
   function card(page, index) {
     const offset = index - center;
     const el = h("div", { class: "fan-card" + (offset === 0 ? " current" : ""), style: { aspectRatio: `${page.size.w} / ${page.size.h}`, zIndex: String(100 - Math.abs(offset)) }, role: "button", tabindex: "0", "aria-label": `${index + 1}. sayfa` });
-    // Paper'daki gibi: sayfalar büyük bir silindirin yüzeyinde yay çizer; ortadaki öne, yanlar geriye ve dönük.
-    const base = `translateZ(${-RADIUS}px) rotateY(${offset * ANGLE}deg) translateZ(${RADIUS}px)`;
+    // Paper'daki gibi deste yelpazesi: sayfalar çok aşağıdaki bir eksen etrafında yelpaze gibi açılır,
+    // yanlar hem geriye kayar hem döner; ortadaki en önde ve düz durur.
+    const abs = Math.abs(offset);
+    const base = `rotate(${offset * FAN_TILT}deg) rotateY(${offset * FAN_TURN}deg) translateZ(${-abs * FAN_DEPTH}px)`;
     el.style.transform = base;
-    const cast = h("div", { class: "fan-cast", style: { aspectRatio: `${page.size.w} / ${page.size.h}`, zIndex: String(50 - Math.abs(offset)) } });
-    cast.style.transform = base + " translateY(100%) rotateX(74deg)";
+    const cast = h("div", { class: "fan-cast", style: { aspectRatio: `${page.size.w} / ${page.size.h}`, zIndex: String(50 - abs) } });
+    cast.style.transform = base + " translateY(92%) skewX(-8deg) scaleY(1.1)";
     stage.append(cast);
     const bg = h("div", { class: "page-bg" });
     renderBackground(bg, page, { thumbnail: true });

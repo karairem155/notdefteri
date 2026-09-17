@@ -1,6 +1,6 @@
 // Çevrimdışı çalışma: uygulama kabuğu önbelleğe alınır.
 // Yeni sürüm yayınlandığında VERSION değişir, eski önbellek silinir.
-const VERSION = "notdefteri-v20";
+const VERSION = "notdefteri-v21";
 const SHELL = [
   "./",
   "./index.html",
@@ -15,6 +15,7 @@ const SHELL = [
   "./js/covers.js",
   "./js/library.js",
   "./js/editor.js",
+  "./js/panels.js",
   "./js/pages.js",
   "./js/settings.js",
   "./js/backup.js",

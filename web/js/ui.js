@@ -60,7 +60,27 @@ export function svgIcon(name, size = 20) {
     scissors: "M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 4L8.5 15.5M8.5 8.5L20 20",
     up: "M6 15l6-6 6 6",
     lasso: "M12 4c4.4 0 8 2 8 4.5S16.4 13 12 13 4 11 4 8.5 7.6 4 12 4zM8 13.5c-1 2-1 4 0 6M9 19.5a1.5 1.5 0 1 0 0 .01",
-    ruler: "M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2"
+    ruler: "M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2",
+    highlighter: "M4 21h6M7 17l8.5-8.5 3 3L10 20H7zM15.5 8.5l2-2 3 3-2 2",
+    tipGel: "M12 3v4M9.5 7h5l-1 9h-3zM10.5 16h3v4h-3z",
+    tipFine: "M12 2v6M10.5 8h3v9h-3zM11.5 17h1v5h-1z",
+    tipPencil: "M9 3h6v11l-3 7-3-7zM9 6h6",
+    wave: "M3 14c3-7 6-7 9 0s6 7 9 0",
+    lassoRect: "M4 4h4M10 4h4M16 4h4M4 20h4M10 20h4M16 20h4M4 4v4M4 10v4M4 16v4M20 4v4M20 10v4M20 16v4",
+    shapeLine: "M4 20L20 4",
+    shapeArrow: "M4 20L19 5M10 5h9v9",
+    shapeRect: "M4 6h16v12H4z",
+    shapeCircle: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z",
+    shapeTriangle: "M12 4l9 16H3z",
+    shapes: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM7.5 16.5l9-9",
+    text: "M4 6h10M9 6v14M15 11h5M17.5 11v9",
+    mic: "M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM6 11a6 6 0 0 0 12 0M12 17v4M9 21h6",
+    edit: "M4 20l4-1 11-11-3-3L5 16zM14 6l3 3",
+    drag: "M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01",
+    duplicate: "M8 8h12v12H8zM4 16V4h12M14 11v6M11 14h6",
+    layerUp: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5",
+    layerDown: "M3 8l9-5 9 5-9 5zM3 16l9 5 9-5M12 10v6",
+    play: "M7 5l12 7-12 7z"
   };
   const d = paths[name] || paths.plus;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

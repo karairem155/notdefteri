@@ -22,6 +22,8 @@ export const TOOLS = {
   pen: { title: "Kalem" },
   pencil: { title: "Kurşun Kalem" },
   highlighter: { title: "Fosforlu" },
+  fineliner: { title: "Fineliner" },
+  shape: { title: "Şekil" },
   eraser: { title: "Silgi" },
   lasso: { title: "Kement" },
   frosted: { title: "Buzlu Kalem" }
@@ -63,7 +65,10 @@ const DEFAULT_SETTINGS = {
   pencilOnly: true,
   pressureWidth: false,      // Apple Pencil basıncı kalınlığa yansısın mı
   fingerAction: "navigate",  // parmak: "navigate" sayfa çevirir/kaydırır, "draw" çizer, "erase" siler
-  eraser: { mode: "stroke", size: 12 },   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
+  eraser: { mode: "stroke", size: 12, onlyHighlighter: false, pressureSize: false },
+  recentColors: [],          // son kullanılan renkler (Renk Seçici'de gösterilir)
+  rulerAngle: true,          // cetvelde açı rozeti
+  rulerSnap: true,           // cetvele ve 15° açılara yapışma   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
   shapeRecognition: true,
   smoothing: 2,              // çizgi yumuşatma: 0 kapalı, 1 az, 2 orta, 3 çok    // çizgiyi bitirmeden sabit tutunca şekle dönüşsün
   spreadMode: false,
@@ -336,15 +341,13 @@ class Store extends EventTarget {
     this.setSetting("palette", [...this.settings.palette, normalized]);
   }
 
-  /** Kullanılan renk paletin başına geçer: alt bar "son kullandığım renkler" listesidir. */
+  /** Kullanılan renk "son kullanılanlar" listesinin başına geçer (palet elle düzenlenir). */
   noteColorUsed(hex) {
     if (!hex) return;
     const normalized = hex.toUpperCase();
-    const current = this.settings.palette;
+    const current = this.settings.recentColors || [];
     if (current.length && current[0].toUpperCase() === normalized) return;
-    const list = current.filter((c) => c.toUpperCase() !== normalized);
-    list.unshift(normalized);
-    this.setSetting("palette", list.slice(0, 12));
+    this.setSetting("recentColors", [normalized, ...current.filter((c) => c.toUpperCase() !== normalized)].slice(0, 12));
   }
 
   removePaletteColor(hex) {
