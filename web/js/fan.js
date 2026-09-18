@@ -23,30 +23,10 @@ const SPAN = SHIFT.map((shift, i) => (1 + shift) * SCALE[i]);
 // Düz düzlemde çevrilen yaprağın ölçeği: uçlarda açık sayfanın genişliğine oturur.
 const FLAT_FIT = FOLD_X / Math.cos(FOLD * Math.PI / 180);
 const TURN_MS = 560;                                     // sayfa çevirme süresi
-const STRIPS = 8;                                        // çevrilen yaprağın bükülme dilimleri
-const BEND = 21;                                         // bükülme genliği (derece)
 const ZOOM_MS = 460;                                     // defterin sahneye yaklaşması
 const OPEN_DELAY = 200;                                  // kapak açılmadan önceki bekleme
 const COVER_MS = 780;                                    // kapağın menteşeden açılması
 const FAN_MS = 640;                                      // yaprakların yelpazeye yayılması
-
-let has3d = null;
-/** Tarayıcı gerçekten 3B derinlik uyguluyor mu? (iOS Safari bazen preserve-3d'yi düzleştirir) */
-function supports3d() {
-  if (has3d != null) return has3d;
-  const outer = document.createElement("div");
-  outer.style.cssText = "position:fixed;left:-9999px;top:0;width:120px;height:120px;perspective:240px;";
-  const mid = document.createElement("div");
-  mid.style.cssText = "width:120px;height:120px;transform-style:preserve-3d;";
-  const inner = document.createElement("div");
-  inner.style.cssText = "width:120px;height:120px;transform:translateZ(-120px);";
-  mid.append(inner);
-  outer.append(mid);
-  document.body.append(outer);
-  has3d = inner.getBoundingClientRect().width < 100;   // derinlik uygulanırsa küçülür
-  outer.remove();
-  return has3d;
-}
 
 export function renderFan(root, notebookId) {
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
@@ -71,7 +51,7 @@ export function renderFan(root, notebookId) {
   const head = h("div", { class: "fan-head" });
   const stage = h("div", { class: "fan-stage pf-stage" });
   const floor = h("div", { class: "pf-floor" });
-  const book = h("div", { class: "pf-book" + (supports3d() ? " pf-3d" : "") });
+  const book = h("div", { class: "pf-book" });
   const leftHalf = h("div", { class: "pf-half pf-left" });
   const rightHalf = h("div", { class: "pf-half pf-right" });
   const leftShade = h("div", { class: "pf-shade-half" });
@@ -232,52 +212,23 @@ export function renderFan(root, notebookId) {
     layout({ animate: false });
   }
 
-  /** Çevrilen yaprak: cilt ekseninde döner. 3B varsa dilimlerle bükülür, yoksa tek yüzle çevrilir. */
+  /** Çevrilen yaprak: cilt ekseninde döner. Dönüşün ekrandaki karşılığı yatay daralmadır;
+   *  yarıyı geçince yüz değişir ve içerik aynalanarak düz okunur. */
   function makeLeaf(frontPage, backPage, side) {
-    const flat = !supports3d();
-    // Yön sınıfı şart: sola dönen yaprağın dilimleri cilt kenarından (sağdan) dizilir.
-    const leaf = h("div", { class: "pf-turn " + (side > 0 ? "pf-turn-r" : "pf-turn-l") + (flat ? " pf-turn-flat" : "") });
+    const leaf = h("div", { class: "pf-turn " + (side > 0 ? "pf-turn-r" : "pf-turn-l") + " pf-turn-flat" });
     leaf.style.width = `${pw}px`;
     leaf.style.height = `${ph}px`;
     leaf.style.left = side > 0 ? `${pw}px` : "0px";
     leaf.style.transformOrigin = side > 0 ? "left center" : "right center";
-    if (flat) {
-      // Düz düzlemde arka yüz gizlenmez; tek yüz kullanıp 90 dereceden sonra görseli değiştiririz.
-      const face = h("div", { class: "pf-sface pf-flatface" });
-      const shade = h("div", { class: "pf-sshade" });
-      face.style.backgroundSize = `${pw}px ${ph}px`;
-      leaf.append(face, shade);
-      book.append(leaf);
-      const flatFace = { el: face, shade, front: null, back: null, showingBack: null };
-      pageImage(frontPage).then((url) => { flatFace.front = url; if (url && flatFace.showingBack !== true) face.style.backgroundImage = `url(${url})`; });
-      pageImage(backPage).then((url) => { flatFace.back = url; });
-      return { leaf, strips: [], sw: pw, flatFace };
-    }
-    const count = STRIPS;
-    const sw = pw / count;
-    const strips = [];
-    for (let i = 0; i < count; i++) {
-      const strip = h("div", { class: "pf-strip" });
-      strip.style.width = `${sw}px`;
-      strip.style.height = `${ph}px`;
-      strip.style.transformOrigin = side > 0 ? "left center" : "right center";
-      if (i === count - 1) strip.classList.add("pf-strip-end");
-      const front = h("div", { class: "pf-sface" });
-      const back = h("div", { class: "pf-sface pf-sback" });
-      const shade = h("div", { class: "pf-sshade" });
-      const inner = side > 0 ? i * sw : pw - (i + 1) * sw;      // ön yüzde bu dilimin başlangıcı
-      front.style.backgroundSize = `${pw}px ${ph}px`;
-      back.style.backgroundSize = `${pw}px ${ph}px`;
-      front.style.backgroundPosition = `${-inner}px 0`;
-      back.style.backgroundPosition = `${-(pw - inner - sw)}px 0`;
-      strip.append(front, back, shade);
-      leaf.append(strip);
-      strips.push({ strip, shade, front, back });
-    }
-    pageImage(frontPage).then((url) => { if (url) for (const s of strips) s.front.style.backgroundImage = `url(${url})`; });
-    pageImage(backPage).then((url) => { if (url) for (const s of strips) s.back.style.backgroundImage = `url(${url})`; });
+    const face = h("div", { class: "pf-sface pf-flatface" });
+    const shade = h("div", { class: "pf-sshade" });
+    face.style.backgroundSize = `${pw}px ${ph}px`;
+    leaf.append(face, shade);
     book.append(leaf);
-    return { leaf, strips, sw, flatFace: null };
+    const flatFace = { el: face, shade, front: null, back: null, showingBack: null };
+    pageImage(frontPage).then((url) => { flatFace.front = url; if (url && flatFace.showingBack !== true) face.style.backgroundImage = `url(${url})`; });
+    pageImage(backPage).then((url) => { flatFace.back = url; if (url && flatFace.showingBack === true) face.style.backgroundImage = `url(${url})`; });
+    return { leaf, flatFace };
   }
 
   /** İleri/geri bir çift sayfa: yaprak ciltten dönerken yelpaze de yeni yuvalarına kayar. */
@@ -291,7 +242,7 @@ export function renderFan(root, notebookId) {
     busy = true;
     const frontPage = dir > 0 ? list[spread * 2 + 1] : list[spread * 2];
     const backPage = dir > 0 ? list[next * 2] : (list[next * 2 + 1] || list[next * 2]);
-    const { leaf, strips, sw, flatFace } = makeLeaf(frontPage, backPage, dir);
+    const { leaf, flatFace } = makeLeaf(frontPage, backPage, dir);
     const from = dir > 0 ? -FOLD : FOLD;
     const to = dir > 0 ? -(180 - FOLD) : (180 - FOLD);
 
@@ -309,46 +260,22 @@ export function renderFan(root, notebookId) {
       const p = Math.min(1, (now - start) / TURN_MS);
       const e = ease(p);
       const base = from + (to - from) * e;
-      const bend = BEND * Math.sin(Math.PI * p);
       const glow = Math.abs(Math.sin(base * Math.PI / 180));   // yaprak dikleştikçe kararır
-      if (flatFace) {
-        // 3B yok: dönüşün ekrandaki karşılığı yatay daralmadır; yarıyı geçince arka yüze geçilir.
-        const cos = Math.cos(base * Math.PI / 180);
-        const showBack = cos < 0;
-        if (flatFace.showingBack !== showBack) {
-          flatFace.showingBack = showBack;
-          const url = showBack ? flatFace.back : flatFace.front;
-          if (url) flatFace.el.style.backgroundImage = `url(${url})`;
-          flatFace.el.style.transform = showBack ? "scaleX(-1)" : "none";
-        }
-        // Uçlarda açık sayfanın kıvrımıyla birebir örtüşsün diye ölçeklenir.
-        leaf.style.transform = `scaleX(${(cos * FLAT_FIT).toFixed(4)})`;
-        // Gölge cilde yakın koyu, dış kenara doğru açılır; yaprak dikleşince biraz daha kararır.
-        const koyu = (0.04 + glow * 0.16).toFixed(3);
-        const acik = (0.02 + glow * 0.06).toFixed(3);
-        const yon = (dir > 0) === !showBack ? "90deg" : "270deg";
-        flatFace.shade.style.background = `linear-gradient(${yon}, rgba(12, 14, 34, ${koyu}), rgba(12, 14, 34, ${acik}))`;
-        flatFace.shade.style.opacity = "1";
-      } else {
-        leaf.style.transform = `rotateY(${base}deg)`;
+      const cos = Math.cos(base * Math.PI / 180);
+      const showBack = cos < 0;
+      if (flatFace.showingBack !== showBack) {
+        flatFace.showingBack = showBack;
+        const url = showBack ? flatFace.back : flatFace.front;
+        if (url) flatFace.el.style.backgroundImage = `url(${url})`;
+        flatFace.el.style.transform = showBack ? "scaleX(-1)" : "none";
       }
-      let x = 0;
-      let z = 0;
-      const dark = (angle) => Math.min(0.34, Math.abs(Math.sin(angle * Math.PI / 180)) * 0.30 + glow * 0.09);
-      void dark;
-      for (let i = 0; i < strips.length; i++) {
-        const a0 = bend * (i / strips.length);
-        const a1 = bend * ((i + 1) / strips.length);
-        const mid = (a0 + a1) / 2;
-        const rad = mid * Math.PI / 180;
-        strips[i].strip.style.transform = `translate3d(${dir > 0 ? x : -x}px, 0, ${z}px) rotateY(${-mid * dir}deg)`;
-        // dilim kenarlarındaki değerlerle köprü kuran degrade: dilim dikişleri görünmez
-        const [ia, ib] = dir > 0 ? [dark(a0), dark(a1)] : [dark(a1), dark(a0)];
-        strips[i].shade.style.background = `linear-gradient(90deg, rgba(12, 14, 34, ${ia.toFixed(3)}), rgba(12, 14, 34, ${ib.toFixed(3)}))`;
-        strips[i].shade.style.opacity = "1";
-        x += sw * Math.cos(rad);
-        z += sw * Math.sin(rad);
-      }
+      // Uçlarda açık sayfanın kıvrımıyla birebir örtüşsün diye ölçeklenir.
+      leaf.style.transform = `scaleX(${(cos * FLAT_FIT).toFixed(4)})`;
+      const koyu = (0.04 + glow * 0.16).toFixed(3);
+      const acik = (0.02 + glow * 0.06).toFixed(3);
+      const yon = (dir > 0) === !showBack ? "90deg" : "270deg";
+      flatFace.shade.style.background = `linear-gradient(${yon}, rgba(12, 14, 34, ${koyu}), rgba(12, 14, 34, ${acik}))`;
+      flatFace.shade.style.opacity = "1";
       // kalkan yaprağın altındaki sayfaya düşen gölge: cilde yakın koyu, dışa doğru açılır
       const spreadShadow = Math.abs(Math.cos(base * Math.PI / 180));
       const fade = Math.sin(Math.PI * p);
