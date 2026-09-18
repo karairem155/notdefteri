@@ -1107,3 +1107,12 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .pf-right.empty .pf-paper, .pf-right.empty .pf-gutter { display: none; }
 .pf-right.empty .pf-coverface { display: block; }
 .pf-coverface .cover { transform: none !important; }
+
+/* Yelpaze 2B izdüşüm: iOS Safari 3B düzlemi bozduğu için derinlik ölçekle veriliyor */
+.pf-book { transform-style: flat; }
+.pf-book.pf-3d { transform-style: preserve-3d; }
+.pf-half { z-index: 30; }
+.pf-turn { z-index: 40; }
+.pf-openbook { z-index: 50; }
+.pf-card { transform-origin: left center; }
+.pf-card[data-side="l"] { transform-origin: right center; }

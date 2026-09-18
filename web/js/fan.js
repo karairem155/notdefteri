@@ -14,8 +14,12 @@ const FOLD = 34;                                         // açık çift sayfan�
 const PERSP = 7.4;                                       // perspektif = PERSP × sayfa genişliği
 const SHIFT = [0, 0.10, 0.28, 0.46, 0.65, 0.85, 1.06];   // yaprakların dışa kayması (sayfa genişliği çarpanı)
 const DEPTH = [0, 0.06, 0.38, 0.77, 1.18, 1.57, 1.80];   // yaprakların derinliği
+// Derinliğin ekrandaki karşılığı: yaprak ne kadar geride, o kadar küçük görünür.
+const SCALE = DEPTH.map((depth) => PERSP / (PERSP + depth));
+// Kıvrılmış yarım sayfanın ekranda kapladığı genişlik (sayfa genişliğinin katı).
+const FOLD_X = Math.cos(FOLD * Math.PI / 180) * (PERSP / (PERSP - Math.sin(FOLD * Math.PI / 180)));
 // Yaprak dış kenarının cilde uzaklığı (sayfa genişliği cinsinden): yelpazenin ekrana sığması için
-const SPAN = SHIFT.map((shift, i) => (1 + shift) * PERSP / (PERSP + DEPTH[i]));
+const SPAN = SHIFT.map((shift, i) => (1 + shift) * SCALE[i]);
 const TURN_MS = 560;                                     // sayfa çevirme süresi
 const STRIPS = 8;                                        // çevrilen yaprağın bükülme dilimleri
 const BEND = 21;                                         // bükülme genliği (derece)
@@ -23,6 +27,24 @@ const ZOOM_MS = 460;                                     // defterin sahneye yak
 const OPEN_DELAY = 200;                                  // kapak açılmadan önceki bekleme
 const COVER_MS = 780;                                    // kapağın menteşeden açılması
 const FAN_MS = 640;                                      // yaprakların yelpazeye yayılması
+
+let has3d = null;
+/** Tarayıcı gerçekten 3B derinlik uyguluyor mu? (iOS Safari bazen preserve-3d'yi düzleştirir) */
+function supports3d() {
+  if (has3d != null) return has3d;
+  const outer = document.createElement("div");
+  outer.style.cssText = "position:fixed;left:-9999px;top:0;width:120px;height:120px;perspective:240px;";
+  const mid = document.createElement("div");
+  mid.style.cssText = "width:120px;height:120px;transform-style:preserve-3d;";
+  const inner = document.createElement("div");
+  inner.style.cssText = "width:120px;height:120px;transform:translateZ(-120px);";
+  mid.append(inner);
+  outer.append(mid);
+  document.body.append(outer);
+  has3d = inner.getBoundingClientRect().width < 100;   // derinlik uygulanırsa küçülür
+  outer.remove();
+  return has3d;
+}
 
 export function renderFan(root, notebookId) {
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
@@ -47,7 +69,7 @@ export function renderFan(root, notebookId) {
   const head = h("div", { class: "fan-head" });
   const stage = h("div", { class: "fan-stage pf-stage" });
   const floor = h("div", { class: "pf-floor" });
-  const book = h("div", { class: "pf-book" });
+  const book = h("div", { class: "pf-book" + (supports3d() ? " pf-3d" : "") });
   const leftHalf = h("div", { class: "pf-half pf-left" });
   const rightHalf = h("div", { class: "pf-half pf-right" });
   const leftShade = h("div", { class: "pf-shade-half" });
@@ -107,8 +129,8 @@ export function renderFan(root, notebookId) {
     floor.style.height = `${ph * 0.3}px`;
     floor.style.marginTop = `${ph * 0.62}px`;
     for (const el of [leftHalf, rightHalf]) { el.style.width = `${pw}px`; el.style.height = `${ph}px`; }
-    leftHalf.style.transform = `rotateY(${FOLD}deg)`;
-    rightHalf.style.transform = `rotateY(${-FOLD}deg)`;
+    leftHalf.style.transform = `scaleX(${FOLD_X})`;
+    rightHalf.style.transform = `scaleX(${FOLD_X})`;
     rightHalf.style.left = `${pw}px`;
     for (const [key, el] of cards) { el.style.width = `${pw}px`; el.style.height = `${ph}px`; placeCard(el, Number(el.dataset.slot), el.dataset.side === "l" ? -1 : 1, false); }
   }
@@ -116,11 +138,12 @@ export function renderFan(root, notebookId) {
   /** Yaprağı yuvasına koyar: dışa kayma + derinlik (kitap bloğu). */
   function placeCard(el, slot, side, animate) {
     const j = Math.min(slot, SHIFT.length - 1);
-    const shift = SHIFT[j] * pw * side;
-    const depth = DEPTH[j] * pw;
+    const k = SCALE[j];
     el.style.transition = animate ? `transform ${TURN_MS}ms cubic-bezier(0.25, 0.85, 0.3, 1), opacity 260ms linear` : "none";
     el.style.left = side < 0 ? "0px" : `${pw}px`;
-    el.style.transform = `translate3d(${shift}px, 0, ${-depth}px)`;
+    el.style.transformOrigin = side < 0 ? "right center" : "left center";
+    el.style.transform = `translateX(${SHIFT[j] * pw * k * side}px) scale(${k})`;
+    el.style.zIndex = String(20 - Math.min(slot, 18));
     el.style.opacity = slot > vis ? "0" : "1";
     el.dataset.slot = String(slot);
     el.dataset.side = side < 0 ? "l" : "r";
@@ -209,19 +232,21 @@ export function renderFan(root, notebookId) {
 
   /** Çevrilen yaprak: cilt ekseninde dönerken dilimlerle bükülür, iki yüzü de gerçek sayfadır. */
   function makeLeaf(frontPage, backPage, side) {
-    const leaf = h("div", { class: "pf-turn" });
+    // Yön sınıfı şart: sola dönen yaprağın dilimleri cilt kenarından (sağdan) dizilir.
+    const leaf = h("div", { class: "pf-turn " + (side > 0 ? "pf-turn-r" : "pf-turn-l") });
     leaf.style.width = `${pw}px`;
     leaf.style.height = `${ph}px`;
     leaf.style.left = side > 0 ? `${pw}px` : "0px";
     leaf.style.transformOrigin = side > 0 ? "left center" : "right center";
-    const sw = pw / STRIPS;
+    const count = supports3d() ? STRIPS : 1;
+    const sw = pw / count;
     const strips = [];
-    for (let i = 0; i < STRIPS; i++) {
+    for (let i = 0; i < count; i++) {
       const strip = h("div", { class: "pf-strip" });
       strip.style.width = `${sw}px`;
       strip.style.height = `${ph}px`;
       strip.style.transformOrigin = side > 0 ? "left center" : "right center";
-      if (i === STRIPS - 1) strip.classList.add("pf-strip-end");
+      if (i === count - 1) strip.classList.add("pf-strip-end");
       const front = h("div", { class: "pf-sface" });
       const back = h("div", { class: "pf-sface pf-sback" });
       const shade = h("div", { class: "pf-sshade" });
@@ -275,9 +300,9 @@ export function renderFan(root, notebookId) {
       let x = 0;
       let z = 0;
       const dark = (angle) => Math.min(0.34, Math.abs(Math.sin(angle * Math.PI / 180)) * 0.30 + glow * 0.09);
-      for (let i = 0; i < STRIPS; i++) {
-        const a0 = bend * (i / STRIPS);
-        const a1 = bend * ((i + 1) / STRIPS);
+      for (let i = 0; i < strips.length; i++) {
+        const a0 = bend * (i / strips.length);
+        const a1 = bend * ((i + 1) / strips.length);
         const mid = (a0 + a1) / 2;
         const rad = mid * Math.PI / 180;
         strips[i].strip.style.transform = `translate3d(${dir > 0 ? x : -x}px, 0, ${z}px) rotateY(${-mid * dir}deg)`;
@@ -331,7 +356,7 @@ export function renderFan(root, notebookId) {
     // kapalıyken defter ekranın ortasında durur, açılırken cilt ortaya kayar
     book.style.transition = "none";
     book.style.transform = `translateX(${-pw / 2}px) scale(0.9)`;
-    for (const [, el] of cards) { el.style.transition = "none"; el.style.transform = "translate3d(0,0,0)"; el.style.opacity = "0"; }
+    for (const [, el] of cards) { el.style.transition = "none"; el.style.transform = "translateX(0) scale(1)"; el.style.opacity = "0"; }
     leftHalf.style.opacity = "0";
     rightHalf.style.opacity = "0";
     requestAnimationFrame(() => {
@@ -373,7 +398,8 @@ export function renderFan(root, notebookId) {
     const slot = Number(el.dataset.slot) || 1;
     const side = el.dataset.side === "l" ? -1 : 1;
     const j = Math.min(slot, SHIFT.length - 1);
-    el.style.transform = `translate3d(${SHIFT[j] * pw * side}px, 0, ${-DEPTH[j] * pw}px)`;
+    const k = SCALE[j];
+    el.style.transform = `translateX(${SHIFT[j] * pw * k * side}px) scale(${k})`;
     el.style.opacity = slot > vis ? "0" : "1";
   }
 
