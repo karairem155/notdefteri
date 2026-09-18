@@ -1,192 +1,433 @@
-// Defter seçilince açılan ekran: gerçek, ciltli bir kitap. Bütün yapraklar TEK bir cilt ekseninden menteşelidir;
-// ortadaki iki sayfa açık durur (hafif V), sonraki yapraklar sağa, öncekiler sola doğru ciltten yelpazelenir.
-// Sayfa geçişi: yaprak cilt üstünden dönerek karşı tarafa geçer (gerçek sayfa çevirme). Açılış: yapraklar
-// kapalı defter gibi cilt hizasında başlar, sırayla açılır. Düz duran sayfaya dokununca editör açılır.
+// Defter seçilince açılan ekran: Paper'daki gibi açık, kalın bir kitap.
+// Ortadaki çift sayfa cilde doğru hafif kıvrılır (V), arkadaki yapraklar cilt bloğu gibi
+// dışa doğru azalarak yelpazelenir. Sayfa çevirme gerçek bir yaprak gibi cilt ekseninde
+// bükülerek döner; defter açılırken kapak menteşesinden açılır.
 import { store } from "./store.js";
-import { h, svgIcon, pressable, actionSheet, confirmDialog } from "./ui.js";
-import { paintPaper, drawImageURL, pdfPageImage } from "./paper.js";
-import { drawStroke, orderForDrawing } from "./ink.js";
+import { h, svgIcon, actionSheet, confirmDialog } from "./ui.js";
+import { renderPageCanvas } from "./pagerender.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
+import { coverElement } from "./covers.js";
 import { navigate } from "./app.js";
 
-const STEP = 13;          // yelpazedeki yapraklar arası açı (derece)
-const OPEN = 8;           // açık çift sayfanın cilde göre açısı (derece): hafif V
-const VISIBLE = 6;        // her yanda kaç yaprak görünsün
-const TURN_MS = 620;      // sayfa çevirme süresi
+const VIS = 6;                                           // her yanda görünen yaprak sayısı
+const FOLD = 34;                                         // açık çift sayfanın kıvrım açısı (derece)
+const PERSP = 7.4;                                       // perspektif = PERSP × sayfa genişliği
+const SHIFT = [0, 0.10, 0.28, 0.46, 0.65, 0.85, 1.06];   // yaprakların dışa kayması (sayfa genişliği çarpanı)
+const DEPTH = [0, 0.06, 0.38, 0.77, 1.18, 1.57, 1.80];   // yaprakların derinliği
+// Yaprak dış kenarının cilde uzaklığı (sayfa genişliği cinsinden): yelpazenin ekrana sığması için
+const SPAN = SHIFT.map((shift, i) => (1 + shift) * PERSP / (PERSP + DEPTH[i]));
+const TURN_MS = 560;                                     // sayfa çevirme süresi
+const STRIPS = 8;                                        // çevrilen yaprağın bükülme dilimleri
+const BEND = 21;                                         // bükülme genliği (derece)
+const ZOOM_MS = 460;                                     // defterin sahneye yaklaşması
+const OPEN_DELAY = 200;                                  // kapak açılmadan önceki bekleme
+const COVER_MS = 780;                                    // kapağın menteşeden açılması
+const FAN_MS = 640;                                      // yaprakların yelpazeye yayılması
 
 export function renderFan(root, notebookId) {
-  const notebook = store.notebook(notebookId);
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
-  let center = Math.max(0, notebook.pages.findIndex((p) => p.id === params.get("p")));
-  center -= center % 2;
-  let dragging = null;
-  let busyUntil = 0;
-  const leaves = new Map();   // pageId -> yaprak elemanı (animasyon için korunur)
+  const pages = () => store.notebook(notebookId).pages;
+  const spreadCount = () => Math.max(1, Math.ceil(pages().length / 2));
+  const startIndex = Math.max(0, pages().findIndex((p) => p.id === params.get("p")));
+  let spread = Math.floor(startIndex / 2);
+  let pw = 240;
+  let ph = 320;
+  let vis = VIS;
+  let busy = false;
+  let queued = 0;
+  let drag = null;
 
   const screen = h("div", { class: "screen screen-fan" });
   const topbar = h("div", { class: "fan-topbar" },
     h("button", { class: "fan-round", type: "button", "aria-label": "Defterlerim", onTap: () => navigate("#/") }, svgIcon("back", 22)),
     h("div", { style: { flex: "1" } }),
-    h("button", { class: "fan-round", type: "button", "aria-label": "Sayfalar ızgarası", onTap: () => navigate(`#/n/${notebookId}/pages?p=${pages()[center] ? pages()[center].id : ""}`) }, svgIcon("grid", 22)),
-    h("button", { class: "fan-round", type: "button", "aria-label": "Daha fazla", onTap: () => pageMenu(pages()[center]) }, svgIcon("more", 22))
+    h("button", { class: "fan-round", type: "button", "aria-label": "Sayfalar ızgarası", onTap: () => navigate(`#/n/${notebookId}/pages?p=${(pages()[spread * 2] || pages()[0]).id}`) }, svgIcon("grid", 22)),
+    h("button", { class: "fan-round", type: "button", "aria-label": "Daha fazla", onTap: () => pageMenu(pages()[spread * 2]) }, svgIcon("more", 22))
   );
   const head = h("div", { class: "fan-head" });
-  const stage = h("div", { class: "fan-stage" });
-  const book = h("div", { class: "fan-bookroot" });
-  stage.append(h("div", { class: "fan-floor" }), book);
+  const stage = h("div", { class: "fan-stage pf-stage" });
+  const floor = h("div", { class: "pf-floor" });
+  const book = h("div", { class: "pf-book" });
+  const leftHalf = h("div", { class: "pf-half pf-left" });
+  const rightHalf = h("div", { class: "pf-half pf-right" });
+  const leftShade = h("div", { class: "pf-shade-half" });
+  const rightShade = h("div", { class: "pf-shade-half" });
+  leftHalf.append(h("div", { class: "pf-paper" }), h("div", { class: "pf-gutter" }), leftShade);
+  rightHalf.append(h("div", { class: "pf-paper" }), h("div", { class: "pf-gutter" }), rightShade);
+  book.append(leftHalf, rightHalf);
+  stage.append(floor, book);
   const foot = h("div", { class: "fan-foot" });
   screen.append(topbar, head, stage, foot);
   root.append(screen);
 
-  const pages = () => store.notebook(notebookId).pages;
+  const cards = new Map();      // yaprak anahtarı -> eleman (geçişlerde korunur)
+  const imgCache = new Map();   // sayfa id -> data URL sözü
 
-  /** Yaprağın cilt ekseni etrafındaki açısı. Sol taraf -180 civarı, sağ taraf 0 civarı. */
-  function angleFor(index) {
-    if (index === center) return -180 + OPEN;
-    if (index === center + 1) return -OPEN;
-    if (index < center) { const k = Math.min(center - index, VISIBLE); return -180 + OPEN + k * STEP; }
-    const k = Math.min(index - center - 1, VISIBLE);
-    return -OPEN - k * STEP;
+  /** Sayfanın gerçek görüntüsü (kağıt + nesneler + mürekkep). */
+  function pageImage(page) {
+    if (!page) return Promise.resolve(null);
+    if (imgCache.has(page.id)) return imgCache.get(page.id);
+    const target = Math.min(3, Math.max(1, (pw * (window.devicePixelRatio || 1) * 1.15) / page.size.w));
+    const promise = renderPageCanvas(page, target, { background: true, opaque: true })
+      .then((canvas) => canvas.toDataURL("image/jpeg", 0.88))
+      .catch(() => null);
+    imgCache.set(page.id, promise);
+    return promise;
   }
 
-  function render(animate = true) {
+  function paintInto(el, page) {
+    const paper = el.querySelector(".pf-paper") || el;
+    if (!page) { paper.style.backgroundImage = "none"; return; }
+    if (paper.dataset.page === page.id) return;
+    paper.dataset.page = page.id;
+    pageImage(page).then((url) => { if (url && paper.dataset.page === page.id) paper.style.backgroundImage = `url(${url})`; });
+  }
+
+  /** Sahneyi ölçer: sayfa boyu ekrana göre, yelpaze taşmadan sığacak şekilde. */
+  function measure() {
+    const rect = stage.getBoundingClientRect();
+    const first = pages()[0];
+    const aspect = first ? first.size.w / first.size.h : 0.72;
+    let height = Math.min(rect.height * 0.92, 580);
+    let width = height * aspect;
+    // Dar ekranda yelpaze taşmasın: önce görünen yaprak sayısı azalır, gerekirse sayfa küçülür.
+    vis = VIS;
+    const room = rect.width * 0.96;
+    while (vis > 2 && 2 * SPAN[vis] * width > room) vis--;
+    const maxWidth = room / (2 * SPAN[vis]);
+    if (width > maxWidth) { width = maxWidth; height = width / aspect; }
+    pw = Math.round(width);
+    ph = Math.round(height);
+    book.style.width = `${pw * 2}px`;
+    book.style.height = `${ph}px`;
+    stage.style.perspective = `${Math.round(pw * PERSP)}px`;
+    floor.style.width = `${pw * 2.6}px`;
+    floor.style.height = `${ph * 0.3}px`;
+    floor.style.marginTop = `${ph * 0.62}px`;
+    for (const el of [leftHalf, rightHalf]) { el.style.width = `${pw}px`; el.style.height = `${ph}px`; }
+    leftHalf.style.transform = `rotateY(${FOLD}deg)`;
+    rightHalf.style.transform = `rotateY(${-FOLD}deg)`;
+    rightHalf.style.left = `${pw}px`;
+    for (const [key, el] of cards) { el.style.width = `${pw}px`; el.style.height = `${ph}px`; placeCard(el, Number(el.dataset.slot), el.dataset.side === "l" ? -1 : 1, false); }
+  }
+
+  /** Yaprağı yuvasına koyar: dışa kayma + derinlik (kitap bloğu). */
+  function placeCard(el, slot, side, animate) {
+    const j = Math.min(slot, SHIFT.length - 1);
+    const shift = SHIFT[j] * pw * side;
+    const depth = DEPTH[j] * pw;
+    el.style.transition = animate ? `transform ${TURN_MS}ms cubic-bezier(0.25, 0.85, 0.3, 1), opacity 260ms linear` : "none";
+    el.style.left = side < 0 ? "0px" : `${pw}px`;
+    el.style.transform = `translate3d(${shift}px, 0, ${-depth}px)`;
+    el.style.opacity = slot > vis ? "0" : "1";
+    el.dataset.slot = String(slot);
+    el.dataset.side = side < 0 ? "l" : "r";
+  }
+
+  function makeCard(key) {
+    const el = h("div", { class: "pf-card" }, h("div", { class: "pf-paper" }), h("div", { class: "pf-edge" }));
+    el.dataset.key = key;
+    el.style.width = `${pw}px`;
+    el.style.height = `${ph}px`;
+    book.insertBefore(el, leftHalf);
+    cards.set(key, el);
+    return el;
+  }
+
+  /** Yelpaze düzeni: ortadaki çift sayfa + iki yanda yapraklar (+ kapaklar). */
+  function layout({ animate = true, keepLeftFace = false } = {}) {
     const list = pages();
-    center = Math.min(Math.max(center, 0), Math.max(0, list.length - 1));
-    center -= center % 2;
+    const total = spreadCount();
+    spread = Math.min(Math.max(spread, 0), total - 1);
     head.replaceChildren(h("h1", {}, store.notebook(notebookId).title), h("div", { class: "sub" }, `${list.length} sayfa`));
-    const keep = new Set();
-    list.forEach((page, index) => {
-      const dist = index <= center ? center - index : index - center - 1;
-      if (dist > VISIBLE) return;
-      keep.add(page.id);
-      let leaf = leaves.get(page.id);
-      if (!leaf) { leaf = makeLeaf(page); leaves.set(page.id, leaf); book.append(leaf); }
-      leaf.style.transition = animate ? `transform ${TURN_MS}ms cubic-bezier(0.3, 0.75, 0.25, 1)` : "none";
-      leaf.style.transform = `rotateY(${angleFor(index)}deg)`;
-      leaf.dataset.index = String(index);
-      leaf.classList.toggle("flat", index === center || index === center + 1);
-      leaf.querySelector(".fan-num").textContent = String(index + 1);
-    });
-    for (const [id, leaf] of leaves) if (!keep.has(id)) { leaf.remove(); leaves.delete(id); }
+    if (!keepLeftFace) paintInto(leftHalf, list[spread * 2]);
+    paintInto(rightHalf, list[spread * 2 + 1]);
+    rightHalf.classList.toggle("empty", !list[spread * 2 + 1]);
+
+    const wanted = new Set();
+    for (let j = 1; j <= vis; j++) {
+      for (const side of [-1, 1]) {
+        const index = spread + side * j;
+        if (index < 0 || index >= total) continue;
+        const key = "s" + index;
+        wanted.add(key);
+        const el = cards.get(key) || makeCard(key);
+        const page = side < 0 ? list[index * 2] : (list[index * 2 + 1] || list[index * 2]);
+        paintInto(el, page);
+        placeCard(el, j, side, animate);
+      }
+    }
+    // kapaklar: açılan ön kapak solda, arka kapak sağda kitabı kapatır
+    for (const [side, key] of [[-1, "cover-front"], [1, "cover-back"]]) {
+      const slot = side < 0 ? spread + 1 : total - spread;
+      const el = cards.get(key) || makeCoverCard(key);
+      wanted.add(key);
+      placeCard(el, slot, side, animate);
+      el.classList.toggle("pf-hidden", slot > vis);
+    }
+    for (const [key, el] of cards) {
+      if (wanted.has(key)) continue;
+      el.style.opacity = "0";
+      const dead = el;
+      cards.delete(key);
+      setTimeout(() => dead.remove(), animate ? TURN_MS : 0);
+    }
     foot.replaceChildren(
       h("div", { class: "fan-nav" },
-        Object.assign(h("button", { class: "fan-round small", type: "button", "aria-label": "Önceki sayfa", onTap: () => turn(-1) }, svgIcon("back", 18)), { disabled: center <= 0 }),
-        h("button", { class: "fan-round small", type: "button", "aria-label": "Sayfa ekle", onTap: () => openAddPageSheet(notebookId, center + 1, (id) => { center = pages().findIndex((p) => p.id === id); render(); }) }, svgIcon("plus", 18)),
-        Object.assign(h("button", { class: "fan-round small", type: "button", "aria-label": "Sonraki sayfa", onTap: () => turn(1) }, svgIcon("forward", 18)), { disabled: center + 2 >= list.length })),
-      h("div", { class: "fan-count" }, `${center + 1}${list[center + 1] ? "-" + (center + 2) : ""} / ${list.length}`)
+        Object.assign(h("button", { class: "fan-round small", type: "button", "aria-label": "Önceki sayfa", onTap: () => turn(-1) }, svgIcon("back", 18)), { disabled: spread <= 0 }),
+        h("button", { class: "fan-round small", type: "button", "aria-label": "Sayfa ekle", onTap: () => openAddPageSheet(notebookId, spread * 2 + 2, (id) => { const i = pages().findIndex((p) => p.id === id); spread = Math.floor(Math.max(0, i) / 2); rebuild(); }) }, svgIcon("plus", 18)),
+        Object.assign(h("button", { class: "fan-round small", type: "button", "aria-label": "Sonraki sayfa", onTap: () => turn(1) }, svgIcon("forward", 18)), { disabled: spread + 1 >= total })),
+      h("div", { class: "fan-count" }, `${spread * 2 + 1}${list[spread * 2 + 1] ? "-" + (spread * 2 + 2) : ""} / ${list.length}`)
     );
   }
 
-  /** Açılış: yapraklar kapalı defter gibi cilt hizasında (-90°) başlar, sırayla açılıp yelpazelenir. */
-  function intro() {
-    render(false);
-    const all = [...book.querySelectorAll(".fan-leaf")];
-    for (const leaf of all) { leaf.style.transition = "none"; leaf.style.transform = "rotateY(-90deg)"; }
-    void book.offsetWidth;
-    setTimeout(() => {
-      all.forEach((leaf) => {
-        const index = Number(leaf.dataset.index);
-        const dist = index <= center ? center - index : index - center - 1;
-        leaf.style.transition = `transform 0.8s cubic-bezier(0.25, 0.9, 0.25, 1) ${dist * 45}ms`;
-        leaf.style.transform = `rotateY(${angleFor(index)}deg)`;
-      });
-    }, 40);
+  function makeCoverCard(key) {
+    const el = h("div", { class: "pf-card pf-coverleaf" });
+    const cover = coverElement(store.notebook(notebookId).cover);
+    el.append(cover, h("div", { class: "pf-edge" }));
+    el.dataset.key = key;
+    el.style.width = `${pw}px`;
+    el.style.height = `${ph}px`;
+    book.insertBefore(el, leftHalf);
+    cards.set(key, el);
+    return el;
   }
 
-  /** Sayfanın gerçek küçük resmi: kağıt deseni gerçek oranla, üstüne mürekkep. */
-  function pageFace(page) {
-    const face = h("div", { class: "fan-face-content", style: { aspectRatio: `${page.size.w} / ${page.size.h}` } });
-    const img = h("img", { class: "ink", alt: "", draggable: "false" });
-    face.append(img);
-    const scale = 0.75;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(page.size.w * scale);
-    canvas.height = Math.round(page.size.h * scale);
-    const ctx = canvas.getContext("2d");
-    ctx.scale(scale, scale);
-    const finish = () => { for (const stroke of orderForDrawing(page.strokes)) drawStroke(ctx, stroke); img.src = canvas.toDataURL("image/jpeg", 0.85); };
-    const fallback = () => { paintPaper(ctx, "blank", page.size.w, page.size.h); finish(); };
-    if (page.pdf) {
-      pdfPageImage(page.pdf, 600).then((url) => url ? drawImageURL(ctx, url, 0, 0, page.size.w, page.size.h) : false).then((ok) => { if (!ok) paintPaper(ctx, "blank", page.size.w, page.size.h); finish(); }).catch(fallback);
-    } else if (page.templateAsset) {
-      store.assetURL(page.templateAsset).then((url) => url ? drawImageURL(ctx, url, 0, 0, page.size.w, page.size.h) : false).then((ok) => { if (!ok) paintPaper(ctx, "blank", page.size.w, page.size.h); finish(); }).catch(fallback);
-    } else {
-      paintPaper(ctx, page.paper, page.size.w, page.size.h);
-      finish();
+  function rebuild() {
+    for (const [, el] of cards) el.remove();
+    cards.clear();
+    imgCache.clear();
+    leftHalf.querySelector(".pf-paper").dataset.page = "";
+    rightHalf.querySelector(".pf-paper").dataset.page = "";
+    measure();
+    layout({ animate: false });
+  }
+
+  /** Çevrilen yaprak: cilt ekseninde dönerken dilimlerle bükülür, iki yüzü de gerçek sayfadır. */
+  function makeLeaf(frontPage, backPage, side) {
+    const leaf = h("div", { class: "pf-turn" });
+    leaf.style.width = `${pw}px`;
+    leaf.style.height = `${ph}px`;
+    leaf.style.left = side > 0 ? `${pw}px` : "0px";
+    leaf.style.transformOrigin = side > 0 ? "left center" : "right center";
+    const sw = pw / STRIPS;
+    const strips = [];
+    for (let i = 0; i < STRIPS; i++) {
+      const strip = h("div", { class: "pf-strip" });
+      strip.style.width = `${sw}px`;
+      strip.style.height = `${ph}px`;
+      strip.style.transformOrigin = side > 0 ? "left center" : "right center";
+      if (i === STRIPS - 1) strip.classList.add("pf-strip-end");
+      const front = h("div", { class: "pf-sface" });
+      const back = h("div", { class: "pf-sface pf-sback" });
+      const shade = h("div", { class: "pf-sshade" });
+      const inner = side > 0 ? i * sw : pw - (i + 1) * sw;      // ön yüzde bu dilimin başlangıcı
+      front.style.backgroundSize = `${pw}px ${ph}px`;
+      back.style.backgroundSize = `${pw}px ${ph}px`;
+      front.style.backgroundPosition = `${-inner}px 0`;
+      back.style.backgroundPosition = `${-(pw - inner - sw)}px 0`;
+      strip.append(front, back, shade);
+      leaf.append(strip);
+      strips.push({ strip, shade, front, back });
     }
-    return face;
+    pageImage(frontPage).then((url) => { if (url) for (const s of strips) s.front.style.backgroundImage = `url(${url})`; });
+    pageImage(backPage).then((url) => { if (url) for (const s of strips) s.back.style.backgroundImage = `url(${url})`; });
+    book.append(leaf);
+    return { leaf, strips, sw };
   }
 
-  /** Ciltten menteşeli yaprak: ön yüz ve (aynalanmış) arka yüz aynı sayfa; her açıdan doğru okunur. */
-  function makeLeaf(page) {
-    const leaf = h("div", { class: "fan-leaf", style: { aspectRatio: `${page.size.w} / ${page.size.h}` } });
-    leaf.append(
-      h("div", { class: "fan-face front" }, pageFace(page)),
-      h("div", { class: "fan-face back" }, pageFace(page)),
-      h("div", { class: "fan-num" }));
-    pressable(leaf, { onTap: () => {}, onLong: () => pageMenu(page) });
-    return leaf;
-  }
-
-  /** Bir çift ileri/geri: yaprak cilt üstünden dönerek geçer. Parmak kalkmadan ikinci dönüş olmaz. */
+  /** İleri/geri bir çift sayfa: yaprak ciltten dönerken yelpaze de yeni yuvalarına kayar. */
   function turn(dir) {
-    const now = Date.now();
-    if (now < busyUntil) return;
+    // Hızlı arka arkaya dokunuşlar kaybolmasın: çeviri sürerken gelen istek sıraya girer.
+    if (busy) { queued = Math.max(-2, Math.min(2, queued + dir)); return; }
     const list = pages();
-    const next = center + dir * 2;
-    if (next < 0 || next >= list.length) return;
-    busyUntil = now + TURN_MS + 80;
-    center = next;
-    render();
+    const total = spreadCount();
+    const next = spread + dir;
+    if (next < 0 || next >= total) return;
+    busy = true;
+    const frontPage = dir > 0 ? list[spread * 2 + 1] : list[spread * 2];
+    const backPage = dir > 0 ? list[next * 2] : (list[next * 2 + 1] || list[next * 2]);
+    const { leaf, strips, sw } = makeLeaf(frontPage, backPage, dir);
+    const from = dir > 0 ? -FOLD : FOLD;
+    const to = dir > 0 ? -(180 - FOLD) : (180 - FOLD);
+
+    // çevrilen yüzün arkasındaki yeni sayfa hemen yerini alsın; diğer yüz yaprak inene kadar kalsın
+    if (dir > 0) paintInto(rightHalf, list[next * 2 + 1]);
+    else paintInto(leftHalf, list[next * 2]);
+    spread = next;
+    layout({ animate: true, keepLeftFace: true });
+    if (dir > 0) paintInto(rightHalf, list[next * 2 + 1]);
+
+    const start = performance.now();
+    // Elle savrulan bir yaprak: başta hafif hızlanır, sonuna doğru yavaşlayarak oturur.
+    const ease = (t) => 0.62 * (1 - Math.pow(1 - t, 2.5)) + 0.38 * (0.5 - 0.5 * Math.cos(Math.PI * t));
+    const step = (now) => {
+      const p = Math.min(1, (now - start) / TURN_MS);
+      const e = ease(p);
+      const base = from + (to - from) * e;
+      const bend = BEND * Math.sin(Math.PI * p);
+      const glow = Math.abs(Math.sin(base * Math.PI / 180));   // yaprak dikleştikçe kararır
+      leaf.style.transform = `rotateY(${base}deg)`;
+      let x = 0;
+      let z = 0;
+      const dark = (angle) => Math.min(0.34, Math.abs(Math.sin(angle * Math.PI / 180)) * 0.30 + glow * 0.09);
+      for (let i = 0; i < STRIPS; i++) {
+        const a0 = bend * (i / STRIPS);
+        const a1 = bend * ((i + 1) / STRIPS);
+        const mid = (a0 + a1) / 2;
+        const rad = mid * Math.PI / 180;
+        strips[i].strip.style.transform = `translate3d(${dir > 0 ? x : -x}px, 0, ${z}px) rotateY(${-mid * dir}deg)`;
+        // dilim kenarlarındaki değerlerle köprü kuran degrade: dilim dikişleri görünmez
+        const [ia, ib] = dir > 0 ? [dark(a0), dark(a1)] : [dark(a1), dark(a0)];
+        strips[i].shade.style.background = `linear-gradient(90deg, rgba(12, 14, 34, ${ia.toFixed(3)}), rgba(12, 14, 34, ${ib.toFixed(3)}))`;
+        strips[i].shade.style.opacity = "1";
+        x += sw * Math.cos(rad);
+        z += sw * Math.sin(rad);
+      }
+      // kalkan yaprağın altındaki sayfaya düşen gölge: cilde yakın koyu, dışa doğru açılır
+      const spreadShadow = Math.abs(Math.cos(base * Math.PI / 180));
+      const fade = Math.sin(Math.PI * p);
+      const near = dir > 0 ? rightShade : leftShade;
+      const far = dir > 0 ? leftShade : rightShade;
+      near.style.opacity = String(fade * spreadShadow * 0.5);
+      near.style.backgroundSize = `${18 + 72 * spreadShadow}% 100%`;
+      far.style.opacity = String(e > 0.5 ? fade * (1 - spreadShadow) * 0.45 : 0);
+      far.style.backgroundSize = `${18 + 72 * (1 - spreadShadow)}% 100%`;
+      if (p < 1) requestAnimationFrame(step);
+      else finish();
+    };
+    const finish = () => {
+      if (dir > 0) paintInto(leftHalf, list[next * 2]);
+      else paintInto(rightHalf, list[next * 2 + 1]);
+      leftShade.style.opacity = "0";
+      rightShade.style.opacity = "0";
+      leaf.remove();
+      busy = false;
+      layout({ animate: false });
+      if (queued) { const again = queued > 0 ? 1 : -1; queued -= again; turn(again); }
+    };
+    requestAnimationFrame(step);
   }
 
-  // Kaydırma: sola → sonraki çift, sağa → önceki. Dokunma sahne düzeyinde koordinatla (3B yüzlerde güvenilir).
-  stage.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse" && e.button !== 0) return; dragging = { id: e.pointerId, x: e.clientX, moved: false, done: false }; });
+  /** Açılış: kapalı defter görünür, kapak ciltten açılır, yapraklar sırayla yelpazelenir. */
+  function intro() {
+    measure();
+    layout({ animate: false });
+    const ms = (value) => Math.round(value);
+    // kapalı defter: hafifçe yan dönük durur, sayfa bloğu ve sırtı görünür
+    const closed = h("div", { class: "pf-openbook" });
+    closed.style.width = `${pw}px`;
+    closed.style.height = `${ph}px`;
+    closed.style.left = `${pw}px`;
+    closed.style.transform = "rotateY(-18deg)";
+    closed.append(coverElement(store.notebook(notebookId).cover));
+    book.append(closed);
+    // kapalıyken defter ekranın ortasında durur, açılırken cilt ortaya kayar
+    book.style.transition = "none";
+    book.style.transform = `translateX(${-pw / 2}px) scale(0.9)`;
+    for (const [, el] of cards) { el.style.transition = "none"; el.style.transform = "translate3d(0,0,0)"; el.style.opacity = "0"; }
+    leftHalf.style.opacity = "0";
+    rightHalf.style.opacity = "0";
+    requestAnimationFrame(() => {
+      book.style.transition = `transform ${ms(ZOOM_MS)}ms cubic-bezier(0.2, 0.85, 0.3, 1)`;
+      book.style.transform = `translateX(${-pw / 2}px) scale(1)`;
+      setTimeout(() => {
+        // kapak menteşeden açılır; kapak açılırken yapraklar da sırayla yelpazeye yayılır
+        closed.classList.add("pf-openbook-open");
+        closed.style.transition = `transform ${ms(COVER_MS)}ms cubic-bezier(0.34, 0.86, 0.28, 1)`;
+        // kapak tam açılıp sol yaprak yuvasına yatar: oradaki kapak yaprağıyla birebir örtüşür
+        closed.style.transform = `translate3d(${-SHIFT[1] * pw}px, 0, ${-DEPTH[1] * pw}px) rotateY(-180deg)`;
+        book.style.transition = `transform ${ms(COVER_MS)}ms cubic-bezier(0.34, 0.86, 0.28, 1)`;
+        book.style.transform = "translateX(0px) scale(1)";
+        rightHalf.style.opacity = "1";     // sağ sayfa kapağın altından çıkar
+        for (const [, el] of cards) {
+          const slot = Number(el.dataset.slot) || 1;
+          // soldaki yapraklar kapak yerine oturduktan sonra görünür
+          const delay = el.dataset.side === "l" ? ms(COVER_MS) : ms(60 + slot * 52);
+          el.style.transition = `transform ${ms(FAN_MS)}ms cubic-bezier(0.2, 0.85, 0.28, 1) ${delay}ms, opacity ${ms(320)}ms linear ${delay}ms`;
+          placeCardKeep(el);
+        }
+        // kapak sol tarafa geçerken altından ilk sayfa çıkar
+        setTimeout(() => {
+          leftHalf.style.transition = `opacity ${ms(180)}ms linear`;
+          leftHalf.style.opacity = "1";
+        }, ms(COVER_MS * 0.5));
+        setTimeout(() => {
+          closed.remove();
+          book.style.transition = "";
+          book.style.transform = "";
+          leftHalf.style.transition = "";
+          layout({ animate: false });
+        }, ms(COVER_MS + 40));
+      }, ms(OPEN_DELAY));
+    });
+  }
+
+  function placeCardKeep(el) {
+    const slot = Number(el.dataset.slot) || 1;
+    const side = el.dataset.side === "l" ? -1 : 1;
+    const j = Math.min(slot, SHIFT.length - 1);
+    el.style.transform = `translate3d(${SHIFT[j] * pw * side}px, 0, ${-DEPTH[j] * pw}px)`;
+    el.style.opacity = slot > vis ? "0" : "1";
+  }
+
+  // Dokunma ve kaydırma: 3B yüzlerde güvenilir olsun diye koordinatla.
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, done: false, time: Date.now() };
+    drag.timer = setTimeout(() => { if (drag && !drag.moved) { drag.done = true; pageMenu(pageAt(drag.x)); } }, 600);
+  });
   stage.addEventListener("pointermove", (e) => {
-    if (!dragging || dragging.done || e.pointerId !== dragging.id) return;
-    const dx = e.clientX - dragging.x;
-    if (Math.abs(dx) > 14) dragging.moved = true;
-    if (dx < -70) { dragging.done = true; turn(1); }
-    else if (dx > 70) { dragging.done = true; turn(-1); }
+    if (!drag || drag.done || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (Math.abs(dx) > 12 || Math.abs(e.clientY - drag.y) > 12) { drag.moved = true; clearTimeout(drag.timer); }
+    if (dx < -60) { drag.done = true; turn(1); }
+    else if (dx > 60) { drag.done = true; turn(-1); }
   });
   const endDrag = (e) => {
-    if (!dragging || e.pointerId !== dragging.id) return;
-    const wasTap = !dragging.moved && e.type === "pointerup";
-    setTimeout(() => { dragging = null; }, 0);
-    if (!wasTap || Date.now() < busyUntil) return;
+    if (!drag || e.pointerId !== drag.id) return;
+    clearTimeout(drag.timer);
+    const tap = !drag.moved && !drag.done && e.type === "pointerup";
+    const at = drag.x;
+    drag = null;
+    if (!tap || busy) return;
     if (e.target && e.target.closest && e.target.closest("button")) return;
-    const br = book.getBoundingClientRect();
-    const H = book.clientHeight || 400;
-    const list = pages();
-    const cur = list[center] || list[0];
-    const w = H * cur.size.w / cur.size.h;
-    const dx = e.clientX - br.left;   // cilt x = br.left (kök genişliği 0)
-    if (e.clientY < br.top - 20 || e.clientY > br.bottom + 20) return;
-    if (Math.abs(dx) <= w * 1.02) {
-      const target = dx < 0 ? list[center] : (list[center + 1] || list[center]);
-      if (target) navigate(`#/n/${notebookId}/p/${target.id}`);
-    } else if (Math.abs(dx) <= w * 2.2) {
+    const rect = book.getBoundingClientRect();
+    if (e.clientY < rect.top - 24 || e.clientY > rect.bottom + 24) return;
+    const dx = at - (rect.left + rect.right) / 2;
+    if (Math.abs(dx) <= pw * 0.92) {
+      const page = pageAt(at);
+      if (page) navigate(`#/n/${notebookId}/p/${page.id}`);
+    } else if (Math.abs(dx) <= pw * 2.4) {
       turn(dx < 0 ? -1 : 1);
     }
   };
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
 
+  function pageAt(clientX) {
+    const rect = book.getBoundingClientRect();
+    const dx = clientX - (rect.left + rect.right) / 2;
+    const list = pages();
+    return dx < 0 ? list[spread * 2] : (list[spread * 2 + 1] || list[spread * 2]);
+  }
+
   function pageMenu(page) {
     if (!page) return;
     const list = pages();
     const index = list.findIndex((p) => p.id === page.id);
-    const rebuild = () => { leaves.clear(); book.replaceChildren(); render(false); };
     actionSheet(`${index + 1}. sayfa`, [
       { title: "Aç", onSelect: () => navigate(`#/n/${notebookId}/p/${page.id}`) },
       { title: "Şablonu Değiştir", onSelect: () => openTemplatePicker((template) => { store.setTemplate(notebookId, page.id, template); rebuild(); }) },
-      { title: "Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) center = list.findIndex((p) => p.id === id); rebuild(); } },
-      { title: "Öne Taşı", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); render(); } },
-      { title: "Arkaya Taşı", disabled: index >= list.length - 1, onSelect: () => { store.movePage(notebookId, page.id, index + 1); render(); } },
+      { title: "Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) spread = Math.floor(pages().findIndex((p) => p.id === id) / 2); rebuild(); } },
+      { title: "Öne Taşı", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); rebuild(); } },
+      { title: "Arkaya Taşı", disabled: index >= list.length - 1, onSelect: () => { store.movePage(notebookId, page.id, index + 1); rebuild(); } },
       { title: "Sil", destructive: true, disabled: list.length <= 1, onSelect: () => confirmDialog("Bu sayfa silinsin mi?", "Sayfa ve üzerindeki yazılar silinir.", "Sayfayı Sil", () => { store.deletePage(notebookId, page.id); rebuild(); }) }
     ]);
   }
 
-  intro();
-  return { destroy() {} };
+  const onResize = () => { measure(); layout({ animate: false }); };
+  window.addEventListener("resize", onResize);
+  requestAnimationFrame(intro);
+  return { destroy() { window.removeEventListener("resize", onResize); } };
 }

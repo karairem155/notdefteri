@@ -411,11 +411,6 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .folder-sheet { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 
 .fan-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; touch-action: pan-y; overflow: hidden; perspective: 1400px; }
-.fan-card { position: absolute; width: min(40vw, 280px); max-height: 72%; border-radius: 8px; overflow: hidden; background: var(--paper); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35); transform-origin: center center; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s; cursor: pointer; transform-style: preserve-3d; }
-.fan-card > .page-bg, .fan-card > img.ink { position: absolute; inset: 0; width: 100%; height: 100%; }
-.fan-card > img.ink { object-fit: contain; }
-.fan-card.current { box-shadow: 0 22px 44px rgba(0, 0, 0, 0.45); outline: 3px solid rgba(255, 255, 255, 0.9); }
-.fan-num { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); background: rgba(30, 30, 40, 0.7); color: #fff; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
 
 /* Yazı nesneleri */
 .placed.text { display: flex; align-items: flex-start; }
@@ -469,8 +464,6 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .carousel-item .cover-sheen { background: linear-gradient(105deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.05) 30%, transparent 55%, rgba(0, 0, 0, 0.12)); }
 
 /* 3B derinlik: sayfa yelpazesi kartları */
-.fan-card { box-shadow: 0 24px 50px rgba(0, 0, 0, 0.5), 0 4px 10px rgba(0, 0, 0, 0.3); }
-.fan-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, 0.12), transparent 12%, transparent 88%, rgba(0, 0, 0, 0.12)); }
 
 /* Bant: kodla çizilen yarı saydam şerit, yırtık uçlar, desenler */
 .placed.tape, .tape-preview { --tape-clip: polygon(0 6%, 1.5% 0, 3% 8%, 4.5% 0, 6% 6%, 100% 0, 98.5% 8%, 97% 0, 95.5% 7%, 94% 0, 100% 100%, 98.5% 92%, 97% 100%, 95.5% 93%, 94% 100%, 6% 100%, 4.5% 92%, 3% 100%, 1.5% 94%, 0 100%); }
@@ -505,17 +498,10 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 /* Sayfa yelpazesi: kavisli, derin perspektif, yere düşen gölgeler */
 .fan-stage { perspective: 1000px; perspective-origin: 50% 30%; }
 .fan-stage::before { content: ""; position: absolute; left: 10%; right: 10%; bottom: 4%; height: 30%; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%); pointer-events: none; }
-.fan-card { width: min(30vw, 250px); max-height: 62%; border-radius: 10px; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s; }
-.fan-card.current { outline: none; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 6px 14px rgba(0, 0, 0, 0.35); }
-.fan-cast { position: absolute; width: min(30vw, 250px); max-height: 62%; background: rgba(4, 6, 18, 0.6); filter: blur(10px); transform-origin: top center; pointer-events: none; border-radius: 10px; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.3, 1); }
 
 /* Deste yelpazesi (Paper): küçük sayfalar, aşağıdaki eksen etrafında açılır, yere gölge düşer */
 .fan-stage { perspective: 1300px; perspective-origin: 50% 40%; align-items: flex-start; padding-top: 6%; }
 .fan-stage::before { display: none; }
-.fan-card, .fan-cast { width: auto; height: min(44%, 320px); max-height: none; transform-origin: 50% 330%; }
-.fan-card { box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.3); }
-.fan-card.current { box-shadow: 0 26px 56px rgba(0, 0, 0, 0.55), 0 4px 10px rgba(0, 0, 0, 0.35); }
-.fan-cast { background: linear-gradient(180deg, rgba(4, 6, 18, 0.55), rgba(4, 6, 18, 0.15)); filter: blur(9px); }
 
 /* ===================== Tasarım: lacivert defter, yüzen araç çubuğu, sol paneller ===================== */
 :root { --desk: #1f2a4c; --desk-bar: #1f2a4c; --pink: #f27ab0; --pink-soft: rgba(242, 122, 176, 0.22); --panel-bg: #172040; --toolbar-bg: rgba(18, 25, 50, 0.94); }
@@ -848,22 +834,8 @@ body { background: var(--desk); color: #fff; }
 .fan-head .sub { color: rgba(255, 255, 255, 0.78); font-size: 16px; margin-top: 6px; }
 .screen-fan .fan-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; perspective: 1700px; perspective-origin: 50% 42%; overflow: visible; touch-action: pan-y; padding: 0; }
 .screen-fan .fan-stage::before { display: none; }
-.fan-floor { position: absolute; left: 18%; right: 18%; bottom: 8%; height: 24%; background: radial-gradient(ellipse at center, rgba(0, 0, 30, 0.6), transparent 70%); filter: blur(16px); pointer-events: none; }
-.fan-bookroot { position: relative; width: 0; height: min(46vh, 440px); transform-style: preserve-3d; }
-.fan-bookroot::before { content: ""; position: absolute; left: -4px; top: -6px; bottom: -6px; width: 8px; border-radius: 4px; background: linear-gradient(180deg, #d9c9a8, #b9a37e); box-shadow: 0 0 10px rgba(0, 0, 0, 0.35); transform: translateZ(-2px); }
-.fan-leaf { position: absolute; left: 0; top: 0; height: 100%; width: auto; transform-origin: left center; transform-style: preserve-3d; cursor: pointer; will-change: transform; }
-.fan-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 0 12px 12px 0; overflow: hidden; background: #f7f7fb; box-shadow: 0 14px 30px rgba(30, 30, 90, 0.35), inset 6px 0 14px -8px rgba(0, 0, 0, 0.35); }
-.fan-face.back { transform: rotateY(180deg); border-radius: 12px 0 0 12px; box-shadow: 0 14px 30px rgba(30, 30, 90, 0.35), inset -6px 0 14px -8px rgba(0, 0, 0, 0.35); }
-.fan-face-content { position: relative; height: 100%; width: auto; }
-.fan-face-content > .page-bg, .fan-face-content > img.ink { position: absolute; inset: 0; width: 100%; height: 100%; }
-.fan-face-content > img.ink { object-fit: contain; }
-.fan-leaf:not(.flat) .fan-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(30, 40, 90, 0.35), rgba(255, 255, 255, 0) 55%); pointer-events: none; }
-.fan-leaf.flat .fan-face { box-shadow: 0 22px 44px rgba(30, 30, 90, 0.4); }
-.fan-num { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); background: rgba(40, 40, 90, 0.55); color: #fff; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; pointer-events: none; }
-.fan-leaf:not(.flat) .fan-num { display: none; }
 .fan-foot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 0 calc(var(--safe-bottom) + 30px); z-index: 2; }
 .fan-count { color: rgba(255, 255, 255, 0.85); font-size: 15px; font-variant-numeric: tabular-nums; }
-.fan-card, .fan-cast, .fan-tagline, .fan-side, .fan-book { display: none; }
 
 /* Favoriler altta: araç çubuğunun üstünde cam hap */
 .bench .palette-pill { display: inline-flex; align-items: center; padding: 8px 22px; border-radius: 999px; background: var(--glass); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); border: 1px solid var(--glass-border); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
@@ -1037,50 +1009,70 @@ body { background: var(--desk); color: #fff; }
 
 /* Yelpaze: geniş açıyla görünen yapraklar, daha büyük kitap */
 .screen-fan .fan-stage { perspective: 950px; perspective-origin: 50% 40%; }
-.fan-bookroot { height: min(50vh, 500px); }
-.fan-leaf:not(.flat) .fan-face::after { background: linear-gradient(90deg, rgba(30, 40, 90, 0.22), rgba(255, 255, 255, 0) 60%); }
 
 .cover-hit { position: absolute; inset: -6px -10px -6px -6px; transform: translateZ(calc(var(--t) + 2px)); background: transparent; }
-.fan-leaf { pointer-events: none; }
-.fan-leaf.flat { pointer-events: auto; }
 
 .screen-fan .fan-stage { perspective: 760px; perspective-origin: 50% 42%; }
-.fan-bookroot { height: min(44vh, 440px); }
 
 /* Yelpaze: yatay deste (Paper) */
 .screen-fan .fan-stage { perspective: 1400px; perspective-origin: 50% 50%; }
-.fan-bookroot { transform-style: flat; height: min(46vh, 460px); }
-.fan-leaf { transform-style: flat; backface-visibility: visible; }
-.fan-face.front { border-radius: 10px; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25); }
-.fan-leaf.flat .fan-face { box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.3); }
-.fan-leaf.flat[data-index] .fan-face { border-radius: 10px; }
-.fan-leaf:not(.flat) .fan-face::after { background: linear-gradient(90deg, rgba(20, 28, 70, 0.28), rgba(20, 28, 70, 0.05) 30%, rgba(255, 255, 255, 0)); }
-.fan-face.back { display: none; }
-.fan-bookroot::before { display: none; }
 
 /* Yelpaze (Paper): çift sayfa V, cilt gölgesi, deste şeritleri */
 .screen-fan .fan-stage { perspective: 1600px; perspective-origin: 50% 45%; }
-.fan-leaf.flat .fan-face::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
-.fan-leaf.flat[style*="right center"] .fan-face::after { background: linear-gradient(270deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0) 14%); }
-.fan-leaf.flat[style*="left center"] .fan-face::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0) 14%); }
-.fan-leaf:not(.flat) .fan-face::after { background: linear-gradient(90deg, rgba(20, 28, 70, 0.18), rgba(255, 255, 255, 0)); }
-.fan-face.front { border-radius: 8px; }
 
-.fan-leaf { transform-origin: center center; }
-.fan-leaf.flat[style*="right center"] .fan-face::after, .fan-leaf.flat[style*="left center"] .fan-face::after { background: none; }
-.fan-leaf.flat .fan-face::after { background: none; }
 
 /* ===== Ciltli kitap yelpazesi (son) ===== */
 .screen-fan .fan-stage { perspective: 1500px; perspective-origin: 50% 46%; }
-.fan-bookroot { position: relative; width: 0; height: min(46vh, 460px); transform-style: preserve-3d; }
-.fan-bookroot::before { content: ""; display: block; position: absolute; left: -3px; top: -4px; bottom: -4px; width: 6px; border-radius: 3px; background: linear-gradient(180deg, #d9c9a8, #b9a37e); box-shadow: 0 0 8px rgba(0, 0, 0, 0.4); transform: translateZ(-1px); }
-.fan-leaf { position: absolute; left: 0; top: 0; height: 100%; width: auto; transform-origin: left center !important; transform-style: preserve-3d; will-change: transform; cursor: pointer; pointer-events: none; }
-.fan-leaf.flat { pointer-events: auto; }
-.fan-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; background: #f7f7fb; border-radius: 0 10px 10px 0; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), inset 8px 0 16px -10px rgba(0, 0, 0, 0.35); display: block; }
-.fan-face.back { display: block; transform: rotateY(180deg); border-radius: 10px 0 0 10px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), inset -8px 0 16px -10px rgba(0, 0, 0, 0.35); }
-.fan-face-content { position: relative; height: 100%; width: auto; }
-.fan-leaf .fan-face::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(20, 28, 70, 0.12), rgba(255, 255, 255, 0) 45%); }
-.fan-leaf.flat .fan-face::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0) 12%); }
-.fan-leaf.flat .fan-face.back::after { background: linear-gradient(270deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0) 12%); }
-.fan-leaf.flat .fan-face { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.3); }
-.fan-leaf:not(.flat) .fan-num { display: none; }
+
+/* ===== Paper tarzı açık kitap: ortada kıvrımlı çift sayfa, iki yanda cilt bloğu ===== */
+.screen-fan .pf-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; overflow: visible; touch-action: pan-y; perspective-origin: 50% 50%; padding: 0; }
+.screen-fan .pf-stage::before { display: none; }
+.pf-floor { position: absolute; left: 50%; top: 50%; transform: translateX(-50%); background: radial-gradient(ellipse at center, rgba(2, 4, 20, 0.62), rgba(2, 4, 20, 0) 70%); pointer-events: none; z-index: 0; }
+.pf-book { position: relative; transform-style: preserve-3d; z-index: 1; }
+
+/* açık çift sayfa: iki yarım, cilde göre öne doğru hafif V */
+.pf-half { position: absolute; top: 0; left: 0; background: #fbf8f1; overflow: hidden; backface-visibility: hidden; box-shadow: 0 30px 54px rgba(0, 0, 0, 0.45), 0 6px 14px rgba(0, 0, 0, 0.3); }
+.pf-left { transform-origin: right center; border-radius: 15px 3px 3px 15px; }
+.pf-right { transform-origin: left center; border-radius: 3px 15px 15px 3px; }
+.pf-right.empty { box-shadow: none; background: transparent; }
+.pf-right.empty .pf-paper, .pf-right.empty .pf-gutter { display: none; }
+.pf-paper { position: absolute; inset: 0; background-color: #fbf8f1; background-size: 100% 100%; background-repeat: no-repeat; }
+.pf-gutter { position: absolute; inset: 0; pointer-events: none; }
+.pf-left .pf-gutter { background: linear-gradient(270deg, rgba(24, 18, 8, 0.26), rgba(24, 18, 8, 0.05) 9%, rgba(255, 255, 255, 0) 20%), linear-gradient(90deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 12%); }
+.pf-right .pf-gutter { background: linear-gradient(90deg, rgba(24, 18, 8, 0.26), rgba(24, 18, 8, 0.05) 9%, rgba(255, 255, 255, 0) 20%), linear-gradient(270deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 12%); }
+.pf-shade-half { position: absolute; inset: 0; opacity: 0; pointer-events: none; background-repeat: no-repeat; }
+.pf-left .pf-shade-half { background-image: linear-gradient(270deg, rgba(6, 8, 26, 0.95), rgba(6, 8, 26, 0.35) 45%, rgba(6, 8, 26, 0)); background-position: right center; }
+.pf-right .pf-shade-half { background-image: linear-gradient(90deg, rgba(6, 8, 26, 0.95), rgba(6, 8, 26, 0.35) 45%, rgba(6, 8, 26, 0)); background-position: left center; }
+
+/* arkadaki yapraklar: dışa doğru azalan adımlarla, derinlikte */
+.pf-card { position: absolute; top: 0; background: #f6f2e9; overflow: hidden; backface-visibility: hidden; box-shadow: 0 14px 26px rgba(0, 0, 0, 0.32); will-change: transform; }
+.pf-card[data-side="l"] { border-radius: 13px 2px 2px 13px; }
+.pf-card[data-side="r"] { border-radius: 2px 13px 13px 2px; }
+.pf-card .pf-paper { background-color: #f6f2e9; }
+.pf-edge { position: absolute; inset: 0; pointer-events: none; }
+.pf-card[data-side="r"] .pf-edge { background: linear-gradient(90deg, rgba(8, 10, 34, 0.5), rgba(8, 10, 34, 0.16) 26%, rgba(8, 10, 34, 0.06) 70%, rgba(255, 255, 255, 0.28)); }
+.pf-card[data-side="l"] .pf-edge { background: linear-gradient(270deg, rgba(8, 10, 34, 0.5), rgba(8, 10, 34, 0.16) 26%, rgba(8, 10, 34, 0.06) 70%, rgba(255, 255, 255, 0.28)); }
+.pf-hidden { opacity: 0 !important; }
+
+/* kapak yaprakları */
+.pf-coverleaf { background: transparent; box-shadow: 0 16px 30px rgba(0, 0, 0, 0.4); }
+.pf-coverleaf .cover { transform: none !important; }
+.pf-coverleaf .book-pages, .pf-coverleaf .book-top, .pf-coverleaf .book-bottom, .pf-coverleaf .book-spine, .pf-coverleaf .cover-front { display: none; }
+.pf-coverleaf .cover-back { border-radius: inherit; box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.25); }
+
+/* çevrilen yaprak: cilt ekseninde döner, dilimlerle bükülür */
+.pf-turn { position: absolute; top: 0; transform-style: preserve-3d; z-index: 9; will-change: transform; pointer-events: none; }
+.pf-strip { position: absolute; top: 0; left: 0; transform-style: preserve-3d; will-change: transform; }
+.pf-turn-l .pf-strip { left: auto; right: 0; }
+.pf-sface { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background-color: #fbf8f1; background-repeat: no-repeat; }
+.pf-sback { transform: rotateY(180deg); }
+.pf-sshade { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.pf-turn-r .pf-strip-end { border-radius: 0 15px 15px 0; overflow: hidden; }
+.pf-turn-l .pf-strip-end { border-radius: 15px 0 0 15px; overflow: hidden; }
+.pf-turn-r .pf-strip-end .pf-sback { border-radius: 15px 0 0 15px; }
+
+/* açılış: kapalı defter ciltten açılır */
+.pf-openbook { position: absolute; top: 0; transform-origin: left center; transform-style: preserve-3d; z-index: 10; }
+.pf-openbook .cover { transform: none !important; --t: 30px; }
+.pf-openbook .cover-front { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset -10px 0 18px -10px rgba(0, 0, 0, 0.3), 0 30px 50px rgba(0, 0, 0, 0.45); }
+.pf-openbook-open .book-pages, .pf-openbook-open .book-top, .pf-openbook-open .book-bottom { opacity: 0; transition: opacity 180ms linear; }

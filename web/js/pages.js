@@ -1,9 +1,8 @@
 // Sayfalar ekranı (12-Sayfalar.png): bütün sayfalar ızgarada, sürükle-sırala,
 // uzun bas: şablonu değiştir / çoğalt / sil, dokununca o sayfaya git.
+import { renderPageCanvas } from "./pagerender.js";
 import { store } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog } from "./ui.js";
-import { renderBackground } from "./paper.js";
-import { renderStrokesToDataURL } from "./ink.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
@@ -45,11 +44,12 @@ export function renderPages(root, notebookId) {
 
   function cell(page, index) {
     const thumb = h("div", { class: "thumb", style: { aspectRatio: `${page.size.w} / ${page.size.h}` } });
-    const bg = h("div", { class: "page-bg" });
-    renderBackground(bg, page, { thumbnail: true });
+    // Önizleme sayfanın gerçeği: kağıt + nesneler + mürekkep aynı çizimle üretilir.
     const ink = h("img", { class: "ink", alt: "", draggable: "false" });
-    if (page.strokes.length) ink.src = renderStrokesToDataURL(page, 400);
-    thumb.append(bg, ink);
+    renderPageCanvas(page, Math.min(1, 460 / page.size.w), { background: true, opaque: true })
+      .then((canvas) => { ink.src = canvas.toDataURL("image/jpeg", 0.85); })
+      .catch(() => {});
+    thumb.append(ink);
     const el = h("div", { class: "page-cell" + (page.id === selectedId ? " selected" : ""), dataset: { index: String(index) }, role: "button", tabindex: "0", "aria-label": `${index + 1}. sayfa` },
       thumb, h("div", { class: "num" }, String(index + 1)));
 
