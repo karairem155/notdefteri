@@ -1116,3 +1116,5 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .pf-openbook { z-index: 50; }
 .pf-card { transform-origin: left center; }
 .pf-card[data-side="l"] { transform-origin: right center; }
+.pf-turn-flat { overflow: hidden; border-radius: 15px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); }
+.pf-flatface { position: absolute; inset: 0; background-repeat: no-repeat; background-color: #fbf8f1; transform-origin: center center; }

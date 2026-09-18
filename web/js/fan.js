@@ -20,6 +20,8 @@ const SCALE = DEPTH.map((depth) => PERSP / (PERSP + depth));
 const FOLD_X = Math.cos(FOLD * Math.PI / 180) * (PERSP / (PERSP - Math.sin(FOLD * Math.PI / 180)));
 // Yaprak dış kenarının cilde uzaklığı (sayfa genişliği cinsinden): yelpazenin ekrana sığması için
 const SPAN = SHIFT.map((shift, i) => (1 + shift) * SCALE[i]);
+// Düz düzlemde çevrilen yaprağın ölçeği: uçlarda açık sayfanın genişliğine oturur.
+const FLAT_FIT = FOLD_X / Math.cos(FOLD * Math.PI / 180);
 const TURN_MS = 560;                                     // sayfa çevirme süresi
 const STRIPS = 8;                                        // çevrilen yaprağın bükülme dilimleri
 const BEND = 21;                                         // bükülme genliği (derece)
@@ -230,15 +232,28 @@ export function renderFan(root, notebookId) {
     layout({ animate: false });
   }
 
-  /** Çevrilen yaprak: cilt ekseninde dönerken dilimlerle bükülür, iki yüzü de gerçek sayfadır. */
+  /** Çevrilen yaprak: cilt ekseninde döner. 3B varsa dilimlerle bükülür, yoksa tek yüzle çevrilir. */
   function makeLeaf(frontPage, backPage, side) {
+    const flat = !supports3d();
     // Yön sınıfı şart: sola dönen yaprağın dilimleri cilt kenarından (sağdan) dizilir.
-    const leaf = h("div", { class: "pf-turn " + (side > 0 ? "pf-turn-r" : "pf-turn-l") });
+    const leaf = h("div", { class: "pf-turn " + (side > 0 ? "pf-turn-r" : "pf-turn-l") + (flat ? " pf-turn-flat" : "") });
     leaf.style.width = `${pw}px`;
     leaf.style.height = `${ph}px`;
     leaf.style.left = side > 0 ? `${pw}px` : "0px";
     leaf.style.transformOrigin = side > 0 ? "left center" : "right center";
-    const count = supports3d() ? STRIPS : 1;
+    if (flat) {
+      // Düz düzlemde arka yüz gizlenmez; tek yüz kullanıp 90 dereceden sonra görseli değiştiririz.
+      const face = h("div", { class: "pf-sface pf-flatface" });
+      const shade = h("div", { class: "pf-sshade" });
+      face.style.backgroundSize = `${pw}px ${ph}px`;
+      leaf.append(face, shade);
+      book.append(leaf);
+      const flatFace = { el: face, shade, front: null, back: null, showingBack: null };
+      pageImage(frontPage).then((url) => { flatFace.front = url; if (url && flatFace.showingBack !== true) face.style.backgroundImage = `url(${url})`; });
+      pageImage(backPage).then((url) => { flatFace.back = url; });
+      return { leaf, strips: [], sw: pw, flatFace };
+    }
+    const count = STRIPS;
     const sw = pw / count;
     const strips = [];
     for (let i = 0; i < count; i++) {
@@ -262,7 +277,7 @@ export function renderFan(root, notebookId) {
     pageImage(frontPage).then((url) => { if (url) for (const s of strips) s.front.style.backgroundImage = `url(${url})`; });
     pageImage(backPage).then((url) => { if (url) for (const s of strips) s.back.style.backgroundImage = `url(${url})`; });
     book.append(leaf);
-    return { leaf, strips, sw };
+    return { leaf, strips, sw, flatFace: null };
   }
 
   /** İleri/geri bir çift sayfa: yaprak ciltten dönerken yelpaze de yeni yuvalarına kayar. */
@@ -276,7 +291,7 @@ export function renderFan(root, notebookId) {
     busy = true;
     const frontPage = dir > 0 ? list[spread * 2 + 1] : list[spread * 2];
     const backPage = dir > 0 ? list[next * 2] : (list[next * 2 + 1] || list[next * 2]);
-    const { leaf, strips, sw } = makeLeaf(frontPage, backPage, dir);
+    const { leaf, strips, sw, flatFace } = makeLeaf(frontPage, backPage, dir);
     const from = dir > 0 ? -FOLD : FOLD;
     const to = dir > 0 ? -(180 - FOLD) : (180 - FOLD);
 
@@ -296,10 +311,31 @@ export function renderFan(root, notebookId) {
       const base = from + (to - from) * e;
       const bend = BEND * Math.sin(Math.PI * p);
       const glow = Math.abs(Math.sin(base * Math.PI / 180));   // yaprak dikleştikçe kararır
-      leaf.style.transform = `rotateY(${base}deg)`;
+      if (flatFace) {
+        // 3B yok: dönüşün ekrandaki karşılığı yatay daralmadır; yarıyı geçince arka yüze geçilir.
+        const cos = Math.cos(base * Math.PI / 180);
+        const showBack = cos < 0;
+        if (flatFace.showingBack !== showBack) {
+          flatFace.showingBack = showBack;
+          const url = showBack ? flatFace.back : flatFace.front;
+          if (url) flatFace.el.style.backgroundImage = `url(${url})`;
+          flatFace.el.style.transform = showBack ? "scaleX(-1)" : "none";
+        }
+        // Uçlarda açık sayfanın kıvrımıyla birebir örtüşsün diye ölçeklenir.
+        leaf.style.transform = `scaleX(${(cos * FLAT_FIT).toFixed(4)})`;
+        // Gölge cilde yakın koyu, dış kenara doğru açılır; yaprak dikleşince biraz daha kararır.
+        const koyu = (0.04 + glow * 0.16).toFixed(3);
+        const acik = (0.02 + glow * 0.06).toFixed(3);
+        const yon = (dir > 0) === !showBack ? "90deg" : "270deg";
+        flatFace.shade.style.background = `linear-gradient(${yon}, rgba(12, 14, 34, ${koyu}), rgba(12, 14, 34, ${acik}))`;
+        flatFace.shade.style.opacity = "1";
+      } else {
+        leaf.style.transform = `rotateY(${base}deg)`;
+      }
       let x = 0;
       let z = 0;
       const dark = (angle) => Math.min(0.34, Math.abs(Math.sin(angle * Math.PI / 180)) * 0.30 + glow * 0.09);
+      void dark;
       for (let i = 0; i < strips.length; i++) {
         const a0 = bend * (i / strips.length);
         const a1 = bend * ((i + 1) / strips.length);
