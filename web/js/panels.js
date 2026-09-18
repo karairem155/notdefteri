@@ -501,3 +501,35 @@ export function textPanel(ctx) {
       navRow("lassoRect", "Onay Kutusu", () => ctx.addCheckBox(), "El yazısının yanına"),
       navRow("translate", "Çeviri", () => ctx.openTranslate(), "Yaz ya da seç, çevir")));
 }
+
+
+/** Sayfa rengi: hazır tonlar, özel renk ve "bütün sayfalara uygula". */
+export function pageColorPanel(ctx) {
+  const PRESETS = [
+    ["#F2F0E6", "Krem"], ["#FFFFFF", "Beyaz"], ["#FBF6E9", "Sıcak"], ["#F6EFE0", "Kraft"],
+    ["#EFF4EC", "Nane"], ["#EAF1FA", "Gökyüzü"], ["#F3EEF9", "Lavanta"], ["#FBEEF1", "Gül"],
+    ["#E9E7E0", "Gri"], ["#2A2C34", "Gece"]
+  ];
+  let all = false;
+  const body = h("div");
+  const build = () => {
+    const current = (ctx.pageColor() || "#F2F0E6").toUpperCase();
+    const cell = (hex, name) => {
+      const active = hex.toUpperCase() === current;
+      return h("button", { type: "button", class: "pc-cell" + (active ? " active" : ""), "aria-label": name, onTap: () => { ctx.setPageColor(hex, all); build(); } },
+        h("span", { class: "pc-chip", style: { background: hex } }), h("span", { class: "pc-name" }, name));
+    };
+    const toggle = h("button", { class: "toggle pink" + (all ? " on" : ""), type: "button", role: "switch", "aria-checked": String(all),
+      onTap: () => { all = !all; toggle.classList.toggle("on", all); toggle.setAttribute("aria-checked", String(all)); } });
+    body.replaceChildren(
+      h("p", { class: "sp-desc" }, "Sayfanın kağıt rengini seç. Çizgi ve kareler renge göre uyum sağlar."),
+      h("div", { class: "sp-section" }, "Hazır tonlar"),
+      h("div", { class: "pc-grid" }, ...PRESETS.map(([hex, name]) => cell(hex, name))),
+      h("div", { class: "sp-toggle-row" }, h("div", { class: "sp-row-text" }, h("div", { class: "sp-row-title" }, "Bütün sayfalara uygula"), h("div", { class: "sp-row-sub" }, "Defterdeki her sayfa bu renge geçer")), toggle),
+      h("button", { class: "sp-outline-btn", type: "button", onTap: () => ctx.openCustom(all) }, svgIcon("pen", 18), "Özel renk seç"),
+      h("button", { class: "sp-outline-btn", type: "button", onTap: () => { ctx.setPageColor(null, all); build(); } }, svgIcon("undoTool", 18), "Varsayılana dön")
+    );
+  };
+  build();
+  return shell({ title: "Sayfa Rengi", icon: "page" }, ctx.close, body);
+}

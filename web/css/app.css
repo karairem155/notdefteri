@@ -1076,3 +1076,27 @@ body { background: var(--desk); color: #fff; }
 .pf-openbook .cover { transform: none !important; --t: 30px; }
 .pf-openbook .cover-front { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset -10px 0 18px -10px rgba(0, 0, 0, 0.3), 0 30px 50px rgba(0, 0, 0, 0.45); }
 .pf-openbook-open .book-pages, .pf-openbook-open .book-top, .pf-openbook-open .book-bottom { opacity: 0; transition: opacity 180ms linear; }
+
+/* ===== Dokunma güvenilirliği, favori barı, sayfa rengi, gizlenen alt bar ===== */
+button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .sp-card,
+.fav-row, .pop-item, .st-cell, .pc-cell, .sp-radio, .sp-seg button, .toggle, .sheet-item,
+.settings-row, .page-cell, .fan-round, .icon-btn { touch-action: manipulation; }
+
+/* Favoriler barı: kaç tane eklenirse eklensin sığar, taşarsa satır atlar */
+.fav-dock { width: max-content; max-width: min(92vw, 960px); max-height: 34vh; overflow-y: auto; scrollbar-width: none; }
+.fav-dock::-webkit-scrollbar { display: none; }
+.fav-dock[data-side="left"], .fav-dock[data-side="right"] { height: max-content; max-height: 72vh; max-width: 30vw; }
+.fav-strip { flex-wrap: wrap; row-gap: 10px; max-width: 100%; justify-content: center; }
+.fav-dock[data-side="left"] .fav-strip, .fav-dock[data-side="right"] .fav-strip { flex-wrap: wrap; max-height: 70vh; }
+
+/* Sayfa rengi paneli */
+.pc-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 4px; }
+.pc-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; background: transparent; border: 0; padding: 4px 0; cursor: pointer; color: rgba(255, 255, 255, 0.75); font-size: 12px; }
+.pc-chip { width: 46px; height: 46px; border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25), 0 4px 10px rgba(0, 0, 0, 0.3); }
+.pc-cell.active .pc-chip { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgba(0, 0, 0, 0.35); }
+.pc-cell.active { color: #fff; }
+.pc-name { white-space: nowrap; }
+
+/* Gizlenen alt bar: küçük tutamak */
+.bench-peek { margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; width: 84px; height: 34px; border-radius: 999px; border: 1px solid var(--glass-border); background: var(--glass); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); color: rgba(255, 255, 255, 0.85); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); cursor: pointer; }
+.bench-peek:active { transform: scale(0.94); }

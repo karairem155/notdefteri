@@ -131,19 +131,31 @@ export function iconButton(name, label, onClick, extraClass = "") {
  */
 export function tap(el, handler) {
   let start = null;
+  let lastFire = 0;
+  const fire = (e) => { lastFire = Date.now(); handler(e); };
   el.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    start = { x: e.clientX, y: e.clientY, id: e.pointerId, t: Date.now() };
   });
   el.addEventListener("pointerup", (e) => {
     if (!start || e.pointerId !== start.id) return;
-    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 12;
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 14;
     start = null;
     if (moved) return;
     e.preventDefault();
-    handler(e);
+    fire(e);
   });
-  el.addEventListener("pointercancel", () => { start = null; });
+  // Kaydırma jesti dokunuşu iptal edebilir: parmak neredeyse hiç kaymadıysa yine de dokunuş sayılır.
+  el.addEventListener("pointercancel", (e) => {
+    const s = start;
+    start = null;
+    if (!s || e.pointerId !== s.id) return;
+    const dx = (e.clientX == null ? s.x : e.clientX) - s.x;
+    const dy = (e.clientY == null ? s.y : e.clientY) - s.y;
+    if (Math.hypot(dx, dy) <= 7 && Date.now() - s.t < 600) fire(e);
+  });
+  // İşaretçi olayları büsbütün kaybolursa tarayıcının kendi click'i yedektir (tapFallback).
+  el.addEventListener("click", (e) => { if (Date.now() - lastFire > 600) fire(e); });
   el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handler(e); } });
   if (!el.hasAttribute("tabindex") && el.tagName !== "BUTTON" && el.tagName !== "INPUT") el.setAttribute("tabindex", "0");
 }
@@ -170,13 +182,23 @@ export function pressable(el, { onTap, onLong, moveTolerance = 10 }) {
     if (!start) return;
     if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > moveTolerance) cancel();
   });
+  let lastFire = 0;
   el.addEventListener("pointerup", (e) => {
     const wasPressed = !!start;
     const wasLong = longFired;
     cancel();
-    if (wasPressed && !wasLong && onTap) onTap(e);
+    if (wasPressed && !wasLong && onTap) { lastFire = Date.now(); onTap(e); }
   });
-  el.addEventListener("pointercancel", cancel);
+  el.addEventListener("pointercancel", (e) => {
+    const s = start;
+    const wasLong = longFired;
+    cancel();
+    if (!s || wasLong || !onTap) return;
+    const dx = (e.clientX == null ? s.x : e.clientX) - s.x;
+    const dy = (e.clientY == null ? s.y : e.clientY) - s.y;
+    if (Math.hypot(dx, dy) <= 7) { lastFire = Date.now(); onTap(e); }
+  });
+  el.addEventListener("click", (e) => { if (onTap && !longFired && Date.now() - lastFire > 600) { lastFire = Date.now(); onTap(e); } });
   el.addEventListener("contextmenu", (e) => { if (onLong) e.preventDefault(); });
 }
 

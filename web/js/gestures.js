@@ -4,6 +4,9 @@
 
 const FLIP_START = 10;     // px, bu kadar yatay hareketten sonra çevirme başlar
 const DOUBLE_TAP_MS = 320;
+const ZOOM_MIN = 0.4;      // uzaklaştırma sınırı
+const ZOOM_MAX = 6;        // yakınlaştırma sınırı
+const ZOOM_SNAP = 0.03;    // bu kadar yakınsa tam 1 sayılır (sayfa çevirme kilitlenmesin)
 
 export function attachEditorGestures(el, handlers) {
   const pointers = new Map();
@@ -32,8 +35,9 @@ export function attachEditorGestures(el, handlers) {
     }
     if (pointers.size === 1) {
       const now = Date.now();
-      if (e.pointerType === "touch" && now - lastTap < DOUBLE_TAP_MS && handlers.getZoom() > 1) {
-        handlers.setZoom(1, { x: 0, y: 0 });
+      if (e.pointerType === "touch" && now - lastTap < DOUBLE_TAP_MS) {
+        if (Math.abs(handlers.getZoom() - 1) > 0.02) handlers.setZoom(1, { x: 0, y: 0 });
+        else if (handlers.fillWidthZoom) handlers.setZoom(handlers.fillWidthZoom(), { x: 0, y: 0 });
         lastTap = 0;
         mode = null;
         return;
@@ -51,8 +55,9 @@ export function attachEditorGestures(el, handlers) {
       const [a, b] = [...pointers.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      const zoom = Math.max(1, Math.min(4, pinch.zoom * (dist / Math.max(1, pinch.dist))));
-      const p = zoom > 1 ? { x: pinch.pan.x + (mid.x - pinch.mid.x), y: pinch.pan.y + (mid.y - pinch.mid.y) } : { x: 0, y: 0 };
+      let zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pinch.zoom * (dist / Math.max(1, pinch.dist))));
+      if (Math.abs(zoom - 1) < ZOOM_SNAP) zoom = 1;
+      const p = zoom !== 1 ? { x: pinch.pan.x + (mid.x - pinch.mid.x), y: pinch.pan.y + (mid.y - pinch.mid.y) } : { x: 0, y: 0 };
       handlers.setZoom(zoom, p);
       e.preventDefault();
       return;
@@ -60,7 +65,7 @@ export function attachEditorGestures(el, handlers) {
     if (mode === "pending" && pending && e.pointerId === pending.id) {
       const dx = e.clientX - pending.x;
       const dy = e.clientY - pending.y;
-      if (handlers.getZoom() > 1) {
+      if (Math.abs(handlers.getZoom() - 1) > 0.02) {
         if (Math.hypot(dx, dy) > 4) {
           pan = { start: { x: pending.x, y: pending.y }, base: { ...handlers.getPan() } };
           mode = "pan";

@@ -4,8 +4,19 @@ import { store } from "./store.js";
 export const PAPER_COLOR = "#f2f0e6";
 const INK = "rgba(120,124,135,0.55)";
 
+/** Sayfa rengine göre desen çizgisi: açık kağıtta gri, koyu kağıtta açık. */
+export function pageInk(color) {
+  const hex = (color || PAPER_COLOR).replace("#", "");
+  const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  const luma = (r * 299 + g * 587 + b * 114) / 1000;
+  return luma < 130 ? "rgba(255,255,255,0.28)" : INK;
+}
+
 /** Deseni verilen tuvale çizer (CSS piksel boyutu w×h, dpr ölçekli). */
-export function drawPaper(canvas, paper, w, h) {
+export function drawPaper(canvas, paper, w, h, color) {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
@@ -13,15 +24,16 @@ export function drawPaper(canvas, paper, w, h) {
   canvas.style.height = h + "px";
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  paintPaper(ctx, paper, w, h);
+  paintPaper(ctx, paper, w, h, color);
 }
 
 /** Deseni hazır bir bağlama çizer (anlık görüntü ve önizlemeler için). */
-export function paintPaper(ctx, paper, w, h) {
-  ctx.fillStyle = PAPER_COLOR;
+export function paintPaper(ctx, paper, w, h, color) {
+  const ink = pageInk(color);
+  ctx.fillStyle = color || PAPER_COLOR;
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = INK;
-  ctx.fillStyle = INK;
+  ctx.strokeStyle = ink;
+  ctx.fillStyle = ink;
   ctx.lineWidth = 0.6;
   ctx.beginPath();
   if (paper === "ruled") {
@@ -132,7 +144,7 @@ export async function pdfPageImage(reference, pixelWidth) {
  */
 export async function renderBackground(el, page, { thumbnail = false } = {}) {
   el.replaceChildren();
-  el.style.background = PAPER_COLOR;
+  el.style.background = page.bg || PAPER_COLOR;
   const { w, h } = page.size;
   if (page.pdf) {
     const url = await pdfPageImage(page.pdf, thumbnail ? 300 : 1400);
@@ -150,7 +162,7 @@ export async function renderBackground(el, page, { thumbnail = false } = {}) {
     }
   }
   const canvas = document.createElement("canvas");
-  drawPaper(canvas, page.paper, thumbnail ? w / 4 : w, thumbnail ? h / 4 : h);
+  drawPaper(canvas, page.paper, thumbnail ? w / 4 : w, thumbnail ? h / 4 : h, page.bg);
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   el.append(canvas);

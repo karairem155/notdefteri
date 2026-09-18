@@ -21,7 +21,7 @@ export async function renderPageCanvas(page, scale, opts = {}) {
     const url = await store.assetURL(page.templateAsset);
     if (url) drewBackground = await drawImageURL(ctx, url, 0, 0, w, h);
   }
-  if (!drewBackground) paintPaper(ctx, page.pdf || page.templateAsset ? "blank" : page.paper, w, h);
+  if (!drewBackground) paintPaper(ctx, page.pdf || page.templateAsset ? "blank" : page.paper, w, h, page.bg);
   for (const object of page.objects.slice().sort((a, b) => a.z - b.z)) {
     ctx.save();
     ctx.translate(object.rect.x + object.rect.w / 2, object.rect.y + object.rect.h / 2);

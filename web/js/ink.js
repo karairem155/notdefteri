@@ -13,7 +13,8 @@ import { uid } from "./store.js";
 const HISTORY_LIMIT = 60;
 const SMOOTH_LEVELS = [0, 0.35, 0.55, 0.78];   // Kapalı, Az, Orta, Çok
 const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (px)
-const HOLD_MS = 650;         // şekil düzeltme için sabit tutma süresi
+const HOLD_MS = 600;         // şekil düzeltme için sabit tutma süresi
+const HOLD_TOLERANCE = 9;    // bu kadar ilerlemeyen hareket "duruyor" sayılır (px)
 
 export class InkCanvas {
   /**
@@ -177,7 +178,7 @@ export class InkCanvas {
         touched.add(target);
         continue;
       }
-      if (target.addLivePoint(round([sx + offset, sy, raw[2]]))) { touched.add(target); this.armHold(); }
+      if (target.addLivePoint(round([sx + offset, sy, raw[2]]))) { touched.add(target); this.rearmHoldIfMoved([sx + offset, sy]); }
     }
     for (const t of touched) t.redrawWithLive();
   }
@@ -255,11 +256,19 @@ export class InkCanvas {
 
   // ---- şekil düzeltme (sabit tutunca) ----
 
+  /** Kalem gerçekten ilerlediyse sayacı sıfırlar; el titremesi şekle dönüşmeyi engellemez. */
+  rearmHoldIfMoved(point) {
+    if (!this.holdOrigin) { this.armHold(); return; }
+    if (Math.hypot(point[0] - this.holdOrigin[0], point[1] - this.holdOrigin[1]) > HOLD_TOLERANCE) this.armHold();
+  }
+
   armHold() {
     this.disarmHold();
     if (!(this.options.shapeRecognition && this.options.shapeRecognition())) return;
     if (this.rulerLine || this.textLine) return;
     if (this.liveTarget && this.liveTarget.live && this.liveTarget.live.shape) return;
+    const livePts = this.liveTarget && this.liveTarget.live ? this.liveTarget.live.points : null;
+    this.holdOrigin = livePts && livePts.length ? [livePts[livePts.length - 1][0], livePts[livePts.length - 1][1]] : null;
     this.holdTimer = setTimeout(() => {
       this.holdTimer = null;
       const target = this.liveTarget;
@@ -286,6 +295,7 @@ export class InkCanvas {
 
   disarmHold() {
     if (this.holdTimer) { clearTimeout(this.holdTimer); this.holdTimer = null; }
+    this.holdOrigin = null;
   }
 
   // ---- canlı çizgi (kendi tuvali ya da komşu sayfadan devralınan) ----

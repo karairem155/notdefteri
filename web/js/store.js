@@ -301,6 +301,17 @@ class Store extends EventTarget {
     return true;
   }
 
+  /** Sayfa arka plan rengi; `all` ise defterin bütün sayfalarına uygulanır. */
+  setPageColor(notebookId, pageId, color, all = false) {
+    this.mutate(notebookId, (notebook) => {
+      for (const page of notebook.pages) {
+        if (!all && page.id !== pageId) continue;
+        if (color) page.bg = color;
+        else delete page.bg;
+      }
+    }, true);
+  }
+
   setTemplate(notebookId, pageId, template) {
     this.mutate(notebookId, (notebook) => {
       const page = notebook.pages.find((p) => p.id === pageId);

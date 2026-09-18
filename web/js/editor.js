@@ -9,7 +9,7 @@ import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "
 import { openAddPageSheet, shrinkImage } from "./addpage.js";
 import { createFlip } from "./flip.js";
 import { attachEditorGestures } from "./gestures.js";
-import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel } from "./panels.js";
+import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
 import { navigate } from "./app.js";
 
@@ -343,7 +343,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     ensureNextPage(offset);
     const target = flipTargetId(offset);
     if (!target) return;
-    if (editingObjects || zoom > 1 || flip.active || !flip.run(offset, (committed) => { if (committed) selectPage(target); })) {
+    if (editingObjects || zoomed() || flip.active || !flip.run(offset, (committed) => { if (committed) selectPage(target); })) {
       selectPage(target);
     }
   }
@@ -367,6 +367,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       { title: "Yedekle", onSelect: () => import("./backup.js").then((m) => m.exportBackup()) },
       { title: "Ayarlar", onSelect: () => { flushInk(); navigate("#/settings"); } },
       { title: "Şablonu Değiştir", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t) => { store.setTemplate(notebookId, page.id, t); renderStage(); })) },
+      { title: "Sayfa Rengi", onSelect: openPageColorPanel },
       { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
       { title: "Sayfa Yelpazesi", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${page.id}`); } },
       { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
@@ -398,7 +399,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       const right = list[spreadLeft() + 1];
       const leftSize = (left || right).size;
       const rightSize = (right || left).size;
-      content = h("div", { class: "spread", style: { width: (leftSize.w + rightSize.w) + "px", height: Math.max(leftSize.h, rightSize.h) + "px" } },
+      content = h("div", { class: "spread double", style: { width: (leftSize.w + rightSize.w) + "px", height: Math.max(leftSize.h, rightSize.h) + "px" } },
         h("div", { class: "back-sheets" }),
         left ? pageStack(left) : emptyPage(leftSize),
         right ? pageStack(right) : emptyPage(rightSize),
@@ -419,7 +420,8 @@ export function renderEditor(root, notebookId, initialPageId) {
     if (!spread) return;
     const w = parseFloat(spread.style.width);
     const hgt = parseFloat(spread.style.height);
-    fitScale = Math.max(0.1, Math.min((editorBody.clientWidth - 40) / w, (editorBody.clientHeight - 40) / hgt));
+    const margin = spread.classList.contains("double") ? 26 : 12;   // tek sayfa köşelere kadar otursun
+    fitScale = Math.max(0.1, Math.min((editorBody.clientWidth - margin) / w, (editorBody.clientHeight - margin) / hgt));
     stage.style.width = w + "px";
     stage.style.height = hgt + "px";
     applyTransform();
@@ -427,8 +429,18 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   /** Yakınlaştırma sayfanın ortasına göre; kaydırma ekran pikseli cinsinden. */
   let resolutionTimer = 0;
+  function zoomed() { return Math.abs(zoom - 1) > 0.02; }
+
+  /** Sayfayı ekran genişliğine oturtan yakınlaştırma (çift dokunuş bunu açar). */
+  function fillWidthZoom() {
+    const spread = stage.querySelector(".spread");
+    if (!spread) return 1;
+    const w = parseFloat(spread.style.width) * fitScale;
+    return Math.max(1, Math.min(6, (editorBody.clientWidth - 8) / Math.max(1, w)));
+  }
+
   function applyTransform() {
-    if (zoom <= 1) pan = { x: 0, y: 0 };
+    if (!zoomed()) { zoom = 1; pan = { x: 0, y: 0 }; }
     stage.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${fitScale * zoom})`;
     stage.dataset.scale = String(fitScale * zoom);
     // Yakınlaştırma bitince mürekkep tuvalleri yeni ölçekte keskin çizilir.
@@ -446,8 +458,17 @@ export function renderEditor(root, notebookId, initialPageId) {
     return { x: (e.clientX - rect.left) * page.size.w / rect.width, y: (e.clientY - rect.top) * page.size.h / rect.height };
   }
 
+  /** Yalnızca kağıt katmanını yeniden çizer (renk değişince tuvaller korunur). */
+  function repaintBackgrounds() {
+    for (const el of stage.querySelectorAll(".page-stack")) {
+      const page = pages().find((p) => p.id === el.dataset.pageId);
+      if (page) renderBackground(el.querySelector(".page-bg"), page);
+    }
+  }
+
   function pageStack(page) {
     const stack = h("div", { class: "page-stack", style: { width: page.size.w + "px", height: page.size.h + "px" } });
+    stack.dataset.pageId = page.id;
     const bg = h("div", { class: "page-bg" });
     renderBackground(bg, page);
     const objectsLayer = h("div", { class: "layer-objects" });
@@ -1514,7 +1535,16 @@ export function renderEditor(root, notebookId, initialPageId) {
       return b;
     };
     const sep = () => h("div", { class: "tb-sep" });
-    const toolbar = h("div", { class: "toolbar" + (collapsed ? " collapsed" : "") });
+    if (collapsed) {
+      // Bar tamamen gizli: yalnızca geri getiren küçük tutamak kalır.
+      const peek = h("button", { class: "bench-peek", type: "button", "aria-label": "Araç çubuğunu göster",
+        onTap: () => { store.setSetting("benchCollapsed", false); renderBench(); } }, svgIcon("up", 22));
+      bench.replaceChildren(peek);
+      renderFavDock();
+      renderTopbar();
+      return;
+    }
+    const toolbar = h("div", { class: "toolbar" });
     toolbar.append(tb("grid", "Sayfalar", "Sayfalar: gör, sırala, sil", false, () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }));
     if (!collapsed) {
       const penActive = isPenTool() || tool.tool === "highlighter";
@@ -1532,7 +1562,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         Object.assign(tb("redoTool", "Yinele", "İleri al", false, () => activeInk && activeInk.redo()), { disabled: !(activeInk && activeInk.canRedo) }),
         sep()].filter(Boolean));
     }
-    toolbar.append(tb(collapsed ? "up" : "down", collapsed ? "Genişlet" : "Daralt", collapsed ? "Araçları göster" : "Araçları gizle", false, () => { store.setSetting("benchCollapsed", !collapsed); renderBench(); }, "tb-collapse"));
+    toolbar.append(tb("down", "Gizle", "Araç çubuğunu gizle", false, () => { store.setSetting("benchCollapsed", true); renderBench(); }, "tb-collapse"));
     bench.replaceChildren(toolbar);
     renderFavDock();
     renderTopbar();
@@ -1629,6 +1659,20 @@ export function renderEditor(root, notebookId, initialPageId) {
     el.dataset.kind = kind;
     popover = el;
     screen.append(el);
+  }
+
+  function openPageColorPanel() {
+    mountPanel(pageColorPanel({
+      close: () => closePopover(),
+      pageColor: () => selectedPage().bg || null,
+      setPageColor: (color, all) => { store.setPageColor(notebookId, selectedPage().id, color, all); repaintBackgrounds(); },
+      openCustom: (all) => openColorPanel({
+        title: "Sayfa Rengi",
+        initial: selectedPage().bg || "#F2F0E6",
+        alpha: 1,
+        onPick: (hex) => { store.setPageColor(notebookId, selectedPage().id, hex, all); repaintBackgrounds(); }
+      })
+    }), "pagecolor");
   }
 
   function openPenPanel() { if (!isInking()) selectTool("pen"); mountPanel(penPanel(panelCtx), "pen"); }
@@ -1732,8 +1776,17 @@ export function renderEditor(root, notebookId, initialPageId) {
     if (popover.dataset.kind === "selection" && e.target.closest && e.target.closest(".layer-select")) return;
     // Paneli kapatmak için yapılan dokunuş sayfaya geçmesin (kalem çizmesin, nesne seçilmesin).
     const inBench = e.target.closest && (e.target.closest(".bench") || e.target.closest(".topbar") || e.target.closest(".fav-dock"));
+    if (inBench) {
+      // Düğmenin kendi işi bitene kadar bekle: panel hemen kapanırsa dokunulan düğme DOM'dan silinir.
+      const open = popover;
+      document.addEventListener("pointerup", () => {
+        setTimeout(() => { if (popover === open) closePopover(); }, 0);
+      }, { once: true, capture: true });
+      return;
+    }
     closePopover();
-    if (!inBench) { e.stopPropagation(); e.preventDefault(); }
+    e.stopPropagation();
+    e.preventDefault();
   };
   document.addEventListener("pointerdown", onOutsidePointer, true);
 
@@ -1801,6 +1854,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       flipDir = dir;
       return flip.begin(dir);
     },
+    fillWidthZoom,
     flipWidth: () => flip.sheetWidth * fitScale * zoom,
     updateFlip: (progress) => flip.update(progress),
     endFlip: (commit) => {
