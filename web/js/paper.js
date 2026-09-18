@@ -55,6 +55,48 @@ export function paintPaper(ctx, paper, w, h, color) {
   }
 }
 
+/**
+ * Yerleşik desenin CSS karşılığı: çizgi/kare/nokta degradeyle çizilir.
+ * Tuval yerine CSS kullanmak, yakınlaştırınca desenin bulanıklaşmasını önler.
+ */
+export function paperCss(paper, color, size) {
+  const ink = pageInk(color);
+  const bg = color || PAPER_COLOR;
+  const w = (size && size.w) || 595;
+  const h = (size && size.h) || 842;
+  const yok = { backgroundColor: bg, backgroundImage: "none", backgroundPosition: "0 0", backgroundSize: "auto" };
+  // Ölçüler yüzdeyle verilir: hem tam sayfada hem küçük önizlemede desen aynı oranda kalır.
+  const yuzde = (deger, tam) => (deger / tam * 100);
+  if (paper === "ruled") {
+    const tile = yuzde(32, h);
+    const cizgi = 100 - yuzde(1, 32) * 1;                       // çizgi karonun dibinde
+    return { backgroundColor: bg, backgroundImage: `linear-gradient(180deg, transparent 0 ${cizgi.toFixed(2)}%, ${ink} ${cizgi.toFixed(2)}% 100%)`, backgroundPosition: "0 0", backgroundSize: `100% ${tile.toFixed(3)}%` };
+  }
+  if (paper === "grid") {
+    const tileX = yuzde(24, w);
+    const tileY = yuzde(24, h);
+    const cizgiX = 100 - yuzde(1, 24);
+    const cizgiY = 100 - yuzde(1, 24);
+    return {
+      backgroundColor: bg,
+      backgroundImage: `linear-gradient(90deg, transparent 0 ${cizgiX.toFixed(2)}%, ${ink} ${cizgiX.toFixed(2)}% 100%), linear-gradient(180deg, transparent 0 ${cizgiY.toFixed(2)}%, ${ink} ${cizgiY.toFixed(2)}% 100%)`,
+      backgroundPosition: "0 0",
+      backgroundSize: `${tileX.toFixed(3)}% 100%, 100% ${tileY.toFixed(3)}%`
+    };
+  }
+  if (paper === "dotted") {
+    const tileX = yuzde(24, w);
+    const tileY = yuzde(24, h);
+    return {
+      backgroundColor: bg,
+      backgroundImage: `radial-gradient(circle at 50% 50%, ${ink} 0 9%, transparent 11%)`,
+      backgroundPosition: "0 0",
+      backgroundSize: `${tileX.toFixed(3)}% ${tileY.toFixed(3)}%`
+    };
+  }
+  return yok;
+}
+
 /** Görsel URL'sini yükleyip verilen dikdörtgene "cover" oranında çizer. */
 export function drawImageURL(ctx, url, x, y, w, h) {
   return new Promise((resolve) => {
@@ -145,6 +187,7 @@ export async function pdfPageImage(reference, pixelWidth) {
 export async function renderBackground(el, page, { thumbnail = false } = {}) {
   el.replaceChildren();
   el.style.background = page.bg || PAPER_COLOR;
+  el.style.backgroundImage = "none";
   const { w, h } = page.size;
   if (page.pdf) {
     const url = await pdfPageImage(page.pdf, thumbnail ? 300 : 1400);
@@ -161,11 +204,13 @@ export async function renderBackground(el, page, { thumbnail = false } = {}) {
       return;
     }
   }
-  const canvas = document.createElement("canvas");
-  drawPaper(canvas, page.paper, thumbnail ? w / 4 : w, thumbnail ? h / 4 : h, page.bg);
-  canvas.style.width = "100%";
-  canvas.style.height = "100%";
-  el.append(canvas);
+  // Yerleşik desen: tuval değil CSS. Yakınlaştırınca çizgiler keskin kalır.
+  const css = paperCss(page.paper, page.bg, page.size);
+  el.style.backgroundColor = css.backgroundColor;
+  el.style.backgroundImage = css.backgroundImage;
+  el.style.backgroundPosition = css.backgroundPosition;
+  el.style.backgroundSize = css.backgroundSize;
+  el.style.backgroundRepeat = "repeat";
 }
 
 function img(url) {

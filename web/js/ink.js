@@ -41,13 +41,35 @@ export class InkCanvas {
   }
 
   setup() {
-    const dpr = window.devicePixelRatio || 1;
+    this.viewScale = 1;
+    this.applyCanvasSize();
+  }
+
+  /**
+   * Tuvali ekrandaki gerçek boyutuna kurar ve üstteki büyütmeyi kendi üzerinde iptal eder.
+   * Böylece tarayıcı tuvali büyütülmüş katmandan yeniden örneklemez; çizgi ekran pikseli kadar nettir.
+   */
+  applyCanvasSize() {
     const { w, h } = this.page.size;
-    this.canvas.width = Math.round(w * dpr);
-    this.canvas.height = Math.round(h * dpr);
-    this.canvas.style.width = w + "px";
-    this.canvas.style.height = h + "px";
-    this.dpr = dpr;
+    const view = Math.max(0.2, this.viewScale || 1);
+    const dprRaw = window.devicePixelRatio || 1;
+    const cssW = w * view;
+    const cssH = h * view;
+    const budget = Math.sqrt(PIXEL_BUDGET / Math.max(1, cssW * cssH));
+    const side = Math.min(MAX_SIDE / cssW, MAX_SIDE / cssH);
+    const dpr = Math.max(0.5, Math.min(dprRaw, budget, side));
+    const width = Math.round(cssW * dpr);
+    const height = Math.round(cssH * dpr);
+    // Yerleşim her zaman güncellenir; tuval yalnızca boyutu değiştiyse yeniden çizilir.
+    this.canvas.style.width = cssW + "px";
+    this.canvas.style.height = cssH + "px";
+    this.canvas.style.transformOrigin = "top left";
+    this.canvas.style.transform = Math.abs(view - 1) < 0.001 ? "none" : `scale(${1 / view})`;
+    this.dpr = view * dpr;      // sayfa biriminden tuval pikseline ölçek
+    if (this.canvas.width === width && this.canvas.height === height) return false;
+    this.canvas.width = width;
+    this.canvas.height = height;
+    return true;
   }
 
   bind() {
@@ -568,18 +590,12 @@ export class InkCanvas {
   /** Tuval çözünürlüğü: yakınlaştırınca çizgiler bulanıklaşmasın diye ekran ölçeğine uyar (en çok 3x). */
   /** Ekrandaki gerçek ölçeğe göre tuval çözünürlüğü: yakınlaşınca yazı keskin kalır. */
   setResolution(scale) {
-    this.viewScale = Math.max(0.2, scale || 1);
+    const view = Math.max(0.2, scale || 1);
+    if (Math.abs(view - (this.viewScale || 1)) < 0.02) return;
+    this.viewScale = view;
     // Yakınlaşınca daha sık nokta al: 1 ekran pikselinden kısa adımlar atlanmasın.
-    this.minStep = Math.max(0.15, Math.min(MIN_STEP, 1 / this.viewScale));
-    const wanted = (window.devicePixelRatio || 1) * Math.max(1, this.viewScale);
-    const budget = Math.sqrt(PIXEL_BUDGET / Math.max(1, this.page.size.w * this.page.size.h));
-    const side = Math.min(MAX_SIDE / this.page.size.w, MAX_SIDE / this.page.size.h);
-    const dpr = Math.max(0.5, Math.min(wanted, budget, side));
-    if (Math.abs(dpr - this.dpr) < 0.05) return;
-    this.dpr = dpr;
-    this.canvas.width = Math.round(this.page.size.w * dpr);
-    this.canvas.height = Math.round(this.page.size.h * dpr);
-    this.redraw();
+    this.minStep = Math.max(0.15, Math.min(MIN_STEP, 1 / view));
+    if (this.applyCanvasSize()) this.redraw();
   }
 
   redraw() {
