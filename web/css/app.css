@@ -1125,3 +1125,9 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .flip-flat .flip-face.back { transform: scaleX(-1); }
 .flip-flat .flip-face-wrap { position: absolute; top: 0; }
 .flip-flat .flip-shade { position: absolute; inset: 0; pointer-events: none; }
+
+/* Sayfa eklerken kağıt rengi */
+.sheet-colorbar { display: flex; align-items: center; gap: 14px; padding: 14px 4px 4px; color: var(--muted); flex-wrap: wrap; }
+.pc-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.pc-dot { width: 34px; height: 34px; border-radius: 50%; border: 0; padding: 0; background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.25); }
+.pc-dot.active { box-shadow: 0 0 0 3px var(--accent), inset 0 0 0 1px rgba(0, 0, 0, 0.18); }

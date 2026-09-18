@@ -92,12 +92,33 @@ function templateMenu(entry, state, rerender) {
   ]);
 }
 
+const SAYFA_RENKLERI = [
+  ["", "Varsayılan"], ["#FFFFFF", "Beyaz"], ["#FBF6E9", "Sıcak"], ["#F6EFE0", "Kraft"],
+  ["#EFF4EC", "Nane"], ["#EAF1FA", "Gökyüzü"], ["#F3EEF9", "Lavanta"], ["#FBEEF1", "Gül"], ["#2A2C34", "Gece"]
+];
+
+/** Yeni sayfanın kağıt rengi: hazır tonlardan biri. */
+function pageColorRow(state, onChange) {
+  const row = h("div", { class: "pc-row" });
+  const build = () => row.replaceChildren(...SAYFA_RENKLERI.map(([hex, name]) =>
+    h("button", {
+      type: "button",
+      class: "pc-dot" + ((state.bg || "") === hex ? " active" : ""),
+      "aria-label": name,
+      title: name,
+      style: { "--c": hex || "#F2F0E6" },
+      onTap: () => { state.bg = hex || null; build(); if (onChange) onChange(); }
+    })));
+  build();
+  return row;
+}
+
 export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   const notebook = store.notebook(notebookId);
   const pageCount = Math.max(notebook.pages.length, 1);
   const current = notebook.pages[currentIndex];
   const fallback = current ? (current.templateAsset ? ("custom:" + (store.settings.templates.find((t) => t.asset === current.templateAsset) || {}).id) : "builtin:" + current.paper) : "builtin:ruled";
-  const state = { selection: store.initialTemplate(fallback), insertIndex: Math.min(currentIndex + 1, pageCount) };
+  const state = { selection: store.initialTemplate(fallback), insertIndex: Math.min(currentIndex + 1, pageCount), bg: current && current.bg ? current.bg : null };
   let tab = state.selection.startsWith("custom:") || store.settings.templates.length ? "mine" : "patterns";
 
   const gridHost = h("div");
@@ -133,6 +154,7 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   function add() {
     if (!state.selection) return;
     const id = store.addPage(notebookId, state.insertIndex, state.selection);
+    if (id && state.bg) store.setPageColor(notebookId, id, state.bg, false);
     closeModal();
     if (id && onAdded) onAdded(id);
   }
@@ -163,6 +185,7 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
     h("div", { class: "sheet-body" },
       h("div", { class: "sheet-toolbar" }, tabs, h("div", { style: { display: "flex", alignItems: "center", gap: "10px", color: "var(--muted)" } }, "Ekleneceği yer", positionSelect)),
       gridHost,
+      h("div", { class: "sheet-colorbar" }, h("span", {}, "Kağıt rengi"), pageColorRow(state)),
       note)
   ), { wide: true });
 }

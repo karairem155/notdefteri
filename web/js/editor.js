@@ -368,6 +368,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       { title: "Ayarlar", onSelect: () => { flushInk(); navigate("#/settings"); } },
       { title: "Şablonu Değiştir", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t) => { store.setTemplate(notebookId, page.id, t); renderStage(); })) },
       { title: "Sayfa Rengi", onSelect: openPageColorPanel },
+      { title: "Tanılama (çizim netliği)", onSelect: cizimTanilama },
       { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
       { title: "Sayfa Yelpazesi", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${page.id}`); } },
       { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
@@ -1664,6 +1665,32 @@ export function renderEditor(root, notebookId, initialPageId) {
     el.dataset.kind = kind;
     popover = el;
     screen.append(el);
+  }
+
+  /** Çizim tuvalinin ekrana göre çözünürlüğünü gösterir: netlik sorununu ölçmek için. */
+  function cizimTanilama() {
+    const page = selectedPage();
+    const canvas = stage.querySelector(".page-stack:not(.static) .layer-ink");
+    const dpr = window.devicePixelRatio || 1;
+    const olcek = fitScale * zoom;
+    const gereken = dpr * olcek;
+    const mevcut = canvas ? canvas.width / page.size.w : 0;
+    const oran = gereken ? mevcut / gereken : 0;
+    const satir = (etiket, deger) => h("div", { class: "settings-row" }, h("span", {}, etiket), h("span", { style: { color: "var(--muted)" } }, deger));
+    openModal(h("div", { class: "sheet-page" },
+      h("div", { class: "sheet-head" }, h("span", {}, "Çizim netliği"), h("button", { class: "btn ghost", type: "button", onTap: closeModal }, "Kapat")),
+      h("div", { class: "sheet-body" },
+        h("div", { class: "settings-rows" },
+          satir("Ekran yoğunluğu (dpr)", String(dpr)),
+          satir("Sayfa ölçüsü", `${page.size.w} x ${page.size.h}`),
+          satir("Görüntü ölçeği", olcek.toFixed(3)),
+          satir("Tuval", canvas ? `${canvas.width} x ${canvas.height}` : "yok"),
+          satir("Gereken / mevcut", `${gereken.toFixed(2)} / ${mevcut.toFixed(2)}`),
+          satir("Netlik oranı", oran.toFixed(2) + (oran >= 0.98 ? " (tam)" : " (dusuk)")),
+          satir("Basınç", String(!!store.settings.pressureWidth)),
+          satir("Stabilizatör", String(store.settings.smoothing == null ? 2 : store.settings.smoothing))),
+        h("div", { class: "note" }, "Bu ekranın fotoğrafını gönder: netlik sorununun nerede olduğunu buradan görebiliriz."))
+    ), { wide: false });
   }
 
   function openPageColorPanel() {
