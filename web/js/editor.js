@@ -1542,6 +1542,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       bench.replaceChildren(peek);
       renderFavDock();
       renderTopbar();
+      requestAnimationFrame(fit);
       return;
     }
     const toolbar = h("div", { class: "toolbar" });
@@ -1566,6 +1567,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     bench.replaceChildren(toolbar);
     renderFavDock();
     renderTopbar();
+    requestAnimationFrame(fit);   // bar yüksekliği değişti: sayfa yeniden ekrana otursun
   }
 
   function imageMenu() {
@@ -1842,6 +1844,10 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   const resizeObserver = new ResizeObserver(() => fit());
   resizeObserver.observe(editorBody);
+  let fitTimer = 0;
+  const onWindowResize = () => { clearTimeout(fitTimer); fitTimer = setTimeout(fit, 80); };
+  window.addEventListener("resize", onWindowResize);
+  window.addEventListener("orientationchange", onWindowResize);
   attachEditorGestures(editorBody, {
     acceptsMouse: (e) => !e.target.closest(".page-stack") && !e.target.closest(".mode-banner"),
     getZoom: () => zoom,
@@ -1876,6 +1882,9 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   return {
     destroy() {
+      clearTimeout(fitTimer);
+      window.removeEventListener("resize", onWindowResize);
+      window.removeEventListener("orientationchange", onWindowResize);
       resizeObserver.disconnect();
       store.removeEventListener("settings", onSettings);
       window.removeEventListener("keydown", onKey);

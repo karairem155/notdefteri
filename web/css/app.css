@@ -1083,9 +1083,9 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .settings-row, .page-cell, .fan-round, .icon-btn { touch-action: manipulation; }
 
 /* Favoriler barı: kaç tane eklenirse eklensin sığar, taşarsa satır atlar */
-.fav-dock { width: max-content; max-width: min(92vw, 960px); max-height: 34vh; overflow-y: auto; scrollbar-width: none; }
+.fav-dock { width: max-content; max-width: min(92vw, 960px); max-height: 152px; overflow-y: auto; scrollbar-width: none; }
 .fav-dock::-webkit-scrollbar { display: none; }
-.fav-dock[data-side="left"], .fav-dock[data-side="right"] { height: max-content; max-height: 72vh; max-width: 30vw; }
+.fav-dock[data-side="left"], .fav-dock[data-side="right"] { height: max-content; max-height: 72vh; max-width: 152px; overflow-x: auto; }
 .fav-strip { flex-wrap: wrap; row-gap: 10px; max-width: 100%; justify-content: center; }
 .fav-dock[data-side="left"] .fav-strip, .fav-dock[data-side="right"] .fav-strip { flex-wrap: wrap; max-height: 70vh; }
 
