@@ -6,10 +6,6 @@
 //   { x, y, width, height, origin: "left"|"right", front: Element, back: Element, under: Element|null, underX, underY, startAngle, endAngle }
 // `front`/`back` yaprağın iki yüzü; `under` yaprağın altında kalan sayfa (opsiyonel).
 
-const STRIPS = 12;      // yaprak kaç şeride bölünsün
-const BEND_MAX = 44;    // çevirmenin ortasında toplam bükülme (derece)
-const OVERLAP = 3;      // şeritler arası bindirme (px): kenar yumuşatma çizgileri görünmesin
-
 export function createFlip(spreadEl, buildSheet, options = {}) {
   let state = null;
   let raf = 0;
@@ -34,37 +30,21 @@ export function createFlip(spreadEl, buildSheet, options = {}) {
     const left = sheet.origin === "left";
     const W = sheet.width;
     const H = sheet.height;
-    const sw = W / STRIPS;
-    const sheetEl = el("div", "flip-sheet");
+    const sheetEl = el("div", "flip-sheet flip-flat");
     sheetEl.style.left = sheet.x + "px";
     sheetEl.style.top = sheet.y + "px";
     sheetEl.style.width = W + "px";
     sheetEl.style.height = H + "px";
     sheetEl.style.transformOrigin = left ? "left center" : "right center";
 
-    const strips = [];
-    let parent = sheetEl;
-    const cache = new Map();
-    for (let i = 0; i < STRIPS; i++) {
-      const strip = el("div", "flip-strip");
-      strip.style.width = (sw + OVERLAP) + "px";
-      strip.style.height = H + "px";
-      // Sol menteşe: şerit 0 ciltte (x=0), sonrakiler sağa doğru. Sağ menteşe: şerit 0 sağ kenarda (x=W-sw),
-      // sonrakiler sola doğru; menteşe her şeridin kutusunda x=sw noktasıdır (bindirme payı sağa taşar).
-      strip.style.left = i === 0 ? (left ? "0px" : (W - sw) + "px") : (left ? sw : -sw) + "px";
-      strip.style.transformOrigin = left ? "left center" : `${sw}px center`;
-      const frontOff = left ? i * sw : W - (i + 1) * sw;
-      const backOff = left ? W - (i + 1) * sw : i * sw;
-      const front = face("front", i === 0 ? sheet.front : cloneFace(sheet.front, cache), frontOff, W, H);
-      const back = face("back", i === 0 ? sheet.back : cloneFace(sheet.back, cache), backOff, W, H);
-      strip.append(front.el, back.el);
-      parent.append(strip);
-      parent = strip;
-      strips.push({ el: strip, front, back });
-    }
+    // Yaprağın iki yüzü: dönüş yarıyı geçince arka yüze geçilir, içerik aynalanarak düz okunur.
+    const front = face("front", sheet.front, W, H);
+    const back = face("back", sheet.back, W, H);
+    back.el.style.display = "none";
+    sheetEl.append(front.el, back.el);
     layer.append(sheetEl);
     spreadEl.append(layer);
-    state = { dir, layer, sheetEl, sheet, strips, cast, left, progress: 0 };
+    state = { dir, layer, sheetEl, sheet, front, back, cast, left, progress: 0, showingBack: false };
     apply(0);
     return true;
   }
@@ -74,39 +54,33 @@ export function createFlip(spreadEl, buildSheet, options = {}) {
     return startAngle + (endAngle - startAngle) * progress;
   }
 
-  /** Verilen ilerleme için bütün şeritleri, gölgeleri ve düşen gölgeyi yerleştirir. */
+  /** Verilen ilerleme için yaprağı, yüzünü, gölgesini ve düşen gölgeyi yerleştirir. */
   function apply(progress) {
-    const { sheet, sheetEl, strips, cast, left } = state;
+    const { sheet, sheetEl, front, back, cast, left } = state;
     const theta = angleFor(progress);
-    const dirSign = Math.sign(sheet.endAngle - sheet.startAngle) || 1;
+    const rad = theta * Math.PI / 180;
+    const cos = Math.cos(rad);
     const lift = Math.sin(Math.PI * progress);
-    let bend = BEND_MAX * lift * dirSign;
-    // Cilt tarafı düzlemin altına inmesin: taban açısı başlangıç-bitiş aralığında kalır.
-    const lo = Math.min(sheet.startAngle, sheet.endAngle);
-    const hi = Math.max(sheet.startAngle, sheet.endAngle);
-    let base = theta - bend;
-    if (base < lo) { base = lo; bend = theta - base; }
-    if (base > hi) { base = hi; bend = theta - base; }
-    const delta = bend / STRIPS;
-    sheetEl.style.transform = `rotateY(${base}deg)`;
-    for (let i = 0; i < strips.length; i++) {
-      const s = strips[i];
-      s.el.style.transform = `rotateY(${delta}deg)`;
-      // Gölge şerit içinde de akar (menteşe tarafından uzak kenara): bant bant görünmesin.
-      const a0 = (base + i * delta) * Math.PI / 180;
-      const a1 = (base + (i + 1) * delta) * Math.PI / 180;
-      const fo = (a) => Math.min(0.42, Math.max(0, (1 - Math.cos(a)) / 2 * 0.5)).toFixed(3);
-      const bo = (a) => Math.min(0.42, Math.max(0, (1 + Math.cos(a)) / 2 * 0.5)).toFixed(3);
-      s.front.shade.style.opacity = "1";
-      s.back.shade.style.opacity = "1";
-      s.front.shade.style.background = `linear-gradient(${left ? 90 : 270}deg, rgba(0,0,0,${fo(a0)}), rgba(0,0,0,${fo(a1)}))`;
-      s.back.shade.style.background = `linear-gradient(${left ? 270 : 90}deg, rgba(0,0,0,${bo(a0)}), rgba(0,0,0,${bo(a1)}))`;
+
+    // Dönüşün düzlemdeki karşılığı: yaprak menteşesinden yatay olarak daralır, yarıyı geçince aynalanır.
+    sheetEl.style.transform = `scaleX(${cos.toFixed(4)})`;
+    const showBack = cos < 0;
+    if (state.showingBack !== showBack) {
+      state.showingBack = showBack;
+      front.el.style.display = showBack ? "none" : "block";
+      back.el.style.display = showBack ? "block" : "none";
     }
+    const yuz = showBack ? back : front;
+    const koyu = Math.min(0.4, 0.05 + Math.abs(Math.sin(rad)) * 0.32).toFixed(3);
+    const acik = Math.min(0.2, 0.02 + Math.abs(Math.sin(rad)) * 0.12).toFixed(3);
+    const yon = (left === !showBack) ? 90 : 270;
+    yuz.shade.style.opacity = "1";
+    yuz.shade.style.background = `linear-gradient(${yon}deg, rgba(0,0,0,${koyu}), rgba(0,0,0,${acik}))`;
+
     // Yaprağın altındaki sayfaya düşen gölge: ciltten yaprağın izdüşümüne kadar.
     const W = sheet.width;
-    const proj = W * Math.cos(theta * Math.PI / 180);
+    const proj = W * cos;
     const spineX = left ? sheet.x : sheet.x + W;
-    // Gölge yalnızca sahnenin (sayfaların) içinde kalır; masaya taşmaz.
     const stageW = spreadEl.clientWidth || (sheet.x + W);
     const rawX0 = Math.min(spineX, left ? spineX + proj : spineX - proj);
     const x0 = Math.max(0, rawX0);
@@ -186,41 +160,18 @@ function el(tag, className) {
   return node;
 }
 
-/** Bir yüz: şerit genişliğinde pencere, içinde tam sayfa kaydırılmış durur. */
-function face(side, content, offset, W, H) {
+/** Bir yüz: yaprağın tamamı. Arka yüz aynalanır ki çevrildikten sonra düz okunsun. */
+function face(side, content, W, H) {
   const node = el("div", "flip-face " + side);
   const wrap = el("div", "flip-face-wrap");
   wrap.style.width = W + "px";
   wrap.style.height = H + "px";
-  wrap.style.left = -offset + "px";
+  wrap.style.left = "0px";
   wrap.append(content);
   const shade = el("div", "flip-shade");
   node.append(wrap, shade);
   return { el: node, shade };
 }
-
-/** Yüz içeriğini kopyalar; tuvaller (canvas) kopyada boş kalacağından görüntüye çevrilir. */
-function cloneFace(src, cache) {
-  const clone = src.cloneNode(true);
-  const srcCanvases = src.querySelectorAll("canvas");
-  const dstCanvases = clone.querySelectorAll("canvas");
-  dstCanvases.forEach((c, i) => {
-    const original = srcCanvases[i];
-    let url = cache.get(original);
-    if (url === undefined) {
-      try { url = original.toDataURL(); } catch (_) { url = ""; }
-      cache.set(original, url);
-    }
-    const img = document.createElement("img");
-    img.className = c.className;
-    img.style.cssText = c.style.cssText;
-    img.alt = "";
-    if (url) img.src = url;
-    c.replaceWith(img);
-  });
-  return clone;
-}
-
 
 // Kağıt çevirme sesi: yumuşak bir "hışırtı" (yavaş başlayıp sönen gürültü, tizden pese kayan süzgeç)
 // ve sonunda hafif bir yaprak oturma sesi. Dosya gerektirmez; Ayarlar'dan kapatılabilir.

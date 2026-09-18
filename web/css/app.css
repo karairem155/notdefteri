@@ -1118,3 +1118,10 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .pf-card[data-side="l"] { transform-origin: right center; }
 .pf-turn-flat { overflow: hidden; border-radius: 15px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); }
 .pf-flatface { position: absolute; inset: 0; background-repeat: no-repeat; background-color: #fbf8f1; transform-origin: center center; }
+
+/* Sayfa çevirme düzlemde: yaprak menteşesinden daralır, arka yüz aynalanır */
+.flip-sheet.flip-flat { transform-style: flat; }
+.flip-flat .flip-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: visible; border-radius: 2px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35); background: var(--paper); }
+.flip-flat .flip-face.back { transform: scaleX(-1); }
+.flip-flat .flip-face-wrap { position: absolute; top: 0; }
+.flip-flat .flip-shade { position: absolute; inset: 0; pointer-events: none; }
