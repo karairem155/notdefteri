@@ -1542,7 +1542,8 @@ export function renderEditor(root, notebookId, initialPageId) {
       bench.replaceChildren(peek);
       renderFavDock();
       renderTopbar();
-      requestAnimationFrame(fit);
+      fit();
+      setTimeout(fit, 80);
       return;
     }
     const toolbar = h("div", { class: "toolbar" });
@@ -1567,7 +1568,8 @@ export function renderEditor(root, notebookId, initialPageId) {
     bench.replaceChildren(toolbar);
     renderFavDock();
     renderTopbar();
-    requestAnimationFrame(fit);   // bar yüksekliği değişti: sayfa yeniden ekrana otursun
+    fit();                        // bar yüksekliği değişti: sayfa yeniden ekrana otursun
+    setTimeout(fit, 80);          // yazı tipi/güvenli alan geç oturursa ikinci ölçüm
   }
 
   function imageMenu() {

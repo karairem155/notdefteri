@@ -138,6 +138,18 @@ export function createFlip(spreadEl, buildSheet, options = {}) {
     const remaining = Math.abs(target - from);
     const duration = Math.max(140, 520 * remaining);
     const t0 = performance.now();
+    // Uygulama arka plana atılırsa kare döngüsü durur; bu emniyet sayacı çevirmeyi yarıda bırakmaz.
+    let guard = setTimeout(() => done(), duration + 500);
+    const done = () => {
+      if (state !== current) return;
+      clearTimeout(guard);
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      current.progress = target;
+      apply(target);
+      state = null;
+      if (onDone) onDone(commit);
+      current.layer.remove();
+    };
     const step = (now) => {
       if (state !== current) return;
       const t = Math.min(1, (now - t0) / duration);
@@ -145,10 +157,7 @@ export function createFlip(spreadEl, buildSheet, options = {}) {
       current.progress = from + (target - from) * eased;
       apply(current.progress);
       if (t < 1) { raf = requestAnimationFrame(step); return; }
-      raf = 0;
-      state = null;
-      if (onDone) onDone(commit);
-      current.layer.remove();
+      done();
     };
     if (raf) cancelAnimationFrame(raf);
     raf = requestAnimationFrame(step);
@@ -157,7 +166,7 @@ export function createFlip(spreadEl, buildSheet, options = {}) {
   /** Düğmeyle çevirme: kendi kendine akar. */
   function run(dir, onDone) {
     if (!begin(dir)) return false;
-    requestAnimationFrame(() => finish(true, onDone));
+    setTimeout(() => finish(true, onDone), 16);
     return true;
   }
 
