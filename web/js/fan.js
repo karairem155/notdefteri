@@ -311,6 +311,8 @@ export function renderFan(root, notebookId) {
 
   /** Açılış: kapalı defter görünür, kapak ciltten açılır, yapraklar sırayla yelpazelenir. */
   function intro() {
+    // Önce başlık ve alt bar dolsun: sahnenin gerçek yüksekliği ancak o zaman ölçülebilir.
+    layout({ animate: false });
     measure();
     layout({ animate: false });
     const ms = (value) => Math.round(value);
@@ -426,8 +428,15 @@ export function renderFan(root, notebookId) {
     ]);
   }
 
-  const onResize = () => { measure(); layout({ animate: false }); };
+  // Ekran döndüğünde ya da sahnenin boyu değiştiğinde yelpaze yeniden ölçülür.
+  let resizeTimer = null;
+  const onResize = () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (!busy) { measure(); layout({ animate: false }); } }, 120);
+  };
   window.addEventListener("resize", onResize);
+  const observer = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
+  if (observer) observer.observe(stage);
   requestAnimationFrame(intro);
-  return { destroy() { window.removeEventListener("resize", onResize); } };
+  return { destroy() { clearTimeout(resizeTimer); window.removeEventListener("resize", onResize); if (observer) observer.disconnect(); } };
 }
