@@ -1100,3 +1100,10 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 /* Gizlenen alt bar: küçük tutamak */
 .bench-peek { margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; width: 84px; height: 34px; border-radius: 999px; border: 1px solid var(--glass-border); background: var(--glass); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); color: rgba(255, 255, 255, 0.85); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); cursor: pointer; }
 .bench-peek:active { transform: scale(0.94); }
+
+/* Son sayfadan sonrası: sağ yarım kapağın iç yüzü olur, defter kapakla bitişik kapanır */
+.pf-coverface { position: absolute; inset: 0; display: none; border-radius: inherit; overflow: hidden; }
+.pf-right.empty { background: transparent; }
+.pf-right.empty .pf-paper, .pf-right.empty .pf-gutter { display: none; }
+.pf-right.empty .pf-coverface { display: block; }
+.pf-coverface .cover { transform: none !important; }

@@ -14,6 +14,7 @@ const HISTORY_LIMIT = 60;
 const SMOOTH_LEVELS = [0, 0.35, 0.55, 0.78];   // Kapalı, Az, Orta, Çok
 const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (sayfa px, 1x görünümde)
 const PIXEL_BUDGET = 14e6;   // bir sayfa tuvali için en çok piksel (bellek sınırı)
+const MAX_SIDE = 4000;       // iOS'ta bir tuvalin kenarı 4096'yı aşamaz; aşarsa tuval boş kalır
 const HOLD_MS = 600;         // şekil düzeltme için sabit tutma süresi
 const HOLD_TOLERANCE = 9;    // bu kadar ilerlemeyen hareket "duruyor" sayılır (px)
 
@@ -571,8 +572,9 @@ export class InkCanvas {
     // Yakınlaşınca daha sık nokta al: 1 ekran pikselinden kısa adımlar atlanmasın.
     this.minStep = Math.max(0.15, Math.min(MIN_STEP, 1 / this.viewScale));
     const wanted = (window.devicePixelRatio || 1) * Math.max(1, this.viewScale);
-    const cap = Math.sqrt(PIXEL_BUDGET / Math.max(1, this.page.size.w * this.page.size.h));
-    const dpr = Math.max(1, Math.min(wanted, cap));
+    const budget = Math.sqrt(PIXEL_BUDGET / Math.max(1, this.page.size.w * this.page.size.h));
+    const side = Math.min(MAX_SIDE / this.page.size.w, MAX_SIDE / this.page.size.h);
+    const dpr = Math.max(0.5, Math.min(wanted, budget, side));
     if (Math.abs(dpr - this.dpr) < 0.05) return;
     this.dpr = dpr;
     this.canvas.width = Math.round(this.page.size.w * dpr);

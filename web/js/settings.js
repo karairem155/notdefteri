@@ -49,9 +49,24 @@ export function renderSettings(root) {
           row("Şekil bekleme süresi", select([["0", "Devre dışı"], ["350", "Kısa"], ["600", "Varsayılan"], ["950", "Uzun"]], String(s.shapeRecognition === false ? 0 : (s.shapeHoldMs == null ? 600 : s.shapeHoldMs)), (v) => { store.setSetting("shapeHoldMs", Number(v)); store.setSetting("shapeRecognition", Number(v) > 0); })),
           row("Sayfa çevirme sesi", toggle(s.flipSound !== false, (v) => store.setSetting("flipSound", v))),
           row("Stabilizatör", select([["0", "Temel"], ["1", "Yumuşak"], ["2", "İpek"], ["3", "Akıcı"]], String(s.smoothing == null ? 2 : s.smoothing), (v) => store.setSetting("smoothing", Number(v))))
-        ))
+        )),
+        section("UYGULAMA", h("div", { class: "card" },
+          h("div", { class: "settings-row" }, h("span", {}, "Yüklü sürüm"), h("span", { class: "app-version", style: { color: "var(--muted)" } }, "…")),
+          h("div", { class: "note" }, "Güncelleme gelmediyse uygulamayı tamamen kapatıp yeniden aç. Sürüm yine eskiyse aşağıdaki düğme önbelleği temizler."),
+          h("button", { class: "btn", type: "button", onTap: guncellemeyiZorla }, "Güncellemeyi Zorla")))
       )
     ));
+    surumSatiri();
+  }
+
+  /** Servis çalışanını ve önbelleği silip yeniden yükler: uygulama eski sürümde takılırsa. */
+  async function guncellemeyiZorla() {
+    try {
+      for (const kayit of await navigator.serviceWorker.getRegistrations()) await kayit.unregister();
+      for (const anahtar of await caches.keys()) await caches.delete(anahtar);
+      await store.flush();
+    } catch (_) { /* yine de yenile */ }
+    location.reload();
   }
 
   function row(title, control) {
@@ -163,6 +178,17 @@ export function renderSettings(root) {
     return h("div", { class: "panel-row", style: { color: "var(--muted)" } }, h("label", {}, "Kalınlık"), range, value);
   }
 
+  /** Hangi sürümün çalıştığı görünsün: güncelleme gelmediyse buradan anlaşılır. */
+  async function surumSatiri() {
+    let surum = "bilinmiyor";
+    try {
+      const anahtarlar = (await caches.keys()).filter((k) => k.startsWith("notdefteri-v"));
+      if (anahtarlar.length) surum = anahtarlar[anahtarlar.length - 1].replace("notdefteri-", "");
+    } catch (_) { /* önbellek kapalı olabilir */ }
+    const el = screen.querySelector(".app-version");
+    if (el) el.textContent = "Sürüm " + surum;
+  }
+
   function newPageTemplateTitle() {
     const t = store.settings.newPageTemplate;
     if (!t) return "Son kullanılan";
@@ -179,6 +205,7 @@ export function renderSettings(root) {
     ]);
   }
 
+  surumSatiri();
   render();
   void TOOLS;
   return { destroy() {} };

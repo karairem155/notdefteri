@@ -53,7 +53,9 @@ export function renderFan(root, notebookId) {
   const leftShade = h("div", { class: "pf-shade-half" });
   const rightShade = h("div", { class: "pf-shade-half" });
   leftHalf.append(h("div", { class: "pf-paper" }), h("div", { class: "pf-gutter" }), leftShade);
-  rightHalf.append(h("div", { class: "pf-paper" }), h("div", { class: "pf-gutter" }), rightShade);
+  // Son sayfadan sonra sağ yarım kapağın iç yüzüdür: defter kapakla bitişik kapanır.
+  const coverFace = h("div", { class: "pf-coverface pf-coverleaf" }, coverElement(store.notebook(notebookId).cover));
+  rightHalf.append(h("div", { class: "pf-paper" }), coverFace, h("div", { class: "pf-gutter" }), rightShade);
   book.append(leftHalf, rightHalf);
   stage.append(floor, book);
   const foot = h("div", { class: "fan-foot" });
@@ -158,8 +160,10 @@ export function renderFan(root, notebookId) {
       }
     }
     // kapaklar: açılan ön kapak solda, arka kapak sağda kitabı kapatır
+    const lastEmpty = !list[spread * 2 + 1];
     for (const [side, key] of [[-1, "cover-front"], [1, "cover-back"]]) {
-      const slot = side < 0 ? spread + 1 : total - spread;
+      // Sağ sayfa yoksa kapak zaten sağ yarımda duruyor; yaprak olarak tekrar çizilmez.
+      const slot = side < 0 ? spread + 1 : (lastEmpty ? vis + 2 : total - spread);
       const el = cards.get(key) || makeCoverCard(key);
       wanted.add(key);
       placeCard(el, slot, side, animate);
@@ -398,6 +402,8 @@ export function renderFan(root, notebookId) {
     if (e.clientY < rect.top - 24 || e.clientY > rect.bottom + 24) return;
     const dx = at - (rect.left + rect.right) / 2;
     if (Math.abs(dx) <= pw * 0.92) {
+      const list = pages();
+      if (dx > 0 && !list[spread * 2 + 1]) return;   // burası kapak, sayfa değil
       const page = pageAt(at);
       if (page) navigate(`#/n/${notebookId}/p/${page.id}`);
     } else if (Math.abs(dx) <= pw * 2.4) {

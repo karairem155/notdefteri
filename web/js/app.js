@@ -40,6 +40,25 @@ window.addEventListener("pagehide", () => { store.flush(); });
 document.addEventListener("visibilitychange", () => { if (document.hidden) store.flush(); });
 store.addEventListener("error", (e) => toast(e.detail));
 
+/** Servis çalışanı takılı kalırsa uygulama eski sürümde donar; sürüm farklıysa bir kez temizleyip yenile. */
+async function surumKontrol() {
+  try {
+    const metin = await (await fetch("./sw.js", { cache: "no-store" })).text();
+    const eslesme = metin.match(/notdefteri-v\d+/);
+    if (!eslesme) return;
+    const yeni = eslesme[0];
+    const anahtarlar = await caches.keys();
+    const kurulu = anahtarlar.filter((k) => k.startsWith("notdefteri-v"));
+    if (!kurulu.length || kurulu.includes(yeni)) return;
+    if (sessionStorage.getItem("notdefteri.tazeleme") === yeni) return;
+    sessionStorage.setItem("notdefteri.tazeleme", yeni);
+    for (const kayit of await navigator.serviceWorker.getRegistrations()) await kayit.unregister();
+    for (const anahtar of anahtarlar) await caches.delete(anahtar);
+    await store.flush();
+    location.reload();
+  } catch (_) { /* çevrimdışı olabilir */ }
+}
+
 store.load().then(async () => {
   route();
   const persisted = await requestPersistentStorage();
@@ -61,6 +80,7 @@ store.load().then(async () => {
         });
       });
       registration.update().catch(() => {});
+      surumKontrol();
     }).catch((error) => console.warn("Servis çalışanı kurulamadı", error));
   }
 }).catch((error) => {
