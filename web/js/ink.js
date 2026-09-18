@@ -12,7 +12,8 @@ import { uid } from "./store.js";
 
 const HISTORY_LIMIT = 60;
 const SMOOTH_LEVELS = [0, 0.35, 0.55, 0.78];   // Kapalı, Az, Orta, Çok
-const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (px)
+const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (sayfa px, 1x görünümde)
+const PIXEL_BUDGET = 14e6;   // bir sayfa tuvali için en çok piksel (bellek sınırı)
 const HOLD_MS = 600;         // şekil düzeltme için sabit tutma süresi
 const HOLD_TOLERANCE = 9;    // bu kadar ilerlemeyen hareket "duruyor" sayılır (px)
 
@@ -264,6 +265,8 @@ export class InkCanvas {
 
   armHold() {
     this.disarmHold();
+    const delay = this.options.holdDelay ? Number(this.options.holdDelay()) : HOLD_MS;
+    if (!delay) return;
     if (!(this.options.shapeRecognition && this.options.shapeRecognition())) return;
     if (this.rulerLine || this.textLine) return;
     if (this.liveTarget && this.liveTarget.live && this.liveTarget.live.shape) return;
@@ -290,7 +293,7 @@ export class InkCanvas {
       target.live.shapeUniform = !!shape.uniform;
       target.redrawWithLive();
       if (navigator.vibrate) navigator.vibrate(10);
-    }, HOLD_MS);
+    }, delay);
   }
 
   disarmHold() {
@@ -323,7 +326,7 @@ export class InkCanvas {
       return true;
     }
     const last = this.live.points[this.live.points.length - 1];
-    if (Math.hypot(p[0] - last[0], p[1] - last[1]) < MIN_STEP) return false;
+    if (Math.hypot(p[0] - last[0], p[1] - last[1]) < (this.minStep || MIN_STEP)) return false;
     this.live.points.push(p);
     return true;
   }
@@ -332,6 +335,11 @@ export class InkCanvas {
     if (!this.live) return;
     const stroke = this.live;
     this.live = null;
+    // Örnekleme titremesini at: çizginin biçimi değişmez, görüntü temizlenir.
+    if (!stroke.shape && stroke.points.length > 8 && stroke.points.length < 4000) {
+      const eps = Math.max(0.12, 0.35 / Math.max(1, this.viewScale || 1));   // yakınken daha az sadeleştir
+      stroke.points = simplify(stroke.points, eps);
+    }
     delete stroke.shape;
     delete stroke.shapeBase;
     delete stroke.shapeHandle;
@@ -557,8 +565,14 @@ export class InkCanvas {
   // ---- çizim ----
 
   /** Tuval çözünürlüğü: yakınlaştırınca çizgiler bulanıklaşmasın diye ekran ölçeğine uyar (en çok 3x). */
+  /** Ekrandaki gerçek ölçeğe göre tuval çözünürlüğü: yakınlaşınca yazı keskin kalır. */
   setResolution(scale) {
-    const dpr = (window.devicePixelRatio || 1) * Math.min(3, Math.max(1, scale));
+    this.viewScale = Math.max(0.2, scale || 1);
+    // Yakınlaşınca daha sık nokta al: 1 ekran pikselinden kısa adımlar atlanmasın.
+    this.minStep = Math.max(0.15, Math.min(MIN_STEP, 1 / this.viewScale));
+    const wanted = (window.devicePixelRatio || 1) * Math.max(1, this.viewScale);
+    const cap = Math.sqrt(PIXEL_BUDGET / Math.max(1, this.page.size.w * this.page.size.h));
+    const dpr = Math.max(1, Math.min(wanted, cap));
     if (Math.abs(dpr - this.dpr) < 0.05) return;
     this.dpr = dpr;
     this.canvas.width = Math.round(this.page.size.w * dpr);
@@ -623,16 +637,70 @@ function widthAt(stroke, pressure) {
   return w * (0.6 + pressure * 0.8);
 }
 
+/** Noktaların tam üstünden geçen yumuşak eğri (Catmull-Rom -> Bezier). El yazısı köşeli görünmez. */
+function curveThrough(ctx, pts, move) {
+  if (move) ctx.moveTo(pts[0][0], pts[0][1]);
+  else ctx.lineTo(pts[0][0], pts[0][1]);
+  if (pts.length === 2) { ctx.lineTo(pts[1][0], pts[1][1]); return; }
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    ctx.bezierCurveTo(
+      p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6,
+      p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6,
+      p2[0], p2[1]);
+  }
+}
+
 function tracePath(ctx, pts) {
   ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length - 1; i++) {
-    const mx = (pts[i][0] + pts[i + 1][0]) / 2;
-    const my = (pts[i][1] + pts[i + 1][1]) / 2;
-    ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+  curveThrough(ctx, pts, true);
+}
+
+/** Basınçlı çizgi: dilim dilim değil, tek parça dolgu. Kalınlık yumuşak değişir, uçlar incelir. */
+function drawPressureStroke(ctx, stroke) {
+  const pts = stroke.points;
+  const n = pts.length;
+  const rad = new Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    let count = 0;
+    for (let k = Math.max(0, i - 3); k <= Math.min(n - 1, i + 3); k++) { sum += pts[k][2] == null ? 0.5 : pts[k][2]; count++; }
+    rad[i] = widthAt(stroke, sum / count) / 2;
   }
-  const last = pts[pts.length - 1];
-  ctx.lineTo(last[0], last[1]);
+  const taper = Math.min(5, Math.floor(n / 4));
+  for (let i = 0; i < taper; i++) {
+    const f = 0.5 + 0.5 * (i / taper);
+    rad[i] *= f;
+    rad[n - 1 - i] *= f;
+  }
+  const left = [];
+  const right = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(n - 1, i + 1)];
+    let dx = b[0] - a[0];
+    let dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy);
+    if (!len) { dx = 1; dy = 0; } else { dx /= len; dy /= len; }
+    left.push([pts[i][0] - dy * rad[i], pts[i][1] + dx * rad[i]]);
+    right.push([pts[i][0] + dy * rad[i], pts[i][1] - dx * rad[i]]);
+  }
+  right.reverse();
+  ctx.fillStyle = stroke.color;
+  ctx.beginPath();
+  curveThrough(ctx, left, true);
+  curveThrough(ctx, right, false);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(pts[0][0], pts[0][1], rad[0], 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(pts[n - 1][0], pts[n - 1][1], rad[n - 1], 0, Math.PI * 2);
+  ctx.fill();
 }
 
 /** Çizgi: noktaların orta noktalarından geçen eğriler. Sabit kalınlıkta tek yol, basınçlıysa segment segment. */
@@ -644,19 +712,12 @@ export function drawStroke(ctx, stroke) {
     ctx.lineWidth = baseWidth(stroke);
     tracePath(ctx, pts);
     ctx.stroke();
+  } else if (pts.length < 3) {
+    ctx.lineWidth = widthAt(stroke, pts[0][2]);
+    tracePath(ctx, pts);
+    ctx.stroke();
   } else {
-    for (let i = 1; i < pts.length; i++) {
-      const p0 = pts[i - 1];
-      const p1 = pts[i];
-      const prev = pts[i - 2] || p0;
-      const m0 = [(prev[0] + p0[0]) / 2, (prev[1] + p0[1]) / 2];
-      const m1 = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
-      ctx.lineWidth = widthAt(stroke, (p0[2] + p1[2]) / 2);
-      ctx.beginPath();
-      ctx.moveTo(m0[0], m0[1]);
-      ctx.quadraticCurveTo(p0[0], p0[1], m1[0], m1[1]);
-      ctx.stroke();
-    }
+    drawPressureStroke(ctx, stroke);
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";

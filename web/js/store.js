@@ -78,6 +78,7 @@ const DEFAULT_SETTINGS = {
   rulerSnap: true,           // cetvele ve 15° açılara yapışma
   flipSound: true,           // sayfa çevirme sesi   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
   shapeRecognition: true,
+  shapeHoldMs: 600,          // basılı tutunca şekle dönüşme süresi (0 = kapalı)
   smoothing: 2,              // çizgi yumuşatma: 0 kapalı, 1 az, 2 orta, 3 çok    // çizgiyi bitirmeden sabit tutunca şekle dönüşsün
   spreadMode: false,
   libraryShelf: true,

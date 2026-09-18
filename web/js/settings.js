@@ -45,9 +45,10 @@ export function renderSettings(root) {
           row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onTap: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),
           row("Basınca duyarlı kalınlık", toggle(s.pressureWidth, (v) => store.setSetting("pressureWidth", v))),
           row("Parmak ne yapsın", select([["navigate", "Sayfa çevirir, kaydırır"], ["draw", "Çizer"], ["erase", "Siler"]], s.fingerAction, (v) => store.setSetting("fingerAction", v))),
-          row("Sabit tutunca şekle dönüştür", toggle(s.shapeRecognition, (v) => store.setSetting("shapeRecognition", v))),
+          row("Sabit tutunca şekle dönüştür", toggle(s.shapeRecognition !== false, (v) => store.setSetting("shapeRecognition", v))),
+          row("Şekil bekleme süresi", select([["0", "Devre dışı"], ["350", "Kısa"], ["600", "Varsayılan"], ["950", "Uzun"]], String(s.shapeRecognition === false ? 0 : (s.shapeHoldMs == null ? 600 : s.shapeHoldMs)), (v) => { store.setSetting("shapeHoldMs", Number(v)); store.setSetting("shapeRecognition", Number(v) > 0); })),
           row("Sayfa çevirme sesi", toggle(s.flipSound !== false, (v) => store.setSetting("flipSound", v))),
-          row("Çizgi yumuşatma", select([["0", "Kapalı"], ["1", "Az"], ["2", "Orta"], ["3", "Çok"]], String(s.smoothing == null ? 2 : s.smoothing), (v) => store.setSetting("smoothing", Number(v))))
+          row("Stabilizatör", select([["0", "Temel"], ["1", "Yumuşak"], ["2", "İpek"], ["3", "Akıcı"]], String(s.smoothing == null ? 2 : s.smoothing), (v) => store.setSetting("smoothing", Number(v))))
         ))
       )
     ));

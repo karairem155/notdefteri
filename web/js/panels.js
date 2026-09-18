@@ -81,6 +81,9 @@ function heartButton(text, onTap) {
 
 // ---------- Kalem Ayarları ----------
 
+const HOLD_NAMES = ["Devre dışı", "Kısa", "Varsayılan", "Uzun"];
+const HOLD_VALUES = [0, 350, 600, 950];
+
 export function penPanel(ctx) {
   const s = ctx.store.settings;
   const body = h("div");
@@ -90,9 +93,10 @@ export function penPanel(ctx) {
     const a = tool.alpha == null ? 1 : tool.alpha;
     const widthValue = h("span", { class: "sp-value" }, mm(tool.width));
     const opacityValue = h("span", { class: "sp-value" }, "%" + Math.round(a * 100));
-    const smoothing = s.smoothing == null ? 2 : s.smoothing;
-    const SMOOTH = ["Kapalı", "Düşük", "Orta", "Yüksek"];
-    const smoothValue = h("span", { class: "sp-value" }, SMOOTH[smoothing]);
+    const smoothing = Math.min(3, Math.max(0, s.smoothing == null ? 2 : s.smoothing));
+    const SMOOTH = ["Temel", "Yumuşak", "İpek", "Akıcı"];
+    const holdMs = s.shapeRecognition === false ? 0 : (s.shapeHoldMs == null ? 600 : s.shapeHoldMs);
+    const holdIndex = Math.max(0, HOLD_VALUES.indexOf(holdMs));
     const preview = previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? tool.width * 1.4 : tool.width, hl ? 0.42 * a : a);
     body.replaceChildren(...[
       preview,
@@ -107,9 +111,14 @@ export function penPanel(ctx) {
       slider({ min: 10, max: 100, step: 5, value: Math.round(a * 100), label: "Opaklık",
         onInput: (v) => { ctx.setTool({ alpha: v / 100 }, true); opacityValue.textContent = "%" + v; } }),
       toggleRow("Basınç Hassasiyeti", "Kalem baskısına göre kalınlık ayarla.", !!s.pressureWidth, (v) => ctx.store.setSetting("pressureWidth", v)),
-      h("div", { class: "sp-label-row", style: { marginTop: "12px" } }, h("span", {}, "Düzeltme (Stabilizasyon)"), smoothValue),
-      slider({ min: 0, max: 3, step: 1, value: smoothing, label: "Düzeltme", onInput: (v) => { ctx.store.setSetting("smoothing", v); smoothValue.textContent = SMOOTH[v]; } }),
-      h("div", { class: "sp-scale" }, ...SMOOTH.map((x) => h("span", {}, x))),
+      h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Şekil çizmek için basılı tutun"), h("span", { class: "sp-value" }, HOLD_NAMES[holdIndex])),
+      h("div", { class: "sp-seg" }, ...HOLD_NAMES.map((name, i) => h("button", { type: "button", class: i === holdIndex ? "active" : "",
+        onTap: () => { ctx.store.setSetting("shapeHoldMs", HOLD_VALUES[i]); ctx.store.setSetting("shapeRecognition", i > 0); build(); } }, name))),
+      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "Çizimin sonunda kalemi sabit tutunca çizgi düz çizgiye, kabaca çizilen şekil gerçek şekle dönüşür."),
+      h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Stabilizatör"), h("span", { class: "sp-value" }, SMOOTH[smoothing])),
+      h("div", { class: "sp-seg" }, ...SMOOTH.map((name, i) => h("button", { type: "button", class: i === smoothing ? "active" : "",
+        onTap: () => { ctx.store.setSetting("smoothing", i); build(); } }, name))),
+      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "El titremesini yumuşatır; yüksek seviyede çizgi daha akıcı olur."),
       h("div", { class: "sp-sep" }),
       colorRow("Mevcut Renk", tool.color, () => ctx.openColor()),
       (s.recentColors || []).length ? section("Son Kullanılan Renkler") : null,
