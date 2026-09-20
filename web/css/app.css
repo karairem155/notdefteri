@@ -1131,3 +1131,10 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .pc-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .pc-dot { width: 34px; height: 34px; border-radius: 50%; border: 0; padding: 0; background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.25); }
 .pc-dot.active { box-shadow: 0 0 0 3px var(--accent), inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
+
+/* Sayfa rengi: renk çarkı (sistem renk seçicisini açar) */
+.pc-input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; border: 0; padding: 0; cursor: pointer; }
+.pc-cell.pc-wheel { position: relative; cursor: pointer; }
+.pc-chip-wheel { background: conic-gradient(#ff5f6d, #ffc371, #7ee8a2, #52c5f2, #9b8cf7, #f77fbe, #ff5f6d); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), 0 4px 10px rgba(0, 0, 0, 0.3); }
+.pc-dot-wheel { position: relative; background: conic-gradient(#ff5f6d, #ffc371, #7ee8a2, #52c5f2, #9b8cf7, #f77fbe, #ff5f6d); }
+.pc-dot-wheel.active { box-shadow: 0 0 0 3px var(--accent), inset 0 0 0 1px rgba(0, 0, 0, 0.18); }

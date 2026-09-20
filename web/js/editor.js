@@ -367,7 +367,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       { title: "Yedekle", onSelect: () => import("./backup.js").then((m) => m.exportBackup()) },
       { title: "Ayarlar", onSelect: () => { flushInk(); navigate("#/settings"); } },
       { title: "Şablonu Değiştir", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t) => { store.setTemplate(notebookId, page.id, t); renderStage(); })) },
-      { title: "Sayfa Rengi", onSelect: openPageColorPanel },
+      { title: "Sayfa Rengi (bu sayfa)", onSelect: openPageColorPanel },   // pageColorFromMenu
       { title: "Tanılama (çizim netliği)", onSelect: cizimTanilama },
       { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
       { title: "Sayfa Yelpazesi", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${page.id}`); } },

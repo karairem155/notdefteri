@@ -530,12 +530,17 @@ export function pageColorPanel(ctx) {
     };
     const toggle = h("button", { class: "toggle pink" + (all ? " on" : ""), type: "button", role: "switch", "aria-checked": String(all),
       onTap: () => { all = !all; toggle.classList.toggle("on", all); toggle.setAttribute("aria-checked", String(all)); } });
+    // Renk çarkı: sistemin renk seçicisi açılır, sürüklerken sayfa anında boyanır.
+    const ozelDeger = h("input", { type: "color", class: "pc-input", value: current.startsWith("#") ? current : "#F2F0E6",
+      onInput: (e) => ctx.setPageColor(e.target.value, all),
+      onChange: (e) => { ctx.setPageColor(e.target.value, all); build(); } });
+    const ozel = h("label", { class: "pc-cell pc-wheel" + (PRESETS.every(([hex]) => hex.toUpperCase() !== current) ? " active" : ""), "aria-label": "Renk seç" },
+      h("span", { class: "pc-chip pc-chip-wheel" }), h("span", { class: "pc-name" }, "Renk seç"), ozelDeger);
     body.replaceChildren(
       h("p", { class: "sp-desc" }, "Sayfanın kağıt rengini seç. Çizgi ve kareler renge göre uyum sağlar."),
       h("div", { class: "sp-section" }, "Hazır tonlar"),
-      h("div", { class: "pc-grid" }, ...PRESETS.map(([hex, name]) => cell(hex, name))),
+      h("div", { class: "pc-grid" }, ...PRESETS.map(([hex, name]) => cell(hex, name)), ozel),
       h("div", { class: "sp-toggle-row" }, h("div", { class: "sp-row-text" }, h("div", { class: "sp-row-title" }, "Bütün sayfalara uygula"), h("div", { class: "sp-row-sub" }, "Defterdeki her sayfa bu renge geçer")), toggle),
-      h("button", { class: "sp-outline-btn", type: "button", onTap: () => ctx.openCustom(all) }, svgIcon("pen", 18), "Özel renk seç"),
       h("button", { class: "sp-outline-btn", type: "button", onTap: () => { ctx.setPageColor(null, all); build(); } }, svgIcon("undoTool", 18), "Varsayılana dön")
     );
   };

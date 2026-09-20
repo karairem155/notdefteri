@@ -2,7 +2,7 @@
 // uzun bas: şablonu değiştir / çoğalt / sil, dokununca o sayfaya git.
 import { renderPageCanvas } from "./pagerender.js";
 import { store } from "./store.js";
-import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog } from "./ui.js";
+import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, openModal, closeModal } from "./ui.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { navigate } from "./app.js";
 
@@ -40,6 +40,21 @@ export function renderPages(root, notebookId) {
         h("span", {}, "Sayfaya uzun bas: şablonu değiştir, çoğalt, sil")),
       grid
     );
+  }
+
+  /** Izgaradan sayfa rengi: hazır tonlar ve sistem renk seçicisi. */
+  function sayfaRengiSec(page) {
+    const TONLAR = [["", "Varsayılan"], ["#FFFFFF", "Beyaz"], ["#FBF6E9", "Sıcak"], ["#F6EFE0", "Kraft"], ["#EFF4EC", "Nane"], ["#EAF1FA", "Gökyüzü"], ["#F3EEF9", "Lavanta"], ["#FBEEF1", "Gül"], ["#2A2C34", "Gece"]];
+    const uygula = (renk) => { store.setPageColor(notebookId, page.id, renk || null, false); render(); };
+    const girdi = h("input", { type: "color", class: "pc-input", value: page.bg || "#F2F0E6", onChange: (e) => { uygula(e.target.value); closeModal(); } });
+    openModal(h("div", { class: "sheet-page" },
+      h("div", { class: "sheet-head" }, h("span", {}, "Sayfa Rengi"), h("button", { class: "btn ghost", type: "button", onTap: closeModal }, "Kapat")),
+      h("div", { class: "sheet-body" },
+        h("div", { class: "pc-row" },
+          ...TONLAR.map(([hex, ad]) => h("button", { type: "button", class: "pc-dot" + ((page.bg || "") === hex ? " active" : ""), "aria-label": ad, title: ad, style: { "--c": hex || "#F2F0E6" }, onTap: () => { uygula(hex); closeModal(); } })),
+          h("label", { class: "pc-dot pc-dot-wheel", "aria-label": "Renk seç", title: "Renk seç" }, girdi)),
+        h("div", { class: "note" }, "Seçtiğin renk yalnızca bu sayfaya uygulanır."))
+    ));
   }
 
   function cell(page, index) {
@@ -114,6 +129,7 @@ export function renderPages(root, notebookId) {
   function pageMenu(page) {
     const pages = store.notebook(notebookId).pages;
     actionSheet(`${indexOf(page.id) + 1}. sayfa`, [
+      { title: "Sayfa Rengi", onSelect: () => sayfaRengiSec(page) },
       { title: "Şablonu Değiştir", onSelect: () => openTemplatePicker((template) => { store.setTemplate(notebookId, page.id, template); render(); }) },
       { title: "Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectedId = id; render(); } },
       { title: "Sil", destructive: true, disabled: pages.length <= 1, onSelect: () => confirmDialog("Bu sayfa silinsin mi?", "Sayfa ve üzerindeki yazılar silinir. Defterde en az bir sayfa kalmalı.", "Sayfayı Sil", () => { store.deletePage(notebookId, page.id); render(); }) }

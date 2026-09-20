@@ -100,15 +100,23 @@ const SAYFA_RENKLERI = [
 /** Yeni sayfanın kağıt rengi: hazır tonlardan biri. */
 function pageColorRow(state, onChange) {
   const row = h("div", { class: "pc-row" });
-  const build = () => row.replaceChildren(...SAYFA_RENKLERI.map(([hex, name]) =>
-    h("button", {
-      type: "button",
-      class: "pc-dot" + ((state.bg || "") === hex ? " active" : ""),
-      "aria-label": name,
-      title: name,
-      style: { "--c": hex || "#F2F0E6" },
-      onTap: () => { state.bg = hex || null; build(); if (onChange) onChange(); }
-    })));
+  const build = () => {
+    const ozelMi = !!state.bg && !SAYFA_RENKLERI.some(([hex]) => hex && hex.toUpperCase() === state.bg.toUpperCase());
+    const girdi = h("input", { type: "color", class: "pc-input", value: state.bg || "#F2F0E6",
+      onInput: (e) => { state.bg = e.target.value; },
+      onChange: (e) => { state.bg = e.target.value; build(); if (onChange) onChange(); } });
+    row.replaceChildren(
+      ...SAYFA_RENKLERI.map(([hex, name]) =>
+        h("button", {
+          type: "button",
+          class: "pc-dot" + ((state.bg || "") === hex ? " active" : ""),
+          "aria-label": name,
+          title: name,
+          style: { "--c": hex || "#F2F0E6" },
+          onTap: () => { state.bg = hex || null; build(); if (onChange) onChange(); }
+        })),
+      h("label", { class: "pc-dot pc-dot-wheel" + (ozelMi ? " active" : ""), "aria-label": "Renk seç", title: "Renk seç", style: ozelMi ? { "--c": state.bg } : {} }, girdi));
+  };
   build();
   return row;
 }
