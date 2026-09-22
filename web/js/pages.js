@@ -1,5 +1,5 @@
 // Sayfalar ekranı (12-Sayfalar.png): bütün sayfalar ızgarada, sürükle-sırala,
-// uzun bas: şablonu değiştir / çoğalt / sil, dokununca o sayfaya git.
+// uzun bas: renk / boyut / şablon / çoğalt / sil, dokununca o sayfaya git.
 import { renderPageCanvas, spillFor } from "./pagerender.js";
 import { store } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, openModal, closeModal } from "./ui.js";
@@ -37,7 +37,7 @@ export function renderPages(root, notebookId) {
     body.replaceChildren(
       h("div", { class: "pages-hint" },
         h("span", {}, `${pages.length} sayfa · sürükleyerek sırayı değiştir`),
-        h("span", {}, "Sayfaya uzun bas: şablonu değiştir, çoğalt, sil")),
+        h("span", {}, "Sayfaya uzun bas: rengi, boyutu, şablonu değiştir; çoğalt, sil")),
       grid
     );
   }
