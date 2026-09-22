@@ -362,6 +362,24 @@ class Store extends EventTarget {
     this.setSetting("pens", pens);
   }
 
+  /**
+   * Favori kalemi listede başka bir sıraya taşır.
+   *
+   * Favoriler panelindeki sürükleme bu metodu `movePen` adıyla çağırıyordu ve
+   * öyle bir metot hiç yoktu: sıralama sessizce hiçbir şey yapmıyordu. Sıra
+   * hem panelde hem alt bardaki favori şeridinde görünüyor, o yüzden tek yerde.
+   */
+  reorderPen(id, toIndex) {
+    const pens = [...this.settings.pens];
+    const from = pens.findIndex((p) => p.id === id);
+    if (from < 0) return;
+    const to = Math.max(0, Math.min(pens.length - 1, toIndex));
+    if (from === to) return;
+    const [moved] = pens.splice(from, 1);
+    pens.splice(to, 0, moved);
+    this.setSetting("pens", pens);
+  }
+
   addPaletteColor(hex) {
     const normalized = hex.toUpperCase();
     if (this.settings.palette.some((c) => c.toUpperCase() === normalized)) return;

@@ -4,6 +4,21 @@ import { store } from "./store.js";
 import { paintPaper, drawImageURL, pdfPageImage } from "./paper.js";
 import { drawStroke, orderForDrawing } from "./ink.js";
 
+/**
+ * Çift sayfada foldu geçen nesne: sahibi tek sayfa, ama komşuda da görünür.
+ *
+ * Sayfa çiftleri çift indisten başlıyor (editörde de öyle: 0-1, 2-3 …).
+ * Dönen `dx`, komşunun nesnelerinin BU sayfanın koordinatlarına kayması.
+ */
+export function spillFor(pages, index) {
+  const leftIndex = index - (index % 2);
+  const left = pages[leftIndex];
+  const right = pages[leftIndex + 1];
+  if (!left || !right) return null;
+  if (index === leftIndex) return { objects: right.objects || [], dx: left.size.w };
+  return { objects: left.objects || [], dx: -left.size.w };
+}
+
 export async function renderPageCanvas(page, scale, opts = {}) {
   const { w, h } = page.size;
   const canvas = document.createElement("canvas");
@@ -22,9 +37,18 @@ export async function renderPageCanvas(page, scale, opts = {}) {
     if (url) drewBackground = await drawImageURL(ctx, url, 0, 0, w, h);
   }
   if (!drewBackground) paintPaper(ctx, page.pdf || page.templateAsset ? "blank" : page.paper, w, h, page.bg);
-  for (const object of page.objects.slice().sort((a, b) => a.z - b.z)) {
+  // Kendi nesneleri + komşudan bu sayfaya taşan yarılar, birlikte sıralanıyor.
+  const items = (page.objects || []).map((o) => ({ o, dx: 0 }));
+  if (opts.spill) {
+    for (const o of opts.spill.objects) {
+      const x = o.rect.x + opts.spill.dx;
+      if (x < w && x + o.rect.w > 0) items.push({ o, dx: opts.spill.dx });
+    }
+  }
+  items.sort((a, b) => (a.o.z || 0) - (b.o.z || 0));
+  for (const { o: object, dx } of items) {
     ctx.save();
-    ctx.translate(object.rect.x + object.rect.w / 2, object.rect.y + object.rect.h / 2);
+    ctx.translate(object.rect.x + dx + object.rect.w / 2, object.rect.y + object.rect.h / 2);
     ctx.rotate((object.rotation || 0) * Math.PI / 180);
     if (object.kind === "postit") {
       ctx.fillStyle = object.tint || "#FFE566";

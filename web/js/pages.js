@@ -1,6 +1,6 @@
 // Sayfalar ekranı (12-Sayfalar.png): bütün sayfalar ızgarada, sürükle-sırala,
 // uzun bas: şablonu değiştir / çoğalt / sil, dokununca o sayfaya git.
-import { renderPageCanvas } from "./pagerender.js";
+import { renderPageCanvas, spillFor } from "./pagerender.js";
 import { store } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, openModal, closeModal } from "./ui.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
@@ -61,7 +61,7 @@ export function renderPages(root, notebookId) {
     const thumb = h("div", { class: "thumb", style: { aspectRatio: `${page.size.w} / ${page.size.h}` } });
     // Önizleme sayfanın gerçeği: kağıt + nesneler + mürekkep aynı çizimle üretilir.
     const ink = h("img", { class: "ink", alt: "", draggable: "false" });
-    renderPageCanvas(page, Math.min(1, 460 / page.size.w), { background: true, opaque: true })
+    renderPageCanvas(page, Math.min(1, 460 / page.size.w), { background: true, opaque: true, spill: spillFor(store.notebook(notebookId).pages, index) })
       .then((canvas) => { ink.src = canvas.toDataURL("image/jpeg", 0.85); })
       .catch(() => {});
     thumb.append(ink);

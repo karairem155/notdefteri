@@ -28,9 +28,19 @@ function labelRow(label, value) {
   return h("div", { class: "sp-label-row" }, h("span", {}, label), h("span", { class: "sp-value" }, value));
 }
 
-function slider({ min, max, step, value, onInput, label }) {
-  return h("input", { type: "range", class: "sp-range", min: String(min), max: String(max), step: String(step), value: String(value), "aria-label": label,
-    onInput: (e) => onInput(Number(e.target.value)) });
+/** Dolu kısmın oranı CSS'e geçiyor — çubuğu kendimiz çiziyoruz (bkz. .sp-range). */
+function fillRange(el) {
+  const min = Number(el.min);
+  const max = Number(el.max);
+  const pct = max > min ? ((Number(el.value) - min) / (max - min)) * 100 : 0;
+  el.style.setProperty("--p", Math.max(0, Math.min(100, pct)) + "%");
+}
+
+export function slider({ min, max, step, value, onInput, label }) {
+  const el = h("input", { type: "range", class: "sp-range", min: String(min), max: String(max), step: String(step), value: String(value), "aria-label": label,
+    onInput: (e) => { fillRange(el); onInput(Number(e.target.value)); } });
+  fillRange(el);
+  return el;
 }
 
 function presetRow(values, current, onPick, fmt) {
@@ -232,21 +242,45 @@ export function favoritesPanel(ctx) {
       const edit = h("button", { class: "fav-icon-btn", type: "button", "aria-label": "Düzenle", onTap: (e) => { e.stopPropagation(); editMenu(pen); } }, svgIcon("edit", 18));
       const del = h("button", { class: "fav-icon-btn", type: "button", "aria-label": "Sil", disabled: s.pens.length <= 1, onTap: (e) => { e.stopPropagation(); ctx.store.removePen(pen.id); build(); ctx.rerender(); } }, svgIcon("trash", 18));
       row.append(handle, illo, dot, text, edit, del);
-      row.addEventListener("pointerup", (e) => { if (e.target.closest(".fav-icon-btn") || e.target.closest(".fav-drag")) return; if (row._dragged) { row._dragged = false; return; } ctx.applyPen(pen); build(); });
-      // Sürükleyerek sıralama: tutamaçtan tut, bırakınca hedef sıraya taşınır.
+      row.addEventListener("pointerup", (e) => { if (e.target.closest(".fav-icon-btn") || e.target.closest(".fav-drag")) return; ctx.applyPen(pen); build(); });
+      /**
+       * Sürükleyerek sıralama.
+       *
+       * Eskiden bırakınca `store.movePen` çağrılıyordu ve öyle bir metot yoktu;
+       * sürükleme görünüyor ama sıra hiç değişmiyordu. Ayrıca sadece tutulan
+       * satır kayıyordu, nereye düşeceği belli olmuyordu: diğer satırlar da
+       * kayarak yer açıyor artık.
+       */
       handle.addEventListener("pointerdown", (e) => {
         e.preventDefault(); e.stopPropagation();
         try { handle.setPointerCapture(e.pointerId); } catch (_) { /* sentetik */ }
+        const rows = [...list.children];
+        const boxes = rows.map((r) => r.getBoundingClientRect());
+        const step = rows.length > 1 ? boxes[1].top - boxes[0].top : boxes[0].height + 8;
         const startY = e.clientY;
+        let target = index;
         row.classList.add("dragging");
-        const move = (ev) => { row.style.transform = `translateY(${ev.clientY - startY}px)`; };
+
+        const place = (y) => {
+          // İşaretçinin üstünde kalan satır sayısı = bırakılırsa gideceği sıra.
+          let over = 0;
+          boxes.forEach((b, i) => { if (i !== index && y > b.top + b.height / 2) over++; });
+          target = Math.max(0, Math.min(rows.length - 1, over));
+          row.style.transform = `translateY(${y - startY}px)`;
+          rows.forEach((r, i) => {
+            if (i === index) return;
+            const shift = i > index && i <= target ? -step : i < index && i >= target ? step : 0;
+            r.style.transform = shift ? `translateY(${shift}px)` : "";
+          });
+        };
+
+        const move = (ev) => place(ev.clientY);
         const up = (ev) => {
           handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", up); handle.removeEventListener("pointercancel", up);
-          row.classList.remove("dragging"); row.style.transform = "";
-          const rows = [...list.children];
-          let target = index;
-          rows.forEach((r, i) => { const b = r.getBoundingClientRect(); if (ev.clientY > b.top + b.height / 2) target = Math.max(target, i > index ? i : target); if (ev.clientY < b.top + b.height / 2 && i < index) target = Math.min(target, i); });
-          if (target !== index) { const dir = target > index ? 1 : -1; for (let k = index; k !== target; k += dir) ctx.store.movePen(pen.id, dir); build(); ctx.rerender(); }
+          rows.forEach((r) => { r.style.transform = ""; });
+          row.classList.remove("dragging");
+          // Sistem hareketi iptal ettiyse (kaydırma, çağrı) sıra değişmemeli.
+          if (ev.type !== "pointercancel" && target !== index) { ctx.store.reorderPen(pen.id, target); build(); ctx.rerender(); }
         };
         handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", up); handle.addEventListener("pointercancel", up);
       });

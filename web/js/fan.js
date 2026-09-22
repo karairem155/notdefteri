@@ -4,7 +4,7 @@
 // bükülerek döner; defter açılırken kapak menteşesinden açılır.
 import { store } from "./store.js";
 import { h, svgIcon, actionSheet, confirmDialog } from "./ui.js";
-import { renderPageCanvas } from "./pagerender.js";
+import { renderPageCanvas, spillFor } from "./pagerender.js";
 import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
 import { coverElement } from "./covers.js";
 import { navigate } from "./app.js";
@@ -74,7 +74,9 @@ export function renderFan(root, notebookId) {
     if (!page) return Promise.resolve(null);
     if (imgCache.has(page.id)) return imgCache.get(page.id);
     const target = Math.min(3, Math.max(1, (pw * (window.devicePixelRatio || 1) * 1.15) / page.size.w));
-    const promise = renderPageCanvas(page, target, { background: true, opaque: true })
+    const list = pages();
+    const spill = spillFor(list, list.findIndex((p) => p.id === page.id));
+    const promise = renderPageCanvas(page, target, { background: true, opaque: true, spill })
       .then((canvas) => canvas.toDataURL("image/jpeg", 0.88))
       .catch(() => null);
     imgCache.set(page.id, promise);

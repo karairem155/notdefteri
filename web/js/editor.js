@@ -1,7 +1,7 @@
 // Editör (05-NotEditoru.png, 04-CiftSayfa.png). Lacivert masa, krem kağıt, altta koyu tezgah.
 // Sayfa katmanları (alttan üste): şablon → nesneler (fotoğraf/çıkartma/post-it) → çizim → örtüler.
 // Kipler: çizim / buzlu kalem (örtü katmanı çizgiyi buzlu şerit yapar) / nesne düzenleme.
-import { renderPageCanvas as renderPageCanvasShared } from "./pagerender.js";
+import { renderPageCanvas as renderPageCanvasShared, spillFor } from "./pagerender.js";
 import { store, TOOLS, uid } from "./store.js";
 import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
@@ -800,8 +800,10 @@ export function renderEditor(root, notebookId, initialPageId) {
             makeTransformable(el, object, stack, page, (rect, rotation) => {
               store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
               placeItem(el, object);
+              syncSpill(object, page);
               touchPage(page);
-            }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); });
+            }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); },
+            () => syncSpill(object, page));
             if (object.id === selectedObjectId) { addHandles(el); layer.append(objectMenu(object, page, textActions(object, page, stack, layer), () => { touchPage(page); renderObjects(layer, page, stack); renderBanner(); })); }
           }
           layer.append(el);
@@ -839,14 +841,26 @@ export function renderEditor(root, notebookId, initialPageId) {
         makeTransformable(el, object, stack, page, (rect, rotation) => {
           store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
           placeItem(el, object);
+          syncSpill(object, page);
           touchPage(page);
-        }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); });
+        }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); },
+        () => syncSpill(object, page));
         if (object.id === selectedObjectId) {
           addHandles(el);
-          layer.append(objectMenu(object, page, textActions(object, page, stack, layer), () => { touchPage(page); renderObjects(layer, page, stack); renderBanner(); }));
+          layer.append(objectMenu(object, page, textActions(object, page, stack, layer), () => { touchPage(page); renderObjects(layer, page, stack); refreshNeighbour(page); renderBanner(); }));
         }
       }
       layer.append(el);
+    }
+    // Komşu sayfadan foldu geçip buraya taşan nesneler (çift sayfa görünümü).
+    const near = spreadNeighbour(page);
+    if (near) {
+      for (const object of (near.page.objects || []).slice().sort((a, b) => a.z - b.z)) {
+        if (!spillsInto(object, near.into, page.size)) continue;
+        const el = spillVisual(object);
+        placeItem(el, object, near.into);
+        layer.append(el);
+      }
     }
     if (editingObjects) {
       layer.addEventListener("pointerdown", (e) => { if (e.target === layer) { selectedObjectId = null; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); } });
@@ -858,6 +872,11 @@ export function renderEditor(root, notebookId, initialPageId) {
             edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
             todo: object.kind === "text" ? () => toggleTodoMode(object, page) : null,
             cut: (object.kind === "photo" || object.kind === "sticker") ? () => startCut(object, page, stack) : null,
+            // Çift sayfada: görseli iki sayfaya birden yayar (kullanıcının istediği "tek
+            // görsel, iki sayfa"). Nesne yine tek sayfanın; öbür yarısı komşuda çiziliyor.
+            spread: spreadMode() && object.kind !== "text" && object.kind !== "check" && object.kind !== "audio"
+              ? () => spreadObject(object, page)
+              : null,
             font: object.kind === "text" ? () => textStyleMenu(object, page) : null,
             translate: object.kind === "text" ? () => openTranslate(object.text) : null,
             rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
@@ -865,6 +884,26 @@ export function renderEditor(root, notebookId, initialPageId) {
             front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
             remove: () => { store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); }); selectedObjectId = null; store.removeUnreferencedAssets(); }
     };
+  }
+
+  /** Nesneyi iki sayfaya yayar: oranı bozmadan açılan alanın tamamına. */
+  function spreadObject(object, page) {
+    const list = pages();
+    const left = list[spreadLeft()];
+    const right = list[spreadLeft() + 1];
+    if (!left || !right) return;
+    const total = left.size.w + right.size.w;
+    const ratio = object.rect.h / Math.max(1, object.rect.w);
+    let w = total;
+    let hgt = w * ratio;
+    if (hgt > page.size.h) { hgt = page.size.h; w = hgt / Math.max(0.01, ratio); }
+    const base = page.id === left.id ? 0 : -left.size.w;
+    const rect = { x: base + (total - w) / 2, y: Math.max(0, (page.size.h - hgt) / 2), w, h: hgt };
+    store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = 0; } });
+    object.rect = rect;
+    object.rotation = 0;
+    touchPage(page);
+    refreshNeighbour(page);
   }
 
   /** Bir satırın onay kutusunu değiştirir: "[ ] " ↔ "[x] ". */
@@ -918,7 +957,12 @@ export function renderEditor(root, notebookId, initialPageId) {
   }
 
   /** Sayfayı tuvale çizer: arka plan, nesneler, mürekkep. scale: piksel çarpanı; background=false → şeffaf/beyaz. */
-  function renderPageCanvas(page, scale, opts = {}) { return renderPageCanvasShared(page, scale, opts); }
+  function renderPageCanvas(page, scale, opts = {}) {
+    const list = pages();
+    const index = list.findIndex((p) => p.id === page.id);
+    const spill = index >= 0 ? spillFor(list, index) : null;
+    return renderPageCanvasShared(page, scale, spill ? { ...opts, spill } : opts);
+  }
 
   function refreshFrost(stack, page) {
     if (!page.covers.length) return;
@@ -927,12 +971,86 @@ export function renderEditor(root, notebookId, initialPageId) {
     });
   }
 
-  function placeItem(el, item) {
-    el.style.left = item.rect.x + "px";
+  function placeItem(el, item, dx = 0) {
+    el.style.left = (item.rect.x + dx) + "px";
     el.style.top = item.rect.y + "px";
     el.style.width = item.rect.w + "px";
     el.style.height = item.rect.h + "px";
     el.style.transform = `rotate(${item.rotation || 0}deg)`;
+  }
+
+  /**
+   * Çift sayfada komşu sayfa ve iki yönlü kaydırma.
+   *
+   * `into` → komşunun nesneleri BU sayfada nereye düşer
+   * `out`  → bu sayfanın nesneleri KOMŞUDA nereye düşer
+   *
+   * Nesne tek sayfaya ait kalıyor; komşudaki yarı yalnız görüntü. Böylece
+   * kayıt biçimi değişmiyor, dışa aktarma da aynı hesabı kullanıyor
+   * (pagerender.js → spillFor).
+   */
+  function spreadNeighbour(page) {
+    if (!spreadMode()) return null;
+    const list = pages();
+    const left = list[spreadLeft()];
+    const right = list[spreadLeft() + 1];
+    if (!left || !right || left.id === right.id) return null;
+    if (page.id === left.id) return { page: right, into: left.size.w, out: -left.size.w };
+    if (page.id === right.id) return { page: left, into: -left.size.w, out: left.size.w };
+    return null;
+  }
+
+  function stackFor(pageId) {
+    for (const stack of stage.querySelectorAll(".page-stack")) if (stack.dataset.pageId === pageId) return stack;
+    return null;
+  }
+
+  /** Nesnenin `dx` kadar kaydırılmış hâli sayfanın içine giriyor mu. */
+  function spillsInto(object, dx, size) {
+    const x = object.rect.x + dx;
+    const pad = Math.max(object.rect.w, object.rect.h);   // döndürülmüş nesneye pay
+    return x < size.w + pad && x + object.rect.w > -pad && object.kind !== "check" && object.kind !== "audio";
+  }
+
+  /** Foldu geçen nesnenin komşu sayfadaki yarısı — yalnız görüntü, dokunulmaz. */
+  function spillVisual(object) {
+    const el = h("div", { class: `placed ${object.kind} spill` + (object.kind === "postit" && object.style ? " " + object.style : ""), style: { "--tint": object.tint || "#FFE566" } });
+    el.dataset.spill = object.id;
+    if (object.kind === "tape") {
+      el.classList.add(object.pattern || "plain");
+      el.append(h("div", { class: "tape-body" }));
+    } else if (object.kind === "text") {
+      el.style.setProperty("--font", object.font || TEXT_FONTS[1][0]);
+      el.style.setProperty("--size", (object.size || 22) + "px");
+      el.style.setProperty("--text-color", object.color || "#1C1C1E");
+      el.append(h("div", { class: "text-content" }, object.text || ""));
+    } else if (object.kind !== "postit") {
+      const image = h("img", { alt: "", draggable: "false" });
+      store.assetURL(object.asset).then((url) => { if (url) image.src = url; });
+      el.append(image);
+    }
+    return el;
+  }
+
+  /** Sürükleme sırasında komşudaki yarıyı canlı tutar. */
+  function syncSpill(object, page) {
+    const near = spreadNeighbour(page);
+    if (!near) return;
+    const stack = stackFor(near.page.id);
+    const layer = stack && stack._layers ? stack._layers.objectsLayer : null;
+    if (!layer) return;
+    let el = layer.querySelector(`[data-spill="${object.id}"]`);
+    if (!spillsInto(object, near.out, near.page.size)) { if (el) el.remove(); return; }
+    if (!el) { el = spillVisual(object); layer.append(el); }
+    placeItem(el, object, near.out);
+  }
+
+  /** Komşu sayfanın nesne katmanını baştan kurar (taşan yarılar da yenilensin). */
+  function refreshNeighbour(page) {
+    const near = spreadNeighbour(page);
+    if (!near) return;
+    const stack = stackFor(near.page.id);
+    if (stack && stack._layers) renderObjects(stack._layers.objectsLayer, near.page, stack);
   }
 
   function addHandles(el) {
@@ -998,6 +1116,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       actions.edit && btn("Düzenle", "pen", actions.edit), actions.edit && h("div", { class: "sep" }),
       actions.todo && btn(item.todo ? "Kutuları kaldır" : "Onay kutuları", "check", actions.todo), actions.todo && h("div", { class: "sep" }),
       actions.cut && btn("Kes", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
+      actions.spread && btn("İki sayfaya yay", "books", actions.spread), actions.spread && h("div", { class: "sep" }),
       actions.font && btn("Yazı tipi", "note", actions.font), actions.font && h("div", { class: "sep" }),
       actions.translate && btn("Çevir", "share", actions.translate), actions.translate && h("div", { class: "sep" }),
       btn("Döndür", "rotate", actions.rotate), h("div", { class: "sep" }),
