@@ -129,10 +129,58 @@ export function iconButton(name, label, onClick, extraClass = "") {
  * Dokunma: pointer olaylarıyla çalışır (iPad Safari'de "click" bazı dinamik öğelerde gelmiyor).
  * Parmak 12 px'den fazla kayarsa (kaydırma) tetiklenmez. Klavye için Enter/Space da çalışır.
  */
+/**
+ * Hayalet click koruması.
+ *
+ * Dokunuş `pointerup`ta işleniyor; tarayıcı bundan ~50-300 ms sonra bir de
+ * `click` üretiyor. Arada ekran yeniden çizilirse — favori barı her seçimde
+ * kendini yeniden kuruyor — o click ARTIK BAŞKA bir düğmeye düşüyor ve onu da
+ * tetikliyor. Kullanıcının gördüğü buydu: "renge basıyorum, başka rengi
+ * seçiyor"; bazen de seçtiği kalemin ayar paneli kendiliğinden açılıyordu.
+ *
+ * Öğe üstünde süre tutmak (eski yöntem) yetmiyor, çünkü yeni öğenin sayacı
+ * sıfır. Bu yüzden kayıt DOKUNULAN NOKTADA tutuluyor: işlenen her dokunuştan
+ * sonra aynı noktaya gelen ilk click yakalama aşamasında yutuluyor, hangi
+ * öğeye denk gelirse gelsin.
+ *
+ * Klavyeden gelen click (detail 0) ve kodun kendi `el.click()` çağrıları
+ * etkilenmiyor.
+ */
+const HAYALET_MS = 700;
+const HAYALET_PX = 26;
+const sonDokunuslar = [];
+
+function dokunusIsaretle(e) {
+  sonDokunuslar.push({ at: Date.now(), x: e && e.clientX != null ? e.clientX : 0, y: e && e.clientY != null ? e.clientY : 0 });
+  if (sonDokunuslar.length > 4) sonDokunuslar.shift();
+}
+
+function hayaletMi(e) {
+  if (!e.detail) return false;
+  const now = Date.now();
+  for (let i = sonDokunuslar.length - 1; i >= 0; i--) {
+    const t = sonDokunuslar[i];
+    if (now - t.at > HAYALET_MS) continue;
+    if (Math.hypot(e.clientX - t.x, e.clientY - t.y) <= HAYALET_PX) {
+      sonDokunuslar.splice(i, 1);   // her dokunuş en fazla bir click yutar
+      return true;
+    }
+  }
+  return false;
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("click", (e) => {
+    if (!hayaletMi(e)) return;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+}
+
 export function tap(el, handler) {
   let start = null;
   let lastFire = 0;
-  const fire = (e) => { lastFire = Date.now(); handler(e); };
+  const fire = (e) => { lastFire = Date.now(); dokunusIsaretle(e); handler(e); };
   el.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     start = { x: e.clientX, y: e.clientY, id: e.pointerId, t: Date.now() };
@@ -187,7 +235,7 @@ export function pressable(el, { onTap, onLong, moveTolerance = 10 }) {
     const wasPressed = !!start;
     const wasLong = longFired;
     cancel();
-    if (wasPressed && !wasLong && onTap) { lastFire = Date.now(); onTap(e); }
+    if (wasPressed && !wasLong && onTap) { lastFire = Date.now(); dokunusIsaretle(e); onTap(e); }
   });
   el.addEventListener("pointercancel", (e) => {
     const s = start;
@@ -196,8 +244,10 @@ export function pressable(el, { onTap, onLong, moveTolerance = 10 }) {
     if (!s || wasLong || !onTap) return;
     const dx = (e.clientX == null ? s.x : e.clientX) - s.x;
     const dy = (e.clientY == null ? s.y : e.clientY) - s.y;
-    if (Math.hypot(dx, dy) <= 7) { lastFire = Date.now(); onTap(e); }
+    if (Math.hypot(dx, dy) <= 7) { lastFire = Date.now(); dokunusIsaretle(e); onTap(e); }
   });
+  // Yedek: işaretçi olayları hiç gelmediyse click dokunuş sayılır. Hayalet
+  // click'ler buraya kadar gelmiyor (yakalama aşamasında yutuluyor).
   el.addEventListener("click", (e) => { if (onTap && !longFired && Date.now() - lastFire > 600) { lastFire = Date.now(); onTap(e); } });
   el.addEventListener("contextmenu", (e) => { if (onLong) e.preventDefault(); });
 }
