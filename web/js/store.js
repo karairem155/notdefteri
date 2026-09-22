@@ -215,7 +215,8 @@ class Store extends EventTarget {
     while (notebook.pages.length < 3) notebook.pages.push(newPage());
     for (const page of notebook.pages) {
       applyTemplate(page, template, this);
-      page.size = { ...PAGE_SIZES[this.settings.pageSize] };
+      const size = PAGE_SIZES[this.settings.pageSize] || PAGE_SIZES.a4;
+      page.size = { w: size.w, h: size.h };   // yalnız ölçü: başlık/not sayfaya yazılmasın
     }
     this.notebooks.push(notebook);
     this.persist(notebook, true);
