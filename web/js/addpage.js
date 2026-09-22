@@ -1,6 +1,6 @@
 // Sayfa Ekle (11-SayfaEkle.png): Şablonlarım / Desenler / PDF'ten sekmeleri, "Ekleneceği yer" seçimi.
 // Ayrıca tek başına şablon seçici (Sayfalar ekranındaki "Şablonu değiştir").
-import { store, PAPER_STYLES, PAGE_SIZES, uid } from "./store.js";
+import { store, PAPER_STYLES, PAGE_SIZES, pageSizeKey, uid } from "./store.js";
 import { h, svgIcon, openModal, closeModal, actionSheet, promptDialog, toast, pickFile } from "./ui.js";
 import { drawPaper, pdfPageSizes } from "./paper.js";
 
@@ -126,7 +126,14 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   const pageCount = Math.max(notebook.pages.length, 1);
   const current = notebook.pages[currentIndex];
   const fallback = current ? (current.templateAsset ? ("custom:" + (store.settings.templates.find((t) => t.asset === current.templateAsset) || {}).id) : "builtin:" + current.paper) : "builtin:ruled";
-  const state = { selection: store.initialTemplate(fallback), insertIndex: Math.min(currentIndex + 1, pageCount), bg: current && current.bg ? current.bg : null };
+  // Boyut: varsayılan olarak ŞU ANKİ sayfayla aynı — defterin ortasına başka
+  // ölçüde bir sayfa düşmesi istisna olmalı, kural değil.
+  const state = {
+    selection: store.initialTemplate(fallback),
+    insertIndex: Math.min(currentIndex + 1, pageCount),
+    bg: current && current.bg ? current.bg : null,
+    size: (current && pageSizeKey(current.size)) || store.settings.pageSize
+  };
   let tab = state.selection.startsWith("custom:") || store.settings.templates.length ? "mine" : "patterns";
 
   const gridHost = h("div");
@@ -149,7 +156,7 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
       note.textContent = "";
     } else {
       buildGrid(gridHost, tab, state, rerender);
-      note.textContent = `Fotoğraflar veya Dosyalar'dan eklediğin her görsel burada şablon olarak kalır; her sayfaya ayrı şablon seçebilirsin. Yeni sayfa boyutu: ${PAGE_SIZES[store.settings.pageSize].title} (Ayarlar'dan değişir).`;
+      note.textContent = "Fotoğraflar veya Dosyalar'dan eklediğin her görsel burada şablon olarak kalır; her sayfaya ayrı şablon seçebilirsin. Boyutu aşağıdan seçersin; varsayılanı Ayarlar'da.";
     }
   }
 
@@ -159,9 +166,15 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   );
   positionSelect.value = String(state.insertIndex);
 
+  const sizeSelect = h("select", { class: "select", "aria-label": "Sayfa boyutu", onChange: (e) => { state.size = e.target.value; } },
+    h("optgroup", { label: "Dikey" }, ...Object.entries(PAGE_SIZES).filter(([, v]) => !v.landscape).map(([k, v]) => h("option", { value: k }, v.note ? `${v.title} · ${v.note}` : v.title))),
+    h("optgroup", { label: "Yatay" }, ...Object.entries(PAGE_SIZES).filter(([, v]) => v.landscape).map(([k, v]) => h("option", { value: k }, v.note ? `${v.title} · ${v.note}` : v.title))));
+  sizeSelect.value = state.size;
+
   function add() {
     if (!state.selection) return;
-    const id = store.addPage(notebookId, state.insertIndex, state.selection);
+    const size = PAGE_SIZES[state.size] || PAGE_SIZES[store.settings.pageSize];
+    const id = store.addPage(notebookId, state.insertIndex, state.selection, { size });
     if (id && state.bg) store.setPageColor(notebookId, id, state.bg, false);
     closeModal();
     if (id && onAdded) onAdded(id);
@@ -193,6 +206,7 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
     h("div", { class: "sheet-body" },
       h("div", { class: "sheet-toolbar" }, tabs, h("div", { style: { display: "flex", alignItems: "center", gap: "10px", color: "var(--muted)" } }, "Ekleneceği yer", positionSelect)),
       gridHost,
+      h("div", { class: "sheet-colorbar" }, h("span", {}, "Sayfa boyutu"), sizeSelect),
       h("div", { class: "sheet-colorbar" }, h("span", {}, "Kağıt rengi"), pageColorRow(state)),
       note)
   ), { wide: true });

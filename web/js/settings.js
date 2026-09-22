@@ -39,7 +39,7 @@ export function renderSettings(root) {
         section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Alt bardaki renkler: kullandığın renkler kendiliğinden başa geçer (en çok 12). Bir renge uzun basınca değiştirir, taşır ya da çıkarırsın."))),
         section("VARSAYILAN KALEM", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
         section("SAYFA", h("div", { class: "settings-rows" },
-          row("Varsayılan sayfa boyutu", select(Object.entries(PAGE_SIZES).map(([k, v]) => [k, v.title]), s.pageSize, (v) => store.setSetting("pageSize", v))),
+          row("Varsayılan sayfa boyutu", select(pageSizeOptions(), s.pageSize, (v) => store.setSetting("pageSize", v))),
           row("Varsayılan görünüm", select([["single", "Tek sayfa"], ["spread", "Çift sayfa"]], s.spreadMode ? "spread" : "single", (v) => store.setSetting("spreadMode", v === "spread"))),
           row("Defter açılınca", select([["page", "Doğrudan sayfa"], ["fan", "Sayfa yelpazesi"]], s.openMode || "page", (v) => { store.setSetting("openModeByUser", true); store.setSetting("openMode", v); })),
           row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onTap: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),
@@ -73,10 +73,24 @@ export function renderSettings(root) {
     return h("div", { class: "settings-row" }, h("span", {}, title), control);
   }
 
+  /** Seçenekler: [değer, etiket] ya da { group, items } (başlıklı öbek). */
   function select(options, value, onChange) {
-    const el = h("select", { class: "select", onChange: (e) => onChange(e.target.value) }, ...options.map(([v, t]) => h("option", { value: v }, t)));
+    const build = (o) => (o && o.group
+      ? h("optgroup", { label: o.group }, ...o.items.map(([v, t]) => h("option", { value: v }, t)))
+      : h("option", { value: o[0] }, o[1]));
+    const el = h("select", { class: "select", onChange: (e) => onChange(e.target.value) }, ...options.map(build));
     el.value = value;
     return el;
+  }
+
+  /** Sayfa boyutu listesi: dikeyler ve yatalar ayrı öbekte, ölçüsüyle birlikte. */
+  function pageSizeOptions() {
+    const entries = Object.entries(PAGE_SIZES);
+    const label = ([k, v]) => [k, v.note ? `${v.title} · ${v.note}` : v.title];
+    return [
+      { group: "Dikey", items: entries.filter(([, v]) => !v.landscape).map(label) },
+      { group: "Yatay", items: entries.filter(([, v]) => v.landscape).map(label) }
+    ];
   }
 
   function toggle(on, onChange) {

@@ -4,12 +4,38 @@ import { db } from "./db.js";
 
 export const A4 = { w: 595, h: 842 };
 
+/**
+ * Sayfa boyutları — 72 dpi noktası (A4 = 595 × 842, yazdırma ölçüsüyle aynı).
+ *
+ * Anahtarlar kalıcı: ayarlarda saklanan değer bunlardan biri, o yüzden eski
+ * dört anahtar (a4, letter, square, ipad) aynı kaldı. `note` seçim listesinde
+ * gösteriliyor — "A5" tek başına kaç santim olduğunu söylemiyor.
+ */
 export const PAGE_SIZES = {
-  a4: { title: "A4", w: 595, h: 842 },
-  letter: { title: "Letter", w: 612, h: 792 },
-  square: { title: "Kare", w: 700, h: 700 },
-  ipad: { title: "iPad ekranı", w: 768, h: 1024 }
+  a4: { title: "A4", w: 595, h: 842, note: "210 × 297 mm" },
+  a5: { title: "A5", w: 420, h: 595, note: "148 × 210 mm · küçük defter" },
+  a6: { title: "A6", w: 298, h: 420, note: "105 × 148 mm · cep" },
+  b5: { title: "B5", w: 499, h: 709, note: "176 × 250 mm" },
+  a3: { title: "A3", w: 842, h: 1191, note: "297 × 420 mm · büyük" },
+  letter: { title: "Letter", w: 612, h: 792, note: "8,5 × 11 in" },
+  legal: { title: "Legal", w: 612, h: 1008, note: "8,5 × 14 in" },
+  square: { title: "Kare", w: 700, h: 700, note: "1:1" },
+  ipad: { title: "iPad ekranı", w: 768, h: 1024, note: "3:4" },
+  a4yatay: { title: "A4 yatay", w: 842, h: 595, note: "297 × 210 mm", landscape: true },
+  a5yatay: { title: "A5 yatay", w: 595, h: 420, note: "210 × 148 mm", landscape: true },
+  letteryatay: { title: "Letter yatay", w: 792, h: 612, note: "11 × 8,5 in", landscape: true },
+  ipadyatay: { title: "iPad yatay", w: 1024, h: 768, note: "4:3", landscape: true },
+  genis: { title: "Geniş", w: 960, h: 540, note: "16:9 · sunum", landscape: true }
 };
+
+/** Ölçüye en yakın boyut anahtarı — sayfa eklerken mevcut sayfayla aynı boyut seçili gelsin diye. */
+export function pageSizeKey(size) {
+  if (!size) return null;
+  for (const [key, value] of Object.entries(PAGE_SIZES)) {
+    if (Math.abs(value.w - size.w) < 2 && Math.abs(value.h - size.h) < 2) return key;
+  }
+  return null;
+}
 
 export const PAPER_STYLES = {
   blank: "Boş",
