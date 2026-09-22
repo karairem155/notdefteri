@@ -3,7 +3,7 @@
 import { renderPageCanvas, spillFor } from "./pagerender.js";
 import { store } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, openModal, closeModal } from "./ui.js";
-import { openAddPageSheet, openTemplatePicker } from "./addpage.js";
+import { openAddPageSheet, openTemplatePicker, openPageSizeSheet } from "./addpage.js";
 import { navigate } from "./app.js";
 
 export function renderPages(root, notebookId) {
@@ -130,6 +130,7 @@ export function renderPages(root, notebookId) {
     const pages = store.notebook(notebookId).pages;
     actionSheet(`${indexOf(page.id) + 1}. sayfa`, [
       { title: "Sayfa Rengi", onSelect: () => sayfaRengiSec(page) },
+      { title: "Sayfa Boyutu", onSelect: () => openPageSizeSheet(notebookId, page, render) },
       { title: "Şablonu Değiştir", onSelect: () => openTemplatePicker((template) => { store.setTemplate(notebookId, page.id, template); render(); }) },
       { title: "Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectedId = id; render(); } },
       { title: "Sil", destructive: true, disabled: pages.length <= 1, onSelect: () => confirmDialog("Bu sayfa silinsin mi?", "Sayfa ve üzerindeki yazılar silinir. Defterde en az bir sayfa kalmalı.", "Sayfayı Sil", () => { store.deletePage(notebookId, page.id); render(); }) }

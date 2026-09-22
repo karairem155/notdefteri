@@ -29,6 +29,17 @@ export const PAGE_SIZES = {
 };
 
 /** Ölçüye en yakın boyut anahtarı — sayfa eklerken mevcut sayfayla aynı boyut seçili gelsin diye. */
+/** Nesne/örtü dikdörtgenini ölçekler (sayfa boyutu değişince). */
+function scaleRect(item, k, dx, dy) {
+  if (!item || !item.rect) return;
+  item.rect = {
+    x: item.rect.x * k + dx,
+    y: item.rect.y * k + dy,
+    w: item.rect.w * k,
+    h: item.rect.h * k
+  };
+}
+
 export function pageSizeKey(size) {
   if (!size) return null;
   for (const [key, value] of Object.entries(PAGE_SIZES)) {
@@ -338,6 +349,48 @@ class Store extends EventTarget {
         else delete page.bg;
       }
     }, true);
+  }
+
+  /**
+   * Sayfa ölçüsünü değiştirir. İÇERİK KIRPILMAZ.
+   *
+   * Ölçek iki kenar oranından KÜÇÜĞÜ: hiçbir şey dışarıda kalmıyor, uzayan
+   * kenarda boşluk kalıyor ve o boşluk iki yana eşit dağıtılıyor — yani yazı
+   * sayfanın ortasında kalıyor, kenara yapışmıyor.
+   *
+   * Çizgi kalınlığı, yazı punto'su ve örtülerin bulanıklığı da aynı oranla
+   * ölçekleniyor; yoksa küçülen sayfada çizgi kalın, yazı büyük kalırdı.
+   *
+   * PDF'ten gelen sayfa ölçü değiştirmiyor: arkadaki PDF kendi oranında ve
+   * onu esnetmek metni bozar. Atlanan sayfa sayısı dönüyor ki ekran söyleyebilsin.
+   */
+  resizePage(notebookId, pageId, size, all = false) {
+    let atlanan = 0;
+    this.mutate(notebookId, (notebook) => {
+      for (const page of notebook.pages) {
+        if (!all && page.id !== pageId) continue;
+        if (page.pdf) { atlanan++; continue; }
+        const k = Math.min(size.w / page.size.w, size.h / page.size.h);
+        const dx = (size.w - page.size.w * k) / 2;
+        const dy = (size.h - page.size.h * k) / 2;
+        if (Math.abs(k - 1) > 0.0005 || Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          for (const stroke of page.strokes || []) {
+            stroke.points = (stroke.points || []).map((p) => [p[0] * k + dx, p[1] * k + dy, ...p.slice(2)]);
+            if (stroke.width) stroke.width *= k;
+          }
+          for (const object of page.objects || []) {
+            scaleRect(object, k, dx, dy);
+            if (object.size) object.size *= k;
+          }
+          for (const cover of page.covers || []) {
+            scaleRect(cover, k, dx, dy);
+            if (cover.blur) cover.blur *= k;
+          }
+        }
+        page.size = { w: size.w, h: size.h };
+      }
+    }, true);
+    return atlanan;
   }
 
   setTemplate(notebookId, pageId, template) {

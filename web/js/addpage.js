@@ -121,6 +121,49 @@ function pageColorRow(state, onChange) {
   return row;
 }
 
+/** Boyut listesi — hem sayfa eklerken hem boyut değiştirirken aynı liste. */
+function sizeSelect(value, label = "Sayfa boyutu") {
+  const option = ([k, v]) => h("option", { value: k }, v.note ? `${v.title} · ${v.note}` : v.title);
+  const el = h("select", { class: "select", "aria-label": label },
+    h("optgroup", { label: "Dikey" }, ...Object.entries(PAGE_SIZES).filter(([, v]) => !v.landscape).map(option)),
+    h("optgroup", { label: "Yatay" }, ...Object.entries(PAGE_SIZES).filter(([, v]) => v.landscape).map(option)));
+  el.value = value;
+  return el;
+}
+
+/**
+ * Var olan sayfanın ölçüsünü değiştirme sayfası.
+ *
+ * İçerik kırpılmıyor: yeni ölçüye oranı korunarak sığdırılıyor
+ * (store.resizePage). Hem Sayfalar ızgarasından hem editörden açılıyor.
+ */
+export function openPageSizeSheet(notebookId, page, onDone) {
+  let hepsi = false;
+  const secim = sizeSelect(pageSizeKey(page.size) || store.settings.pageSize);
+  const anahtar = h("button", { class: "toggle", type: "button", role: "switch", "aria-checked": "false", "aria-label": "Bütün sayfalara uygula",
+    onTap: () => { hepsi = !hepsi; anahtar.classList.toggle("on", hepsi); anahtar.setAttribute("aria-checked", String(hepsi)); } });
+
+  const uygula = () => {
+    const size = PAGE_SIZES[secim.value];
+    closeModal();
+    if (!size) return;
+    const atlanan = store.resizePage(notebookId, page.id, size, hepsi);
+    if (atlanan) toast(`${atlanan} PDF sayfası kendi ölçüsünde kaldı`);
+    if (onDone) onDone();
+  };
+
+  openModal(h("div", { class: "sheet-page" },
+    h("div", { class: "sheet-head" },
+      h("button", { class: "btn ghost", type: "button", onTap: closeModal }, "İptal"),
+      h("span", {}, "Sayfa Boyutu"),
+      h("button", { class: "btn ghost", type: "button", onTap: uygula }, "Uygula")),
+    h("div", { class: "sheet-body" },
+      h("div", { class: "sheet-colorbar" }, h("span", {}, "Yeni boyut"), secim),
+      h("div", { class: "sheet-colorbar" }, h("span", {}, "Bütün sayfalara uygula"), anahtar),
+      h("div", { class: "note" }, "Yazılar, nesneler ve örtüler kırpılmaz: oranı korunarak yeni ölçüye sığdırılır, artan boşluk iki yana eşit dağıtılır. PDF'ten gelen sayfalar kendi ölçüsünde kalır."))
+  ));
+}
+
 export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   const notebook = store.notebook(notebookId);
   const pageCount = Math.max(notebook.pages.length, 1);
@@ -166,10 +209,8 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
   );
   positionSelect.value = String(state.insertIndex);
 
-  const sizeSelect = h("select", { class: "select", "aria-label": "Sayfa boyutu", onChange: (e) => { state.size = e.target.value; } },
-    h("optgroup", { label: "Dikey" }, ...Object.entries(PAGE_SIZES).filter(([, v]) => !v.landscape).map(([k, v]) => h("option", { value: k }, v.note ? `${v.title} · ${v.note}` : v.title))),
-    h("optgroup", { label: "Yatay" }, ...Object.entries(PAGE_SIZES).filter(([, v]) => v.landscape).map(([k, v]) => h("option", { value: k }, v.note ? `${v.title} · ${v.note}` : v.title))));
-  sizeSelect.value = state.size;
+  const boyutSecimi = sizeSelect(state.size);
+  boyutSecimi.addEventListener("change", (e) => { state.size = e.target.value; });
 
   function add() {
     if (!state.selection) return;
@@ -206,7 +247,7 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
     h("div", { class: "sheet-body" },
       h("div", { class: "sheet-toolbar" }, tabs, h("div", { style: { display: "flex", alignItems: "center", gap: "10px", color: "var(--muted)" } }, "Ekleneceği yer", positionSelect)),
       gridHost,
-      h("div", { class: "sheet-colorbar" }, h("span", {}, "Sayfa boyutu"), sizeSelect),
+      h("div", { class: "sheet-colorbar" }, h("span", {}, "Sayfa boyutu"), boyutSecimi),
       h("div", { class: "sheet-colorbar" }, h("span", {}, "Kağıt rengi"), pageColorRow(state)),
       note)
   ), { wide: true });

@@ -6,7 +6,7 @@ import { store, TOOLS, uid } from "./store.js";
 import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
-import { openAddPageSheet, shrinkImage } from "./addpage.js";
+import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
 import { createFlip } from "./flip.js";
 import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
@@ -368,6 +368,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       { title: "Ayarlar", onSelect: () => { flushInk(); navigate("#/settings"); } },
       { title: "Şablonu Değiştir", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t) => { store.setTemplate(notebookId, page.id, t); renderStage(); })) },
       { title: "Sayfa Rengi (bu sayfa)", onSelect: openPageColorPanel },   // pageColorFromMenu
+      { title: "Sayfa Boyutu", onSelect: () => openPageSizeSheet(notebookId, page, () => { invalidateSnapshot(page); renderStage(); }) },
       { title: "Tanılama (çizim netliği)", onSelect: cizimTanilama },
       { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
       { title: "Sayfa Yelpazesi", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${page.id}`); } },
