@@ -128,6 +128,10 @@ export class InkCanvas {
       this.textLine = null;
       this.liveTarget = this;
       this.startExternalLive(this.strokeStyle, round(p));
+      // Hazır şekil: noktaları biz üretiyoruz, bitişte sadeleştirme dokunmasın.
+      // Sadeleştirme kenarlardaki ara noktaları atıyor, kalan 4 köşeyi de çizim
+      // yumuşatması yuvarlıyordu: dikdörtgen bırakınca şişip bozuluyordu.
+      if (this.live) this.live.shape = true;
       return;
     }
     if (tool.tool === "lasso") {
@@ -166,6 +170,7 @@ export class InkCanvas {
       const p = this.rawPoint(e);
       const snap = this.options.rulerSnap ? this.options.rulerSnap() !== false : true;
       this.live.points = shapePoints(this.shapeKind, this.shapeStart, [p[0], p[1]], snap);
+      this.live.shape = true;
       this.redrawWithLive();
       return;
     }
@@ -335,7 +340,7 @@ export class InkCanvas {
   /** Nokta ekler; eklendiyse true. Şekle dönüştürülmüş çizgiye nokta eklenince serbest çizime dönülür. */
   addLivePoint(p) {
     if (!this.live) return false;
-    if (this.live.shape) {
+    if (this.live.shape && this.live.shapeBase) {
       // Şekle dönüşmüş çizgi: kalem hâlâ basılıyken sürüklemek şekli büyütür/küçültür.
       const { shapeBase, shapeAnchor: a, shapeHandle: hd } = this.live;
       if (Math.hypot(p[0] - hd[0], p[1] - hd[1]) < 1.5) return false;
@@ -863,6 +868,8 @@ export function recognizeShape(points) {
   let verts = simplify(pts.concat([[first[0], first[1], pressure]]), eps).slice(0, -1);
   while (verts.length > 1 && Math.hypot(verts[verts.length - 1][0] - verts[0][0], verts[verts.length - 1][1] - verts[0][1]) < eps * 2) verts.pop();
   if (verts.length >= 3 && verts.length <= 6) {
+    const rect = rectangleFrom(verts, pressure);
+    if (rect) return densify(rect);
     if (verts.length === 4 && axisAligned(verts)) {
       let x0 = box.minX, x1 = box.maxX, y0 = box.minY, y1 = box.maxY;
       if (Math.abs(rx - ry) < 0.12 * Math.max(rx, ry)) { const r = (rx + ry) / 2; x0 = cx - r; x1 = cx + r; y0 = cy - r; y1 = cy + r; }   // kare
@@ -972,6 +979,74 @@ function simplify(pts, eps) {
     return l.slice(0, -1).concat(r);
   }
   return [a, b];
+}
+
+/**
+ * Dört köşeli kapalı çizimi dikdörtgene çeker.
+ *
+ * Elle çizilen dikdörtgenin kenarları hep biraz eğik olur. Eskiden yalnız
+ * yatay/dikeye yakın çizim düzeltiliyor, kalanı çizildiği gibi bırakılıyordu:
+ * kullanıcı dikdörtgen çizip paralelkenar elde ediyordu — "dikdörtgen yapmak
+ * çok zor". Artık köşeler 90°'ye yakınsa şekil dikdörtgene çekiliyor: eğik
+ * çizildiyse eğik dikdörtgen, az eğikse tam yatay/dikey.
+ *
+ * Bilerek paralelkenar/yamuk çizene dokunulmuyor: bir köşe 90°'den 30 dereceden
+ * fazla saparsa şekil olduğu gibi kalıyor.
+ */
+function rectangleFrom(verts, pressure) {
+  if (verts.length !== 4) return null;
+  for (let i = 0; i < 4; i++) {
+    const p = verts[(i + 3) % 4];
+    const q = verts[i];
+    const r = verts[(i + 1) % 4];
+    let deg = Math.abs(Math.atan2(p[1] - q[1], p[0] - q[0]) - Math.atan2(r[1] - q[1], r[0] - q[0])) * 180 / Math.PI;
+    if (deg > 180) deg = 360 - deg;
+    if (Math.abs(deg - 90) > 30) return null;
+  }
+
+  // Kenar yönlerinin ortalaması. Açı 4 ile çarpılıp ortalanıyor: 90°'nin katları
+  // aynı yöne denk gelsin diye (dört kenar iki yöne bakıyor).
+  let sx = 0;
+  let sy = 0;
+  for (let i = 0; i < 4; i++) {
+    const p = verts[i];
+    const q = verts[(i + 1) % 4];
+    const a = Math.atan2(q[1] - p[1], q[0] - p[0]) * 4;
+    sx += Math.cos(a);
+    sy += Math.sin(a);
+  }
+  let theta = Math.atan2(sy, sx) / 4;
+  if (Math.abs(theta * 180 / Math.PI) < 12) theta = 0;   // neredeyse düz çizildi: tam yatay/dikey
+
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+  for (const p of verts) {
+    const u = p[0] * cos + p[1] * sin;
+    const v = -p[0] * sin + p[1] * cos;
+    minU = Math.min(minU, u); maxU = Math.max(maxU, u);
+    minV = Math.min(minV, v); maxV = Math.max(maxV, v);
+  }
+  let w = maxU - minU;
+  let h = maxV - minV;
+  if (w < 12 || h < 12) return null;
+  // Kareye yakınsa kare yap (mevcut davranış).
+  if (Math.abs(w - h) < 0.12 * Math.max(w, h)) {
+    const side = (w + h) / 2;
+    const midU = (minU + maxU) / 2;
+    const midV = (minV + maxV) / 2;
+    minU = midU - side / 2; maxU = midU + side / 2;
+    minV = midV - side / 2; maxV = midV + side / 2;
+  }
+  const back = (u, v) => [
+    Math.round((u * cos - v * sin) * 10) / 10,
+    Math.round((u * sin + v * cos) * 10) / 10,
+    pressure
+  ];
+  return [back(minU, minV), back(maxU, minV), back(maxU, maxV), back(minU, maxV), back(minU, minV)];
 }
 
 /** Dört kenar da yatay/dikeye 14° içinde mi? */

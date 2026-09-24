@@ -772,9 +772,24 @@ export function renderEditor(root, notebookId, initialPageId) {
   function renderObjects(layer, page, stack) {
     layer.replaceChildren();
     layer.classList.toggle("editing", editingObjects);
-    const sorted = page.objects.slice().sort((a, b) => a.z - b.z);
-    for (const object of sorted) {
+    // Kendi nesneleri + komşu sayfadan foldu geçip buraya taşanlar.
+    //
+    // Taşan yarı da TAM nesne: seçiliyor, tutamakları görünüyor, buradan
+    // taşınıp boyutlandırılıyor. Önce yalnız görüntüydü ve sağ sayfaya geçen
+    // görsel orada tutulamıyordu. Nesne yine tek sayfanın; düzenleme sahibinin
+    // koordinatlarında yapılıyor (makeTransformable'a sahibin katmanı gidiyor).
+    const near = spreadNeighbour(page);
+    const nearStack = near ? stackFor(near.page.id) : null;
+    const items = page.objects.map((o) => ({ object: o, owner: page, ownerStack: stack, dx: 0 }));
+    if (near) {
+      for (const o of near.page.objects || []) {
+        if (spillsInto(o, near.into, page.size)) items.push({ object: o, owner: near.page, ownerStack: nearStack || stack, dx: near.into });
+      }
+    }
+    items.sort((a, b) => (a.object.z || 0) - (b.object.z || 0));
+    for (const { object, owner, ownerStack, dx } of items) {
       const el = h("div", { class: `placed ${object.kind}` + (object.kind === "postit" && object.style ? " " + object.style : "") + (object.id === selectedObjectId ? " selected" : "") + (object.id === editingTextId ? " editing" : ""), style: { "--tint": object.tint || "#FFE566" } });
+      el.dataset.obj = object.id;
       if (object.kind === "tape") {
         el.classList.add(object.pattern || "plain");
         el.append(h("div", { class: "tape-body" }));
@@ -791,31 +806,31 @@ export function renderEditor(root, notebookId, initialPageId) {
             const checked = m ? m[1].toLowerCase() === "x" : false;
             const label = m ? m[2] : line;
             const box = h("button", { class: "todo-box" + (checked ? " checked" : ""), type: "button", "aria-label": checked ? "İşareti kaldır" : "İşaretle",
-              onTap: (e) => { e.stopPropagation(); toggleTodoLine(object, page, i); renderObjects(layer, page, stack); } }, svgIcon("check", 14));
+              onTap: (e) => { e.stopPropagation(); toggleTodoLine(object, owner, i); renderObjects(layer, page, stack); } }, svgIcon("check", 14));
             box.addEventListener("pointerdown", (e) => e.stopPropagation());
             list.append(h("div", { class: "todo-row" + (checked ? " done" : "") }, box, h("span", {}, label)));
           });
           el.append(list);
-          placeItem(el, object);
+          placeItem(el, object, dx);
           if (editingObjects) {
-            makeTransformable(el, object, stack, page, (rect, rotation) => {
-              store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
-              placeItem(el, object);
-              syncSpill(object, page);
-              touchPage(page);
-            }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); },
-            () => syncSpill(object, page));
-            if (object.id === selectedObjectId) { addHandles(el); layer.append(objectMenu(object, page, textActions(object, page, stack, layer), () => { touchPage(page); renderObjects(layer, page, stack); renderBanner(); })); }
+            makeTransformable(el, object, ownerStack, owner, (rect, rotation) => {
+              store.updatePage(notebookId, owner.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
+              placeItem(el, object, dx);
+              syncAll(object, owner);
+              touchPage(owner);
+            }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); refreshNeighbour(page); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); },
+            () => syncAll(object, owner));
+            if (object.id === selectedObjectId) { addHandles(el); if (menuBurada(object, dx, page)) layer.append(objectMenu(object, owner, textActions(object, owner, ownerStack, layer), () => { touchPage(owner); renderObjects(layer, page, stack); renderBanner(); }, dx)); }
           }
           layer.append(el);
           continue;
         }
-        const content = h("div", { class: "text-content", contenteditable: object.id === editingTextId ? "true" : "false", spellcheck: "false" }, object.text || "");
+        const content = h("div", { class: "text-content", contenteditable: dx === 0 && object.id === editingTextId ? "true" : "false", spellcheck: "false" }, object.text || "");
         content.addEventListener("input", () => { object.text = content.textContent; });
         if (object.todo) content.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); document.execCommand("insertText", false, "\n[ ] "); } });
         content.addEventListener("blur", () => {
-          store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.text = content.textContent; });
-          touchPage(page);
+          store.updatePage(notebookId, owner.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.text = content.textContent; });
+          touchPage(owner);
           if (editingTextId === object.id) { editingTextId = null; renderObjects(layer, page, stack); }
         });
         content.addEventListener("pointerdown", (e) => { if (object.id === editingTextId) e.stopPropagation(); });
@@ -823,7 +838,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         if (object.id === editingTextId) setTimeout(() => { content.focus(); }, 30);
       } else if (object.kind === "check") {
         const box = h("button", { class: "todo-box" + (object.checked ? " checked" : ""), type: "button", "aria-label": object.checked ? "İşareti kaldır" : "İşaretle",
-          onTap: (e) => { e.stopPropagation(); store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.checked = !o.checked; }); touchPage(page); renderObjects(layer, page, stack); } }, svgIcon("check", 20));
+          onTap: (e) => { e.stopPropagation(); store.updatePage(notebookId, owner.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.checked = !o.checked; }); touchPage(owner); renderObjects(layer, page, stack); } }, svgIcon("check", 20));
         if (!editingObjects) box.addEventListener("pointerdown", (e) => e.stopPropagation());
         el.append(box);
       } else if (object.kind === "audio") {
@@ -837,34 +852,24 @@ export function renderEditor(root, notebookId, initialPageId) {
         store.assetURL(object.asset).then((url) => { if (url) image.src = url; });
         el.append(image);
       }
-      placeItem(el, object);
+      placeItem(el, object, dx);
       if (editingObjects) {
-        makeTransformable(el, object, stack, page, (rect, rotation) => {
-          store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
-          placeItem(el, object);
-          syncSpill(object, page);
-          touchPage(page);
-        }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); },
-        () => syncSpill(object, page));
+        makeTransformable(el, object, ownerStack, owner, (rect, rotation) => {
+          store.updatePage(notebookId, owner.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) { o.rect = rect; o.rotation = rotation; } });
+          placeItem(el, object, dx);
+          syncAll(object, owner);
+          touchPage(owner);
+        }, () => { selectedObjectId = object.id; renderObjects(layer, page, stack); refreshNeighbour(page); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); },
+        () => syncAll(object, owner));
         if (object.id === selectedObjectId) {
           addHandles(el);
-          layer.append(objectMenu(object, page, textActions(object, page, stack, layer), () => { touchPage(page); renderObjects(layer, page, stack); refreshNeighbour(page); renderBanner(); }));
+          if (menuBurada(object, dx, page)) layer.append(objectMenu(object, owner, textActions(object, owner, ownerStack, layer), () => { touchPage(owner); renderObjects(layer, page, stack); refreshNeighbour(page); renderBanner(); }, dx));
         }
       }
       layer.append(el);
     }
-    // Komşu sayfadan foldu geçip buraya taşan nesneler (çift sayfa görünümü).
-    const near = spreadNeighbour(page);
-    if (near) {
-      for (const object of (near.page.objects || []).slice().sort((a, b) => a.z - b.z)) {
-        if (!spillsInto(object, near.into, page.size)) continue;
-        const el = spillVisual(object);
-        placeItem(el, object, near.into);
-        layer.append(el);
-      }
-    }
     if (editingObjects) {
-      layer.addEventListener("pointerdown", (e) => { if (e.target === layer) { selectedObjectId = null; renderObjects(layer, page, stack); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); } });
+      layer.addEventListener("pointerdown", (e) => { if (e.target === layer) { selectedObjectId = null; renderObjects(layer, page, stack); refreshNeighbour(page); renderCovers(stack._layers.coversLayer, page, stack); renderBanner(); } });
     }
   }
 
@@ -1013,37 +1018,34 @@ export function renderEditor(root, notebookId, initialPageId) {
     return x < size.w + pad && x + object.rect.w > -pad && object.kind !== "check" && object.kind !== "audio";
   }
 
-  /** Foldu geçen nesnenin komşu sayfadaki yarısı — yalnız görüntü, dokunulmaz. */
-  function spillVisual(object) {
-    const el = h("div", { class: `placed ${object.kind} spill` + (object.kind === "postit" && object.style ? " " + object.style : ""), style: { "--tint": object.tint || "#FFE566" } });
-    el.dataset.spill = object.id;
-    if (object.kind === "tape") {
-      el.classList.add(object.pattern || "plain");
-      el.append(h("div", { class: "tape-body" }));
-    } else if (object.kind === "text") {
-      el.style.setProperty("--font", object.font || TEXT_FONTS[1][0]);
-      el.style.setProperty("--size", (object.size || 22) + "px");
-      el.style.setProperty("--text-color", object.color || "#1C1C1E");
-      el.append(h("div", { class: "text-content" }, object.text || ""));
-    } else if (object.kind !== "postit") {
-      const image = h("img", { alt: "", draggable: "false" });
-      store.assetURL(object.asset).then((url) => { if (url) image.src = url; });
-      el.append(image);
-    }
-    return el;
+  /** Nesnenin merkezi bu sayfada mı — menü orada çizilsin diye. */
+  function menuBurada(object, dx, page) {
+    const cx = object.rect.x + object.rect.w / 2 + dx;
+    return cx >= 0 && cx <= page.size.w;
   }
 
-  /** Sürükleme sırasında komşudaki yarıyı canlı tutar. */
-  function syncSpill(object, page) {
-    const near = spreadNeighbour(page);
+  /**
+   * Nesneyi bütün katmanlarda yeni yerine koyar (sürüklerken).
+   *
+   * Foldu yeni geçtiyse ya da tamamen çıktıysa komşu katman baştan kuruluyor:
+   * taşan yarı orada ya yeni yaratılmalı ya da kaldırılmalı.
+   */
+  function syncAll(object, ownerPage) {
+    const near = spreadNeighbour(ownerPage);
+    for (const st of stage.querySelectorAll(".page-stack")) {
+      const layer = st._layers && st._layers.objectsLayer;
+      if (!layer) continue;
+      const el = layer.querySelector(`[data-obj="${object.id}"]`);
+      if (!el) continue;
+      placeItem(el, object, st.dataset.pageId === ownerPage.id ? 0 : (near ? near.out : 0));
+    }
     if (!near) return;
-    const stack = stackFor(near.page.id);
-    const layer = stack && stack._layers ? stack._layers.objectsLayer : null;
-    if (!layer) return;
-    let el = layer.querySelector(`[data-spill="${object.id}"]`);
-    if (!spillsInto(object, near.out, near.page.size)) { if (el) el.remove(); return; }
-    if (!el) { el = spillVisual(object); layer.append(el); }
-    placeItem(el, object, near.out);
+    const nearStack = stackFor(near.page.id);
+    const nearLayer = nearStack && nearStack._layers ? nearStack._layers.objectsLayer : null;
+    if (!nearLayer) return;
+    const simdiVar = !!nearLayer.querySelector(`[data-obj="${object.id}"]`);
+    const olmali = spillsInto(object, near.out, near.page.size);
+    if (simdiVar !== olmali) renderObjects(nearLayer, near.page, nearStack);
   }
 
   /** Komşu sayfanın nesne katmanını baştan kurar (taşan yarılar da yenilensin). */
@@ -1109,8 +1111,8 @@ export function renderEditor(root, notebookId, initialPageId) {
     el.addEventListener("pointercancel", end);
   }
 
-  function objectMenu(item, page, actions, rerender) {
-    const x = Math.min(Math.max(item.rect.x + item.rect.w / 2, 150), Math.max(page.size.w - 150, 150));
+  function objectMenu(item, page, actions, rerender, dx = 0) {
+    const x = Math.min(Math.max(item.rect.x + item.rect.w / 2 + dx, 150), Math.max(page.size.w - 150, 150));
     const y = Math.max(item.rect.y - 12, 60);
     const btn = (title, icon, fn, cls = "") => h("button", { type: "button", class: cls, onTap: (e) => { e.stopPropagation(); fn(); rerender(); } }, svgIcon(icon, 16), title);
     const menu = h("div", { class: "object-menu", style: { left: x + "px", top: y + "px" } },
