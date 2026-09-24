@@ -74,7 +74,9 @@ export function attachEditorGestures(el, handlers) {
       }
       if (Math.abs(dx) > FLIP_START && Math.abs(dx) > Math.abs(dy) * 1.2) {
         const dir = dx < 0 ? 1 : -1;
-        if (handlers.beginFlip(dir)) {
+        // Parmağın indiği nokta veriliyor: kâğıt oradan tutuluyor, üst yarıdan
+        // çekilince üst köşe kalkıyor.
+        if (handlers.beginFlip(dir, { x: pending.x, y: pending.y })) {
           flip = { dir, startX: e.clientX, lastX: e.clientX, lastT: performance.now(), velocity: 0 };
           mode = "flip";
         } else {
@@ -90,14 +92,12 @@ export function attachEditorGestures(el, handlers) {
     }
     if (mode === "flip" && flip) {
       const now = performance.now();
-      const dx = e.clientX - flip.startX;
-      const progress = Math.max(0, Math.min(1, (flip.dir === 1 ? -dx : dx) / Math.max(1, handlers.flipWidth())));
       const dt = Math.max(1, now - flip.lastT);
       flip.velocity = (e.clientX - flip.lastX) / dt;
       flip.lastX = e.clientX;
       flip.lastT = now;
-      flip.progress = progress;
-      handlers.updateFlip(progress);
+      // Kâğıt parmağı izliyor: köşe, parmağın aldığı yol kadar gidiyor.
+      flip.progress = handlers.dragFlip(e.clientX, e.clientY);
       e.preventDefault();
     }
   });
@@ -107,7 +107,9 @@ export function attachEditorGestures(el, handlers) {
     pointers.delete(e.pointerId);
     if (mode === "flip" && flip) {
       const fast = flip.dir === 1 ? flip.velocity < -0.35 : flip.velocity > 0.35;
-      const commit = fast || (flip.progress || 0) > 0.32;
+      // İlerleme artık köşenin yolu: köşe cildin öbür tarafına geçerken 1 olur,
+      // bir sayfa eni sürükleme 0.5 eder. Yarı yola gerek yok, kâğıt kendi düşer.
+      const commit = fast || (flip.progress || 0) > 0.2;
       handlers.endFlip(commit);
       flip = null;
       mode = null;

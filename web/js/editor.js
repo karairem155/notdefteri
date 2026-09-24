@@ -7,7 +7,8 @@ import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialo
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
-import { createCurlFlip } from "./curl.js";
+import { createCurlFlip, createCoverAnim } from "./curl.js";
+import { coverBitmap, takeCoverOpening } from "./covers.js";
 import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
@@ -137,6 +138,14 @@ export function renderEditor(root, notebookId, initialPageId) {
     viewScale: () => fitScale * zoom,
     snapshot: flipBitmap
   });
+  // Kapalı defter tek yaprak eninde: ekranda ortalansın diye sahne kayıyor,
+  // açıldıkça kayma sıfıra iniyor.
+  let coverShift = 0;
+  let coverGap = 0;
+  const coverAnim = createCoverAnim(stage, {
+    viewScale: () => fitScale * zoom,
+    onFrame: (e) => { coverShift = coverGap * (1 - e) * fitScale * zoom; applyTransform(); }
+  });
 
   const nb = () => store.notebook(notebookId);
   const pages = () => nb().pages;
@@ -160,7 +169,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     const page = selectedPage();
     topbar.replaceChildren(
       h("div", { class: "topbar-side" },
-        h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onTap: () => { flushInk(); navigate("#/"); } }, svgIcon("back", 24)),
+        h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onTap: kapatVeCik }, svgIcon("back", 24)),
         h("button", { class: "topbar-title-btn", type: "button", "aria-label": "Defter menüsü", onTap: notebookMenu },
           h("span", { class: "topbar-cover", style: { "--c": nb().coverColor || nb().cover?.color || "#F4A7C0" } }),
           h("span", { class: "topbar-notebook" }, nb().title), svgIcon("down", 16)),
@@ -448,7 +457,7 @@ export function renderEditor(root, notebookId, initialPageId) {
 
   function applyTransform() {
     if (!zoomed()) { zoom = 1; pan = { x: 0, y: 0 }; }
-    stage.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${fitScale * zoom})`;
+    stage.style.transform = `translate(${pan.x + coverShift}px, ${pan.y}px) scale(${fitScale * zoom})`;
     stage.dataset.scale = String(fitScale * zoom);
     // Yakınlaştırma bitince mürekkep tuvalleri yeni ölçekte keskin çizilir.
     clearTimeout(resolutionTimer);
@@ -701,6 +710,68 @@ export function renderEditor(root, notebookId, initialPageId) {
     flipBitmaps.set(page.id, { version, bitmap });
     if (flipBitmaps.size > 8) flipBitmaps.delete(flipBitmaps.keys().next().value);
     return bitmap;
+  }
+
+  /**
+   * Kapağı aç (dir = 1) ya da kapat (dir = -1).
+   *
+   * Kapalı defter tek sayfa eninde ve ortada durur; kapak menteşeden dönünce
+   * cilt yerine kayar ve sayfalar ortaya çıkar. Çift sayfada kapak sağdaki
+   * yaprağın üstünde kapalıdır, açılınca soldakinin altına yatar; tek sayfada
+   * sayfanın üstünden kalkıp sola çıkar.
+   */
+  async function playCover(dir) {
+    const list = pages();
+    const spread = spreadMode();
+    const leftPage = spread ? list[spreadLeft()] : selectedPage();
+    const rightPage = spread ? list[spreadLeft() + 1] : null;
+    const host = stage.querySelector(".spread");
+    if (!host || !(leftPage || rightPage)) return false;
+    const pair = spread && leftPage && rightPage;
+    const main = pair ? rightPage : (leftPage || rightPage);
+    const spineX = pair ? leftPage.size.w : 0;
+    const spreadW = parseFloat(host.style.width) || main.size.w;
+    const spreadH = parseFloat(host.style.height) || main.size.h;
+    const leafW = main.size.w;
+    const leafH = main.size.h;
+    // Kapalı defter tek yaprak: ortalamak için sahne bu kadar kayacak.
+    coverGap = spreadW / 2 - (spineX + leafW / 2);
+    // Sayfalar açılış boyunca gizli: tuval devralıyor.
+    host.classList.add("opening-cover");
+    try {
+      const res = Math.min(2, Math.max(0.6, fitScale * zoom * (window.devicePixelRatio || 1)));
+      const kapak = nb().cover || (nb().coverColor ? { color: nb().coverColor, pattern: "plain" } : null);
+      const [front, under, other] = await Promise.all([
+        coverBitmap(kapak, leafW * res, leafH * res),
+        flipBitmap(main),
+        pair ? flipBitmap(leftPage) : null
+      ]);
+      return await coverAnim.play({
+        spreadW, spreadH,
+        // Kapak cildin soluna taşıyor; orada sayfa yoksa tuval o kadar uzuyor.
+        // Sağda da pay var: kapalı defterin sayfa bloğu kapağın dışına taşıyor.
+        padX: Math.max(0, leafW - spineX),
+        padR: 16,
+        leafW, leafH, y0: 0, spineX,
+        front, under, other
+      }, dir);
+    } finally {
+      if (!coverAnim.active) {
+        host.classList.remove("opening-cover");
+        coverShift = 0;
+        applyTransform();
+      }
+    }
+  }
+
+  /** Geri tuşu: önce kapak kapanıyor, sonra kütüphaneye dönülüyor. */
+  let cikiliyor = false;
+  function kapatVeCik() {
+    if (cikiliyor) return;
+    cikiliyor = true;
+    flushInk();
+    const don = () => navigate("#/");
+    playCover(-1).then(don, don);
   }
 
   /**
@@ -2112,16 +2183,15 @@ export function renderEditor(root, notebookId, initialPageId) {
     getZoom: () => zoom,
     getPan: () => pan,
     setZoom: (z, p) => { zoom = z; pan = p; applyTransform(); },
-    beginFlip: (dir) => {
-      if (editingObjects || flip.active) return false;
+    beginFlip: (dir, at) => {
+      if (editingObjects || flip.active || coverAnim.active) return false;
       ensureNextPage(dir);
       if (!flipTargetId(dir)) return false;
       flipDir = dir;
-      return flip.begin(dir);
+      return flip.begin(dir, at);
     },
     fillWidthZoom,
-    flipWidth: () => flip.sheetWidth * fitScale * zoom,
-    updateFlip: (progress) => flip.update(progress),
+    dragFlip: (x, y) => flip.follow(x, y),
     endFlip: (commit) => {
       const target = flipTargetId(flipDir);
       flip.finish(commit, (committed) => { if (committed && target) selectPage(target); });
@@ -2138,6 +2208,8 @@ export function renderEditor(root, notebookId, initialPageId) {
   renderStage();
   renderBench();
   applyModes();
+  // Kütüphaneden girildiyse defter kapalı duruyor, kapağı burada açılıyor.
+  if (takeCoverOpening(notebookId)) playCover(1);
 
   return {
     destroy() {
@@ -2151,6 +2223,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       closePopover();
       if (recording) { try { recording.stop(); } catch (_) { /* yok sayılır */ } }
       flip.cancel();
+      coverAnim.cancel();
       flushInk();
     }
   };

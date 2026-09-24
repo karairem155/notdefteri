@@ -2,7 +2,7 @@
 // altta işlem düğmeleri. Kapağa dokununca sayfa yelpazesi açılır. Liste görünümü de duruyor.
 import { store, COVER_PRESETS, COVER_TITLES } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu } from "./ui.js";
-import { coverElement, sameCover } from "./covers.js";
+import { coverElement, sameCover, markCoverOpening } from "./covers.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { shrinkImage } from "./addpage.js";
 import { pdfPageSizes } from "./paper.js";
@@ -236,8 +236,12 @@ export function renderLibrary(root) {
   // ---------- defter işlemleri ----------
 
   function openNotebook(notebook, cover) {
+    // Kapak burada acilmiyor: defter one dogru gelip editore devrediliyor,
+    // kapagi orada aciliyor. Ikisi de acsaydi kapak iki kez acilmis olurdu.
     cover.classList.add("opening");
-    setTimeout(() => navigate(store.settings.openMode === "fan" ? `#/n/${notebook.id}/fan` : `#/n/${notebook.id}`), 320);
+    const fan = store.settings.openMode === "fan";
+    if (!fan) markCoverOpening(notebook.id);
+    setTimeout(() => navigate(fan ? `#/n/${notebook.id}/fan` : `#/n/${notebook.id}`), 260);
   }
 
   function newMenu(e) {

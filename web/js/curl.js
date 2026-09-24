@@ -249,6 +249,36 @@ export function pointerForProgress(t, C, PH) {
 }
 
 /**
+ * Animasyon tuvalini kurar (hem sayfa kıvrımı hem kapak açılışı kullanıyor).
+ *
+ * Kalkan yaprak cildin ötesine taşıyor. Çift sayfada karşı yarı zaten orada,
+ * tek sayfada değil: tuval `padX` kadar sola uzatılıyor, yoksa kâğıdın kalkan
+ * kısmı tuvalin dışında kalıyor ve sayfa "şeffaf" dönüyormuş gibi görünüyor.
+ *
+ * CSS ölçüsü sayfa biriminde (ana öğe zaten ölçekli), arka tuval ise ekranda
+ * kaç piksele düşüyorsa o kadar: birleşik ölçek 1, yani yeniden örnekleme yok,
+ * yazı net kalıyor.
+ */
+function makeLayer(frames, scale) {
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  const canvas = document.createElement("canvas");
+  canvas.className = "curl-layer";
+  const padX = frames.padX || 0;
+  // Sag pay: kapali defterin sayfa blogu cildin disina tasiyor.
+  const padR = frames.padR || 0;
+  const totalW = frames.spreadW + padX + padR;
+  canvas.width = Math.round(totalW * scale * dpr);
+  canvas.height = Math.round(frames.spreadH * scale * dpr);
+  canvas.style.left = -padX + "px";
+  canvas.style.width = totalW + "px";
+  canvas.style.height = frames.spreadH + "px";
+  const ctx = canvas.getContext("2d");
+  // Çizim sahne koordinatında kalsın diye kaydırma matrise giriyor.
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, padX * scale * dpr, 0);
+  return { canvas, ctx, dpr, scale, padX, padR };
+}
+
+/**
  * Çevirme denetleyicisi — eski `createFlip` ile aynı arayüz.
  *
  * `buildFrames(dir)` yaprağın yerleşimini ve hangi sayfaların görüneceğini
@@ -267,29 +297,18 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
   // Tuval, olcekli .spread icine giriyor: cocuklari sayfa biriminde konumlaniyor.
   const hostEl = () => spreadEl.querySelector(".spread") || spreadEl;
 
-  function setup(frames) {
-    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
-    const scale = viewScale();
-    const canvas = document.createElement("canvas");
-    canvas.className = "curl-layer";
-    // Kalkan yaprak cildin ötesine taşıyor. Çift sayfada karşı yarı zaten orada,
-    // tek sayfada değil: tuval bir sayfa boyu sola uzatılıyor, yoksa kâğıdın
-    // kalkan kısmı tuvalin dışında kalıyor ve sayfa "şeffaf" dönüyormuş gibi
-    // görünüyor.
-    const padX = frames.padX || 0;
-    const totalW = frames.spreadW + padX;
-    canvas.width = Math.round(totalW * scale * dpr);
-    canvas.height = Math.round(frames.spreadH * scale * dpr);
-    canvas.style.left = -padX + "px";
-    // CSS olcusu sayfa biriminde (ana oge zaten olcekli), arka tuval ise
-    // ekranda kac piksele dusuyorsa o kadar: birlesik olcek 1, yani yeniden
-    // orneklenme yok, yazi net kaliyor.
-    canvas.style.width = totalW + "px";
-    canvas.style.height = frames.spreadH + "px";
-    const ctx = canvas.getContext("2d");
-    // Çizim sahne koordinatında kalsın diye kaydırma matrise giriyor.
-    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, padX * scale * dpr, 0);
-    return { canvas, ctx, dpr, scale, padX };
+  const setup = (frames) => makeLayer(frames, viewScale());
+
+  /** Ekran noktası → yaprak birimi. */
+  function toLeaf(st, clientX, clientY) {
+    const f = st.frames;
+    const rect = st.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const padX = f.padX || 0;
+    const totalW = f.spreadW + padX;
+    const sx = (clientX - rect.left) * (totalW / rect.width) - padX;
+    const sy = (clientY - rect.top) * (f.spreadH / rect.height);
+    return [(sx - f.spineX) / (f.side * f.leafW), (sy - f.y0) / f.leafW];
   }
 
   function paint() {
@@ -297,7 +316,7 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const f = state.frames;
     const PH = f.leafH / f.leafW;
     const C = state.corner;
-    const P = pointerForProgress(state.progress, C, PH);
+    const P = state.P || pointerForProgress(state.progress, C, PH);
     drawCurlFrame(
       { ctx: state.ctx, w: f.spreadW, h: f.spreadH, padX: f.padX || 0 },
       { spineX: f.spineX, y0: f.y0, leafW: f.leafW, leafH: f.leafH, side: f.side },
@@ -307,7 +326,7 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     );
   }
 
-  function begin(dir) {
+  function begin(dir, at) {
     if (state) return false;
     const frames = buildFrames(dir);
     if (!frames) return false;
@@ -327,6 +346,16 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const host = hostEl();
     host.append(view.canvas);
     state.host = host;
+    // Tutulan köşe parmağa göre seçiliyor: üst yarıdan çekince üst köşe kalkar.
+    if (at) {
+      const q = toLeaf(state, at.x, at.y);
+      if (q) {
+        state.corner = [1, q[1] < PH / 2 ? 0.001 : PH - 0.001];
+        state.grab = q;
+      }
+    }
+    state.P = pointerForProgress(state.progress, state.corner, PH);
+    state.P0 = state.P;
     const want = { front: frames.front, back: frames.back, under: frames.under, other: frames.other };
     const current = state;
     Promise.all(Object.entries(want).map(async ([key, page]) => {
@@ -345,12 +374,26 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     return true;
   }
 
-  function update(progress) {
-    if (!state) return;
+  /**
+   * Parmağı izle: köşe, parmağın gittiği kadar gidiyor.
+   *
+   * Parmağın mutlak yeri değil, başlangıçtan beri aldığı YOL uygulanıyor:
+   * sayfanın ortasından tutunca köşe birden parmağa zıplamıyor, köşeden
+   * tutunca da zaten ikisi aynı yerde oluyor. Dönen değer bırakma kararı için
+   * ilerleme (0 başlangıç, 1 tamamlanmış).
+   */
+  function follow(clientX, clientY) {
+    if (!state) return 0;
+    const f = state.frames;
+    const PH = f.leafH / f.leafW;
+    const q = toLeaf(state, clientX, clientY);
+    if (!q) return state.frames.reverse ? 1 - state.progress : state.progress;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    const p = Math.max(0, Math.min(1, progress));
-    state.progress = state.frames.reverse ? 1 - p : p;
+    const g = state.grab || q;
+    state.P = constrainPointer([state.P0[0] + (q[0] - g[0]), state.P0[1] + (q[1] - g[1])], state.corner, PH);
+    state.progress = clamp01((1 - state.P[0]) / 2);
     paint();
+    return f.reverse ? 1 - state.progress : state.progress;
   }
 
   function finish(commit, onDone) {
@@ -358,8 +401,11 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const current = state;
     if (commit && options.sound && options.sound()) playPaperSound();
     const rev = !!current.frames.reverse;
+    const PH = current.frames.leafH / current.frames.leafW;
     const target = commit ? (rev ? 0 : 1) : (rev ? 1 : 0);
     const from = current.progress;
+    const fromP = current.P || pointerForProgress(from, current.corner, PH);
+    const toP = pointerForProgress(target, current.corner, PH);
     const duration = Math.max(180, 620 * Math.abs(target - from));
     const t0 = performance.now();
     // Sekme arka plana atılırsa kare döngüsü durur; emniyet sayacı çevirmeyi bitirir.
@@ -378,6 +424,12 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
       const t = Math.min(1, (now - t0) / duration);
       const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       current.progress = from + (target - from) * eased;
+      // Parmak nerede bırakıldıysa oradan devam: köşe önce kendi yerinden
+      // hedefe doğru süzülüyor. Kısıt zaten kâğıdın yayına oturtuyor.
+      current.P = constrainPointer([
+        fromP[0] + (toP[0] - fromP[0]) * eased,
+        fromP[1] + (toP[1] - fromP[1]) * eased
+      ], current.corner, PH);
       paint();
       if (t < 1) { raf = requestAnimationFrame(step); return; }
       done();
@@ -403,13 +455,210 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
 
   return {
     begin,
-    update,
+    follow,
     finish,
     run,
     cancel,
-    get active() { return !!state; },
-    get sheetWidth() { return state ? state.frames.leafW : 0; }
+    get active() { return !!state; }
   };
+}
+
+/**
+ * Sert kapak açılışı — kâğıt kıvrılır, karton kıvrılmaz.
+ *
+ * Kapak menteşeden dönüyor. Dik bakışta dönen düz bir levha, yatay ölçeği
+ * kosinüsle daralan bir dikdörtgendir: tuvalde tek `drawImage`, 3B'ye (ve
+ * iOS'un düzleştirdiği preserve-3d'ye) hiç girmeden. Açı 90°'yi geçince ön
+ * yüz yerine iç kapak görünüyor.
+ *
+ * Cilt yerinden kımıldamıyor: gerçek defterde de sırt durur, kapak döner.
+ * Kapalı defter tek yaprak eninde olduğu için ekranda ortalanması gerekiyor;
+ * bunu sahnenin kendisi kayarak yapıyor (`onFrame`), tuval değil. Böylece
+ * çizim hep son yerleşimle aynı hizada kalıyor ve hiçbir şey tuvalin dışına
+ * taşmıyor. Sol yaprak ciltten açılarak ortaya çıkıyor; sonunda kapak onun
+ * ALTINA girdiği için son derecelerde sol sayfa kapağın üstüne biniyor.
+ *
+ * t: 0 kapalı, 1 tam açık (yumuşatma denetleyicide yapılıyor).
+ */
+export function drawCoverFrame(view, f, t) {
+  const { ctx, w, h } = view;
+  const padX = view.padX || 0;
+  const padR = view.padR || 0;
+  const { leafW, leafH, y0 } = f;
+  const e = clamp01(t);
+  const spineX = f.spineX;
+  const a = Math.PI * e;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+
+  ctx.clearRect(-padX, 0, w + padX + padR, h);
+
+  // 1) Sayfa bloğu: kapağın altından taşan sayfa kenarları. Kapalıyken yalnız
+  // sağ yaprak kadar, açıldıkça iki yaprağa yayılıyor (ekrandaki .back-sheets
+  // ile aynı kayma, bitince devir teslim belli olmasın).
+  const leftIn = f.other ? smooth(clamp01((e - 0.18) / 0.4)) : 0;
+  const openW = leafW * leftIn;
+  const blockX = spineX - openW;
+  const blockW = openW + leafW;
+  ctx.fillStyle = "#d6d4cb";
+  ctx.fillRect(blockX + 10, y0 + 6, blockW, leafH);
+  ctx.fillStyle = "#e6e4dc";
+  ctx.fillRect(blockX + 5, y0 + 3, blockW, leafH);
+
+  if (f.under) ctx.drawImage(f.under, spineX, y0, leafW, leafH);
+  else { ctx.fillStyle = "#f6f2e9"; ctx.fillRect(spineX, y0, leafW, leafH); }
+
+  // 2) Sol yaprak ciltten çıkıyor: kırpma kenarı cilde yapışık, kâğıt oradan
+  // sıyrılıyormuş gibi.
+  if (f.other && leftIn > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(blockX, y0, openW, leafH);
+    ctx.clip();
+    ctx.globalAlpha = leftIn;
+    ctx.drawImage(f.other, spineX - leafW, y0, leafW, leafH);
+    ctx.restore();
+  }
+
+  // 3) Cilt gölgesi: iki yaprak arasındaki oluk.
+  if (leftIn > 0) {
+    const gw = leafW * 0.06;
+    const g = ctx.createLinearGradient(spineX - gw, 0, spineX + gw, 0);
+    g.addColorStop(0, "rgba(30,22,16,0)");
+    g.addColorStop(0.5, `rgba(30,22,16,${0.2 * leftIn})`);
+    g.addColorStop(1, "rgba(30,22,16,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(spineX - gw, y0, gw * 2, leafH);
+  }
+
+  // 4) Dönen kapak. Ortalarda hafif kısalma veriliyor: göz levhayı eğik görür.
+  const cw = leafW * Math.abs(c);
+  const x0 = c >= 0 ? spineX : spineX - cw;
+  const k = 1 - 0.05 * s;
+  const yv = y0 + (leafH * (1 - k)) / 2;
+  const hv = leafH * k;
+  // Kapak yatarken sol yaprağın altına giriyor. Karşı yaprak varsa o biniyor
+  // (aşağıda); yoksa — tek sayfa kipinde — kapak sayfanın dışında kalacağı
+  // için kendisi siliniyor, sonunda tuval kalkınca zıplama olmasın.
+  const land = clamp01((-c - 0.86) / 0.14);
+  if (cw > 0.6 && (f.other || land < 1)) {
+    ctx.save();
+    if (!f.other) ctx.globalAlpha = 1 - land;
+    // Kapağın altındaki sayfaya düşen gölge, serbest kenarından dışarı.
+    const edge = c >= 0 ? spineX + cw : spineX - cw;
+    const dir = c >= 0 ? 1 : -1;
+    const sl = leafW * 0.16 * (0.35 + s);
+    const sg = ctx.createLinearGradient(edge, 0, edge + dir * sl, 0);
+    sg.addColorStop(0, `rgba(28,20,14,${0.3 * (0.25 + 0.75 * s)})`);
+    sg.addColorStop(1, "rgba(28,20,14,0)");
+    ctx.fillStyle = sg;
+    ctx.fillRect(Math.min(edge, edge + dir * sl), yv, sl, hv);
+
+    if (c >= 0 && f.front) {
+      ctx.drawImage(f.front, x0, yv, cw, hv);
+    } else {
+      // İç kapak: sade astar kâğıdı, cilt tarafında koyulaşan.
+      ctx.fillStyle = "#efe7d6";
+      ctx.fillRect(x0, yv, cw, hv);
+      const ig = ctx.createLinearGradient(spineX, 0, spineX - dir * leafW * 0.22, 0);
+      ig.addColorStop(0, "rgba(60,45,30,0.22)");
+      ig.addColorStop(1, "rgba(60,45,30,0)");
+      ctx.fillStyle = ig;
+      ctx.fillRect(x0, yv, cw, hv);
+    }
+    // Işık: levha yan dönerken kararıyor.
+    ctx.fillStyle = `rgba(22,16,10,${(c >= 0 ? 0.3 : 0.2) * s})`;
+    ctx.fillRect(x0, yv, cw, hv);
+    // Menteşe: kartonun kalınlığı.
+    ctx.fillStyle = "rgba(20,14,8,0.35)";
+    ctx.fillRect(spineX - (c >= 0 ? 0 : 2.5), yv, 2.5, hv);
+    ctx.restore();
+  }
+
+  // 5) Kapak yere yatarken sol yaprak üstüne biniyor (kapak sayfanın altında
+  // kalır); son derecelerde bindirme.
+  if (f.other) {
+    if (land > 0) {
+      ctx.save();
+      ctx.globalAlpha = land;
+      ctx.drawImage(f.other, spineX - leafW, y0, leafW, leafH);
+      ctx.restore();
+    }
+  }
+}
+
+/**
+ * Kapak açılış/kapanış denetleyicisi.
+ *
+ * `frames` yerleşimi ve dokuları taşıyor:
+ *   spreadW, spreadH, padX, leafW, leafH, y0, spineX
+ *   front (kapak), under (kapağın altındaki yaprak), other (karşı yaprak)
+ *
+ * `options.onFrame(e)` her karede açıklık oranıyla çağrılıyor: sahneyi kayan
+ * kapalı defterden yerine getiren kısım editörde, çünkü kayma sahnenin
+ * dönüşümünde.
+ */
+export function createCoverAnim(spreadEl, options = {}) {
+  let live = null;
+  const viewScale = () => (options.viewScale ? Math.max(0.05, options.viewScale()) : 1);
+  const hostEl = () => spreadEl.querySelector(".spread") || spreadEl;
+
+  function stop() {
+    if (!live) return;
+    const cur = live;
+    live = null;
+    cancelAnimationFrame(cur.raf);
+    cur.host.classList.remove("opening-cover");
+    cur.canvas.remove();
+    // Yarıda kesilen açılışı bekleyen varsa aç bırakılmasın.
+    if (cur.resolve) cur.resolve(false);
+  }
+
+  /** dir = 1 açılış, -1 kapanış. Biterken söz veriliyor. */
+  function play(frames, dir) {
+    stop();
+    if (!frames) return Promise.resolve(false);
+    const view = makeLayer(frames, viewScale());
+    const host = hostEl();
+    host.append(view.canvas);
+    host.classList.add("opening-cover");
+    const draw = (e) => {
+      drawCoverFrame({ ctx: view.ctx, w: frames.spreadW, h: frames.spreadH, padX: view.padX, padR: view.padR }, frames, e);
+      if (options.onFrame) options.onFrame(e);
+    };
+    const duration = dir > 0 ? 820 : 560;
+    const t0 = performance.now();
+    draw(dir > 0 ? 0 : 1);
+    return new Promise((resolve) => {
+      const current = { canvas: view.canvas, host, raf: 0, resolve };
+      live = current;
+      // Sekme arka plana atılırsa kare döngüsü durur; emniyet sayacı bitirir.
+      const guard = setTimeout(() => finish(), duration + 700);
+      const finish = () => {
+        if (live !== current) return;
+        clearTimeout(guard);
+        current.resolve = null;   // sözü burada veriyoruz, stop() bir daha vermesin
+        // Kapanışta son kare ekranda kalıyor: tuval hemen kalkarsa altındaki
+        // açık sayfalar bir kare görünür, defter kapanıp geri açılmış gibi
+        // olur. Temizliği çağıran yapıyor (ekrandan çıkarken cancel).
+        if (dir > 0) stop();
+        resolve(true);
+      };
+      const step = (now) => {
+        if (live !== current) return;
+        const t = Math.min(1, (now - t0) / duration);
+        // Açılırken kapak devrilir gibi hızlanıp yumuşak oturuyor, kapanırken
+        // ağırlığıyla düşüyor.
+        const eased = dir > 0 ? 1 - Math.pow(1 - t, 2.6) : 1 - Math.pow(t, 2);
+        draw(eased);
+        if (t < 1) { current.raf = requestAnimationFrame(step); return; }
+        finish();
+      };
+      current.raf = requestAnimationFrame(step);
+    });
+  }
+
+  return { play, cancel: stop, get active() { return !!live; } };
 }
 
 /** Sayfa sesi — eski çevirmedeki kısa kâğıt hışırtısı. */

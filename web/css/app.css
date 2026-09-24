@@ -403,7 +403,7 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .carousel-item.current { opacity: 1; transform: scale(1); }
 .carousel-item .cover-wrap { width: 240px; aspect-ratio: 100 / 135; perspective: 900px; }
 .carousel-item .cover { filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.35)); }
-.carousel-item .cover.opening { transform: rotateY(-70deg); transition: transform 0.32s ease-in; }
+.carousel-item .cover.opening { transform: rotateY(-4deg) rotateX(0deg) scale(1.16); opacity: 0.88; transition: transform 0.26s ease-in, opacity 0.26s ease-in; }
 .carousel-title { color: rgba(255, 255, 255, 0.85); font-size: 15px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .paper-actions { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px 20px calc(var(--safe-bottom) + 22px); }
 .paper-actions .icon-btn { width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.14); color: #fff; }
@@ -953,7 +953,8 @@ body { background: var(--desk); color: #fff; }
 .book-top { left: 3%; width: 95%; bottom: 100%; height: var(--t); transform-origin: bottom center; transform: rotateX(-90deg) translateY(1px); background: repeating-linear-gradient(180deg, #faf7ee 0 2px, #e2dccb 2px 3px); }
 .book-bottom { left: 3%; width: 95%; top: 100%; height: var(--t); transform-origin: top center; transform: rotateX(90deg) translateY(-1px); background: repeating-linear-gradient(180deg, #e6e0cf 0 2px, #cfc8b5 2px 3px); }
 .cover-pages, .cover-spine { display: none; }
-.cover.opening { transform: rotateY(-100deg); }
+/* Kutuphanede kapak acilmiyor: defter one geliyor, kapagi editor aciyor. */
+.cover.opening { transform: rotateY(-4deg) scale(1.16); opacity: 0.88; transition: transform 0.26s ease-in, opacity 0.26s ease-in; }
 .list-row .cover { --t: 5px; transform: rotateY(-12deg); }
 .list-row .cover-front { border-radius: 5px 2px 2px 5px; }
 .mini-cover .cover { --t: 10px; }
@@ -1155,3 +1156,6 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 /* Sayfa kıvrımı: çevirme sırasında sahnenin üstüne serilen tuval. */
 .curl-layer { position: absolute; left: 0; top: 0; z-index: 8; pointer-events: none; }
 .spread.curling .page-stack, .spread.curling .spine { visibility: hidden; }
+/* Kapak acilirken butun defter tuvalden ciziliyor. */
+.spread.opening-cover .page-stack, .spread.opening-cover .spine,
+.spread.opening-cover .back-sheets, .spread.opening-cover .empty-page { visibility: hidden; }
