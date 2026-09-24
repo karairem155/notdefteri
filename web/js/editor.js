@@ -417,6 +417,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     stage.append(content);
     activeInk = inks.get(selectedPageId) || inks.values().next().value || null;
     fit();
+    prewarmFlip();
     renderTopbar();
     renderBanner();
   }
@@ -700,6 +701,28 @@ export function renderEditor(root, notebookId, initialPageId) {
     flipBitmaps.set(page.id, { version, bitmap });
     if (flipBitmaps.size > 8) flipBitmaps.delete(flipBitmaps.keys().next().value);
     return bitmap;
+  }
+
+  /**
+   * Çevirme dokularını boş zamanda hazırla.
+   *
+   * İlk çevirmede dört sayfanın görüntüsü üretiliyor; hazır değilse kıvrım
+   * birkaç yüz milisaniye sonra başlıyor ve dokunuş "takılmış" gibi hissettiriyor.
+   * Sayfa değişince sıradaki ve önceki yaprak sessizce hazırlanıyor.
+   */
+  let prewarmTimer = 0;
+  function prewarmFlip() {
+    clearTimeout(prewarmTimer);
+    prewarmTimer = setTimeout(() => {
+      const hazirla = (frames) => {
+        if (!frames) return;
+        for (const page of [frames.front, frames.back, frames.under, frames.other]) {
+          if (page) void flipBitmap(page);
+        }
+      };
+      hazirla(buildFrames(1));
+      hazirla(buildFrames(-1));
+    }, 350);
   }
 
   /**

@@ -1,6 +1,6 @@
 // Çevrimdışı çalışma: uygulama kabuğu önbelleğe alınır.
 // Yeni sürüm yayınlandığında VERSION değişir, eski önbellek silinir.
-const VERSION = "notdefteri-v60";
+const VERSION = "notdefteri-v61";
 const SHELL = [
   "./",
   "./index.html",
