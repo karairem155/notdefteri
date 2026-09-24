@@ -32,23 +32,21 @@ export function paintPaper(ctx, paper, w, h, color) {
   const ink = pageInk(color);
   ctx.fillStyle = color || PAPER_COLOR;
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = ink;
+  // Ölçüler CSS karşılığıyla (paperCss) birebir: çizgi karonun dibinde ve
+  // 1 birim kalın, nokta karonun ortasında. Aynı olmazsa sayfa çevrilirken
+  // desen kayıyor ve kağıdın rengi değişmiş gibi görünüyor.
   ctx.fillStyle = ink;
-  ctx.lineWidth = 0.6;
-  ctx.beginPath();
   if (paper === "ruled") {
-    for (let y = 32; y <= h; y += 32) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
-    ctx.stroke();
+    for (let y = 32; y <= h; y += 32) ctx.fillRect(0, y - 1, w, 1);
   } else if (paper === "grid") {
-    ctx.lineWidth = 0.55;
-    for (let x = 24; x <= w; x += 24) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
-    for (let y = 24; y <= h; y += 24) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
-    ctx.stroke();
+    for (let x = 24; x <= w; x += 24) ctx.fillRect(x - 1, 0, 1, h);
+    for (let y = 24; y <= h; y += 24) ctx.fillRect(0, y - 1, w, 1);
   } else if (paper === "dotted") {
-    for (let x = 16; x <= w; x += 24) {
-      for (let y = 16; y <= h; y += 24) {
-        ctx.moveTo(x + 1.2, y);
-        ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+    ctx.beginPath();
+    for (let x = 12; x <= w; x += 24) {
+      for (let y = 12; y <= h; y += 24) {
+        ctx.moveTo(x + 1.6, y);
+        ctx.arc(x, y, 1.6, 0, Math.PI * 2);
       }
     }
     ctx.fill();

@@ -19,6 +19,19 @@ export function spillFor(pages, index) {
   return { objects: left.objects || [], dx: -left.size.w };
 }
 
+/** İki rengi karıştırır (CSS'teki color-mix karşılığı). */
+function karistir(a, b, oran) {
+  const oku = (c) => {
+    const hex = String(c || "").replace("#", "");
+    const tam = hex.length === 3 ? hex.split("").map((x) => x + x).join("") : hex;
+    return [parseInt(tam.slice(0, 2), 16) || 0, parseInt(tam.slice(2, 4), 16) || 0, parseInt(tam.slice(4, 6), 16) || 0];
+  };
+  const [r1, g1, b1] = oku(a);
+  const [r2, g2, b2] = oku(b);
+  const m = (x, y) => Math.round(x + (y - x) * oran);
+  return `rgb(${m(r1, r2)},${m(g1, g2)},${m(b1, b2)})`;
+}
+
 export async function renderPageCanvas(page, scale, opts = {}) {
   const { w, h } = page.size;
   const canvas = document.createElement("canvas");
@@ -26,6 +39,9 @@ export async function renderPageCanvas(page, scale, opts = {}) {
   canvas.height = Math.round(h * scale);
   const ctx = canvas.getContext("2d");
   ctx.scale(scale, scale);
+  // Gölge ölçüleri dönüşümden etkilenmiyor, çıktı pikselinde uygulanıyor:
+  // sayfa birimi cinsinden istediğimiz değerleri ölçekle çarpmak gerekiyor.
+  const golge = (n) => n * scale;
   if (opts.background === false && opts.opaque) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h); }
   let drewBackground = opts.background === false;
   if (opts.background === false) { /* arka plan istenmedi */ }
@@ -51,8 +67,32 @@ export async function renderPageCanvas(page, scale, opts = {}) {
     ctx.translate(object.rect.x + dx + object.rect.w / 2, object.rect.y + object.rect.h / 2);
     ctx.rotate((object.rotation || 0) * Math.PI / 180);
     if (object.kind === "postit") {
-      ctx.fillStyle = object.tint || "#FFE566";
-      ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+      // Ekrandaki .placed.postit: 160° degrade, gölge ve kıvrık köşe.
+      const w = object.rect.w;
+      const h = object.rect.h;
+      const tint = object.tint || "#FFE566";
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = golge(22);
+      ctx.shadowOffsetY = golge(12);
+      ctx.fillStyle = tint;
+      ctx.fillRect(-w / 2 + 10, -h / 2 + 10, Math.max(1, w - 20), Math.max(1, h - 20));
+      ctx.restore();
+      const L = Math.abs(w * 0.342) + Math.abs(h * 0.94);
+      const g = ctx.createLinearGradient(-0.342 * L / 2, -0.94 * L / 2, 0.342 * L / 2, 0.94 * L / 2);
+      g.addColorStop(0, karistir(tint, "#ffffff", 0.2));
+      g.addColorStop(0.45, tint);
+      g.addColorStop(1, karistir(tint, "#5a4a00", 0.22));
+      ctx.fillStyle = g;
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      const k = Math.min(34, w / 3, h / 3);
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - k, h / 2);
+      ctx.lineTo(w / 2, h / 2 - k);
+      ctx.lineTo(w / 2, h / 2);
+      ctx.closePath();
+      ctx.fillStyle = karistir(tint, "#000000", 0.25);
+      ctx.fill();
     } else if (object.kind === "tape") {
       ctx.globalAlpha = 0.85;
       ctx.fillStyle = object.tint || "#F5D76E";
@@ -81,11 +121,52 @@ export async function renderPageCanvas(page, scale, opts = {}) {
       if (line) ctx.fillText(line, -object.rect.w / 2 + 8, y);
     } else {
       const url = await store.assetURL(object.asset);
+      const w = object.rect.w;
+      const h = object.rect.h;
       if (object.kind === "photo") {
+        // Ekrandaki .placed.photo: beyaz polaroid çerçeve (altı daha geniş),
+        // yumuşak gölge ve kıl payı iç çizgi. Eskiden görsel çerçevenin üstüne
+        // tam boy çiziliyordu: çevirirken fotoğrafın çerçevesi kayboluyordu.
+        const pad = 7;
+        const padB = 18;
+        ctx.save();
         ctx.fillStyle = "#fff";
-        ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+        ctx.shadowColor = "rgba(0,0,0,0.5)";
+        ctx.shadowBlur = golge(24);
+        ctx.shadowOffsetY = golge(12);
+        ctx.fillRect(-w / 2 + 8, -h / 2 + 8, Math.max(1, w - 16), Math.max(1, h - 16));
+        ctx.shadowColor = "rgba(0,0,0,0.2)";
+        ctx.shadowBlur = golge(2);
+        ctx.shadowOffsetY = golge(1);
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx.restore();
+        const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+        g.addColorStop(0, "#ffffff");
+        g.addColorStop(1, "#f3f1ea");
+        ctx.fillStyle = g;
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        if (url) await drawImageURL(ctx, url, -w / 2 + pad, -h / 2 + pad, Math.max(1, w - pad * 2), Math.max(1, h - pad - padB));
+        ctx.strokeStyle = "rgba(0,0,0,0.06)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
+      } else if (url) {
+        // Çıkartma: ekranda drop-shadow var. Gölge kırpılmasın diye görsel
+        // önce kendi tuvaline çiziliyor, gölgeyi o tuval bırakıyor.
+        const pul = document.createElement("canvas");
+        pul.width = Math.max(1, Math.round(w));
+        pul.height = Math.max(1, Math.round(h));
+        await drawImageURL(pul.getContext("2d"), url, 0, 0, pul.width, pul.height);
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.3)";
+        ctx.shadowBlur = golge(10);
+        ctx.shadowOffsetY = golge(8);
+        ctx.drawImage(pul, -w / 2, -h / 2, w, h);
+        ctx.shadowColor = "rgba(0,0,0,0.25)";
+        ctx.shadowBlur = golge(2);
+        ctx.shadowOffsetY = golge(2);
+        ctx.drawImage(pul, -w / 2, -h / 2, w, h);
+        ctx.restore();
       }
-      if (url) await drawImageURL(ctx, url, -object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
     }
     ctx.restore();
   }

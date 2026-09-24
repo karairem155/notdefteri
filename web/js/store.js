@@ -122,7 +122,7 @@ const DEFAULT_SETTINGS = {
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
-  openMode: "fan",          // defter açılınca: "fan" açık defter yelpazesi (tasarım), "page" doğrudan sayfa
+  openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
 };
 
@@ -180,8 +180,11 @@ class Store extends EventTarget {
     const oldDefault = { pattern: "grid", color: "#BFD8F4" };
     if (this.settings.defaultCover && this.settings.defaultCover.pattern === oldDefault.pattern && this.settings.defaultCover.color === oldDefault.color) this.settings.defaultCover = COVER_PRESETS[0];
     for (const n of this.notebooks) if (n.cover && n.cover.pattern === oldDefault.pattern && n.cover.color === oldDefault.color && !n.cover.imageAsset) n.cover = { ...COVER_PRESETS[0] };
-    // Kullanıcı kendisi seçmediyse tasarımdaki açılış (yelpaze) kullanılır.
-    if (!this.settings.openModeByUser) this.settings.openMode = "fan";
+    // Kullanıcı kendisi seçmediyse defter doğrudan sayfaya açılır: kapak
+    // orada tuvalde açılıyor ve sayfa parmağı izliyor. Yelpaze ekranı CSS 3B
+    // ile çalışıyor; iPad'de 3B düzleştiği için kapak açılışı orada bozuk
+    // görünüyordu ve sayfa parmakla sürüklenmiyordu (eşik geçilince zıplıyordu).
+    if (!this.settings.openModeByUser) this.settings.openMode = "page";
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
     if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {

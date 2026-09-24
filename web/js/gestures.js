@@ -77,7 +77,7 @@ export function attachEditorGestures(el, handlers) {
         // Parmağın indiği nokta veriliyor: kâğıt oradan tutuluyor, üst yarıdan
         // çekilince üst köşe kalkıyor.
         if (handlers.beginFlip(dir, { x: pending.x, y: pending.y })) {
-          flip = { dir, startX: e.clientX, lastX: e.clientX, lastT: performance.now(), velocity: 0 };
+          flip = { dir, startX: e.clientX, ornek: [[performance.now(), e.clientX]] };
           mode = "flip";
         } else {
           mode = null;
@@ -91,12 +91,12 @@ export function attachEditorGestures(el, handlers) {
       return;
     }
     if (mode === "flip" && flip) {
+      // Hız tek karenin farkından değil, son ~110 ms'lik örnekten: tek kare
+      // çok gürültülü, hızlı bir fiske "yavaş" ölçülüp sayfa geri düşüyordu.
       const now = performance.now();
-      const dt = Math.max(1, now - flip.lastT);
-      flip.velocity = (e.clientX - flip.lastX) / dt;
-      flip.lastX = e.clientX;
-      flip.lastT = now;
-      // Kâğıt parmağı izliyor: köşe, parmağın aldığı yol kadar gidiyor.
+      flip.ornek.push([now, e.clientX]);
+      while (flip.ornek.length > 2 && now - flip.ornek[0][0] > 110) flip.ornek.shift();
+      // Kâğıt parmağı izliyor: tutulan nokta parmağın altında kalıyor.
       flip.progress = handlers.dragFlip(e.clientX, e.clientY);
       e.preventDefault();
     }
@@ -106,10 +106,17 @@ export function attachEditorGestures(el, handlers) {
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (mode === "flip" && flip) {
-      const fast = flip.dir === 1 ? flip.velocity < -0.35 : flip.velocity > 0.35;
-      // İlerleme artık köşenin yolu: köşe cildin öbür tarafına geçerken 1 olur,
-      // bir sayfa eni sürükleme 0.5 eder. Yarı yola gerek yok, kâğıt kendi düşer.
-      const commit = fast || (flip.progress || 0) > 0.2;
+      // Hız sayfa eni/saniye cinsinden, yaprağın gittiği yön eksi sayılıyor.
+      let v = 0;
+      const o = flip.ornek;
+      if (o.length > 1) {
+        const sure = (o[o.length - 1][0] - o[0][0]) / 1000;
+        if (sure > 0.001) v = flip.dir * (o[o.length - 1][1] - o[0][1]) / sure / Math.max(1, handlers.flipWidth());
+      }
+      // Köşe cilde varmışsa kâğıt kendi düşer; fiske atıldıysa yol yarım olsa da
+      // döner, ters fiske atıldıysa yol tamam olsa da geri gelir.
+      const gecti = (flip.progress || 0) > 0.475;
+      const commit = v < -1.1 || (v < 1.1 && gecti);
       handlers.endFlip(commit);
       flip = null;
       mode = null;

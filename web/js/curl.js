@@ -95,6 +95,89 @@ function clipTo(ctx, pts) {
 const smooth = (t) => t * t * (3 - 2 * t);
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+// ── Defterin mobilyası ──────────────────────────────────────────────────────
+//
+// Ekranda sayfanın altındaki yaprak yığını, dış gölge, kenar koyuluğu ve
+// ortadaki cilt oluğu CSS'ten geliyor (.page-stack gölgesi, .page-stack::after,
+// .spine). Çevirme sırasında sayfalar gizlendiği için tuval bunların aynısını
+// çizmek zorunda; çizmezse çevirme başlar başlamaz ortadaki gölge yok oluyor,
+// sayfa da bir anda açılıyormuş gibi rengi değişiyor.
+//
+// Değerler ekrandan ölçüldü (sayfa birimi).
+
+const YIGIN = [[12, "#b9b5aa"], [9, "#c6c2b7"], [6, "#d3cfc4"], [3, "#e2ded3"]];
+const KOSE = 3;
+const CILT_ENI = 10;
+
+// Yolu BAŞLATMIYOR: çağıran beginPath'i kendi yapıyor. Kırpmada iki alt yol
+// (büyük dikdörtgen + sayfa) aynı yolda olmalı, yoksa evenodd tersine dönüyor
+// ve gölge sayfanın içine kırpılıp görünmez oluyor.
+function roundRectPath(ctx, x, y, w, h, r) {
+  if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** Sayfanın altındaki yaprak yığını ve masaya düşen gölge. */
+function drawSheetBed(ctx, view, x, y, w, h) {
+  const padX = view.padX || 0;
+  const padR = view.padR || 0;
+  // Gölge ölçüleri tuval koordinatında değil ÇIKTI pikselinde uygulanıyor;
+  // sahne küçülünce gölge de küçülsün diye ölçekle çarpılıyorlar.
+  const olcek = view.olcek || 1;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-padX - 400, -(view.padY || 0) - 400, view.w + padX + padR + 800, view.h + (view.padY || 0) * 2 + 800);
+  roundRectPath(ctx, x, y, w, h, KOSE);
+  ctx.clip("evenodd");
+  ctx.fillStyle = "#000";
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 50 * olcek;
+  ctx.shadowOffsetY = 26 * olcek;
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, w, h, KOSE);
+  ctx.fill();
+  ctx.shadowColor = "rgba(0,0,0,0.3)";
+  ctx.shadowBlur = 14 * olcek;
+  ctx.shadowOffsetY = 6 * olcek;
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, w, h, KOSE);
+  ctx.fill();
+  ctx.restore();
+  for (const [off, renk] of YIGIN) {
+    ctx.fillStyle = renk;
+    ctx.beginPath();
+    roundRectPath(ctx, x + off, y + off, w, h, KOSE);
+    ctx.fill();
+  }
+}
+
+/** Sayfanın iki kenarındaki hafif koyuluk (.page-stack::after). */
+function drawEdgeShade(ctx, x, y, w, h) {
+  const g = ctx.createLinearGradient(x, 0, x + w, 0);
+  g.addColorStop(0, "rgba(0,0,0,0.05)");
+  g.addColorStop(0.03, "rgba(0,0,0,0)");
+  g.addColorStop(0.97, "rgba(0,0,0,0)");
+  g.addColorStop(1, "rgba(0,0,0,0.05)");
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, w, h);
+}
+
+/** Cilt oluğu: iki yaprağın arasındaki koyu şerit (.spine). */
+function drawCrease(ctx, x, y, h, a = 1) {
+  if (a <= 0.01) return;
+  const g = ctx.createLinearGradient(x - CILT_ENI / 2, 0, x + CILT_ENI / 2, 0);
+  g.addColorStop(0, `rgba(0,0,0,${0.08 * a})`);
+  g.addColorStop(0.5, `rgba(0,0,0,${0.32 * a})`);
+  g.addColorStop(1, `rgba(0,0,0,${0.08 * a})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - CILT_ENI / 2, y, CILT_ENI, h);
+}
+
 /**
  * Bir kareyi çizer.
  *
@@ -108,11 +191,14 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 export function drawCurlFrame(view, geo, tex, C, P) {
   const { ctx, w, h } = view;
   const padX = view.padX || 0;
+  const padR = view.padR || 0;
+  const padY = view.padY || 0;
+  const tumAlan = () => ctx.fillRect(-padX, -padY, w + padX + padR, h + padY * 2);
   const { spineX, leafW, leafH, side } = geo;
   const PH = leafH / leafW;
   const fold = foldFor(C, P);
 
-  ctx.clearRect(-padX, 0, w + padX, h);
+  ctx.clearRect(-padX, -padY, w + padX + padR, h + padY * 2);
 
   // Yaprak birimi → ekran
   const toScreen = (q) => [spineX + side * q[0] * leafW, geo.y0 + q[1] * leafW];
@@ -122,15 +208,30 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   // Karsi sayfa once `spineX - side*leafW` ile ciziliyordu: geri cevirirken
   // (side = -1) tuvalin disina dusuyor ve sag yari bombos kaliyordu.
   const underX = side > 0 ? spineX : spineX - leafW;
-  const otherX = side > 0 ? spineX - leafW : spineX;
-  if (tex.other) ctx.drawImage(tex.other, otherX, geo.y0, leafW, leafH);
+  const otherW = geo.otherW || leafW;
+  const otherH = geo.otherH || leafH;
+  const otherX = side > 0 ? spineX - otherW : spineX;
+
+  // Önce defterin mobilyası: her iki yarının yaprak yığını ve gölgesi.
+  if (tex.other) drawSheetBed(ctx, view, otherX, geo.y0, otherW, otherH);
+  drawSheetBed(ctx, view, underX, geo.y0, leafW, leafH);
+
+  if (tex.other) {
+    ctx.drawImage(tex.other, otherX, geo.y0, otherW, otherH);
+    drawEdgeShade(ctx, otherX, geo.y0, otherW, otherH);
+  }
   if (tex.under) ctx.drawImage(tex.under, underX, geo.y0, leafW, leafH);
   // Defterin sonunda alttaki sayfa olmayabilir: bos birakilirsa masa gorunur
   // ve kagit seffaf donuyormus gibi olur.
   else { ctx.fillStyle = "#f6f2e9"; ctx.fillRect(underX, geo.y0, leafW, leafH); }
+  drawEdgeShade(ctx, underX, geo.y0, leafW, leafH);
 
   if (!fold) {
-    if (tex.front) ctx.drawImage(tex.front, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
+    if (tex.front) {
+      ctx.drawImage(tex.front, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
+      drawEdgeShade(ctx, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
+    }
+    if (tex.other) drawCrease(ctx, spineX, geo.y0, Math.max(leafH, otherH));
     return;
   }
 
@@ -151,17 +252,23 @@ export function drawCurlFrame(view, geo, tex, C, P) {
     g.addColorStop(0, `rgba(30,22,16,${0.34 * fade})`);
     g.addColorStop(1, "rgba(30,22,16,0)");
     ctx.fillStyle = g;
-    ctx.fillRect(-padX, 0, w + padX, h);
+    tumAlan();
     ctx.restore();
   }
 
   // 3) Yaprağın yerinde duran kısmı (ön yüz).
   if (flat.length > 2 && tex.front) {
+    const frontX = side > 0 ? spineX : spineX - leafW;
     ctx.save();
     clipTo(ctx, flat.map(toScreen));
-    ctx.drawImage(tex.front, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
+    ctx.drawImage(tex.front, frontX, geo.y0, leafW, leafH);
+    drawEdgeShade(ctx, frontX, geo.y0, leafW, leafH);
     ctx.restore();
   }
+
+  // Cilt oluğu yaprakların üstünde: çevirme boyunca yerinde duruyor. Ekranda
+  // bunu .spine yapıyordu, çevirme sırasında gizlendiği için burada çiziliyor.
+  if (tex.other) drawCrease(ctx, spineX, geo.y0, Math.max(leafH, otherH));
 
   if (flap.length < 3) return;
   const flapS = flap.map((q) => toScreen(reflect(q, fold)));
@@ -169,7 +276,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   // 4) Kanadın çevresine düşen gölge: kanat dışına, kenarından itibaren.
   ctx.save();
   ctx.beginPath();
-  ctx.rect(-padX, 0, w + padX, h);
+  ctx.rect(-padX, -padY, w + padX + padR, h + padY * 2);
   tracePoly(ctx, flapS);
   ctx.clip("evenodd");
   ctx.fillStyle = "#000";
@@ -204,7 +311,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
     ctx.drawImage(tex.back, 0, 0);
   } else {
     ctx.fillStyle = "#faf7f0";
-    ctx.fillRect(-padX, 0, w + padX, h);
+    tumAlan();
   }
   ctx.restore();
 
@@ -218,7 +325,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   g.addColorStop(0.45, `rgba(255,255,255,${0.06 * fade})`);
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
-  ctx.fillRect(-padX, 0, w + padX, h);
+  tumAlan();
   ctx.restore();
 }
 
@@ -259,23 +366,29 @@ export function pointerForProgress(t, C, PH) {
  * kaç piksele düşüyorsa o kadar: birleşik ölçek 1, yani yeniden örnekleme yok,
  * yazı net kalıyor.
  */
+const EN_AZ_PAY = 60;   // gölge ve yaprak yığını için her yönde asgari pay
+
 function makeLayer(frames, scale) {
   const dpr = Math.min(2.5, window.devicePixelRatio || 1);
   const canvas = document.createElement("canvas");
   canvas.className = "curl-layer";
-  const padX = frames.padX || 0;
-  // Sag pay: kapali defterin sayfa blogu cildin disina tasiyor.
-  const padR = frames.padR || 0;
+  const padX = Math.max(frames.padX || 0, EN_AZ_PAY);
+  // Sağ ve dikey pay: sayfa bloğu, kitabın gölgesi ve yukarı kalkan köşe
+  // sayfanın dışına taşıyor; pay olmazsa tuvalin kenarında kesiliyorlar.
+  const padR = Math.max(frames.padR || 0, EN_AZ_PAY);
+  const padY = Math.max(frames.padY || 0, EN_AZ_PAY);
   const totalW = frames.spreadW + padX + padR;
+  const totalH = frames.spreadH + padY * 2;
   canvas.width = Math.round(totalW * scale * dpr);
-  canvas.height = Math.round(frames.spreadH * scale * dpr);
+  canvas.height = Math.round(totalH * scale * dpr);
   canvas.style.left = -padX + "px";
+  canvas.style.top = -padY + "px";
   canvas.style.width = totalW + "px";
-  canvas.style.height = frames.spreadH + "px";
+  canvas.style.height = totalH + "px";
   const ctx = canvas.getContext("2d");
   // Çizim sahne koordinatında kalsın diye kaydırma matrise giriyor.
-  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, padX * scale * dpr, 0);
-  return { canvas, ctx, dpr, scale, padX, padR };
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, padX * scale * dpr, padY * scale * dpr);
+  return { canvas, ctx, dpr, scale, padX, padR, padY, olcek: scale * dpr };
 }
 
 /**
@@ -304,10 +417,12 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const f = st.frames;
     const rect = st.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
-    const padX = f.padX || 0;
-    const totalW = f.spreadW + padX;
+    const padX = st.pad.padX;
+    const padY = st.pad.padY;
+    const totalW = f.spreadW + padX + st.pad.padR;
+    const totalH = f.spreadH + padY * 2;
     const sx = (clientX - rect.left) * (totalW / rect.width) - padX;
-    const sy = (clientY - rect.top) * (f.spreadH / rect.height);
+    const sy = (clientY - rect.top) * (totalH / rect.height) - padY;
     return [(sx - f.spineX) / (f.side * f.leafW), (sy - f.y0) / f.leafW];
   }
 
@@ -318,8 +433,8 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const C = state.corner;
     const P = state.P || pointerForProgress(state.progress, C, PH);
     drawCurlFrame(
-      { ctx: state.ctx, w: f.spreadW, h: f.spreadH, padX: f.padX || 0 },
-      { spineX: f.spineX, y0: f.y0, leafW: f.leafW, leafH: f.leafH, side: f.side },
+      { ctx: state.ctx, w: f.spreadW, h: f.spreadH, ...state.pad },
+      { spineX: f.spineX, y0: f.y0, leafW: f.leafW, leafH: f.leafH, side: f.side, otherW: f.otherW, otherH: f.otherH },
       state.tex,
       C,
       P
@@ -332,11 +447,13 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     if (!frames) return false;
     const view = setup(frames);
     const PH = frames.leafH / frames.leafW;
+    const pad = { padX: view.padX, padR: view.padR, padY: view.padY, olcek: view.olcek };
     state = {
       dir,
       frames,
       ctx: view.ctx,
       canvas: view.canvas,
+      pad,
       tex: {},
       ready: false,
       // Geriye cevirmede yaprak kapali basliyor: ilerleme tersten akiyor.
@@ -347,15 +464,25 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     host.append(view.canvas);
     state.host = host;
     // Tutulan köşe parmağa göre seçiliyor: üst yarıdan çekince üst köşe kalkar.
-    if (at) {
-      const q = toLeaf(state, at.x, at.y);
-      if (q) {
-        state.corner = [1, q[1] < PH / 2 ? 0.001 : PH - 0.001];
-        state.grab = q;
-      }
-    }
+    const q = at ? toLeaf(state, at.x, at.y) : null;
+    if (q) state.corner = [1, Math.max(0, Math.min(PH, q[1])) < PH / 2 ? 0 : PH];
     state.P = pointerForProgress(state.progress, state.corner, PH);
-    state.P0 = state.P;
+    // Tutulan KÂĞIT noktası: yaprak zaten kıvrıksa (geri çevirmede kapalı
+    // başlıyor) parmağın altındaki malzeme, kâğıdın açılmış halindeki karşılığı
+    // olan noktadır — o yüzden katlama çizgisine göre aynalanıyor.
+    if (q) {
+      const fold0 = foldFor(state.corner, state.P);
+      const mal = fold0 ? reflect(q, fold0) : q;
+      const gx = Math.min(1, mal[0]);
+      // Cilde çok yakın tutuşta katlama çizgisi saçmalamasın diye tutuş
+      // noktası biraz dışarı alınıyor. Yaprak zaten kıvrıksa kaydırma yok:
+      // orada tutuş ile parmak aynı yerde değil, kaydırmak kâğıdı zıplatır.
+      state.shift = fold0 ? 0 : Math.max(0, 0.6 - gx);
+      state.grab = [gx + state.shift, Math.max(0, Math.min(PH, mal[1]))];
+    } else {
+      state.shift = 0;
+      state.grab = [1, state.corner[1]];
+    }
     const want = { front: frames.front, back: frames.back, under: frames.under, other: frames.other };
     const current = state;
     Promise.all(Object.entries(want).map(async ([key, page]) => {
@@ -375,25 +502,42 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
   }
 
   /**
-   * Parmağı izle: köşe, parmağın gittiği kadar gidiyor.
+   * Parmağı izle.
    *
-   * Parmağın mutlak yeri değil, başlangıçtan beri aldığı YOL uygulanıyor:
-   * sayfanın ortasından tutunca köşe birden parmağa zıplamıyor, köşeden
-   * tutunca da zaten ikisi aynı yerde oluyor. Dönen değer bırakma kararı için
-   * ilerleme (0 başlangıç, 1 tamamlanmış).
+   * Tutulan kâğıt noktası G, parmağın şimdiki yeri Q: katlama çizgisi bu
+   * ikisinin orta dikmesi, köşe de o çizgiye göre aynalanmış hali. Yani
+   * tuttuğun nokta gerçekten parmağının altında kalıyor — köşeyi parmağın
+   * yoluyla ötelemekten farkı, kâğıdın doğru miktarda katlanması.
+   *
+   * Dönen değer bırakma kararı için ilerleme (0 başlangıç, 1 tamamlanmış).
    */
   function follow(clientX, clientY) {
     if (!state) return 0;
     const f = state.frames;
     const PH = f.leafH / f.leafW;
+    const geri = f.reverse;
     const q = toLeaf(state, clientX, clientY);
-    if (!q) return state.frames.reverse ? 1 - state.progress : state.progress;
+    if (!q) return geri ? 1 - state.progress : state.progress;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    const g = state.grab || q;
-    state.P = constrainPointer([state.P0[0] + (q[0] - g[0]), state.P0[1] + (q[1] - g[1])], state.corner, PH);
-    state.progress = clamp01((1 - state.P[0]) / 2);
+    const C = state.corner;
+    const Q = [q[0] + state.shift, q[1]];
+    const G = state.grab;
+    const dx = G[0] - Q[0];
+    const dy = G[1] - Q[1];
+    const L = Math.hypot(dx, dy);
+    let P = C.slice();
+    if (L > 1e-5) {
+      const n = [dx / L, dy / L];
+      const M = [(G[0] + Q[0]) / 2, (G[1] + Q[1]) / 2];
+      const d = (C[0] - M[0]) * n[0] + (C[1] - M[1]) * n[1];
+      // d <= 0: köşe katlama çizgisinin öbür tarafında kalıyor, yani kâğıt
+      // hiç kalkmamış demek.
+      if (d > 0) P = constrainPointer([C[0] - 2 * d * n[0], C[1] - 2 * d * n[1]], C, PH);
+    }
+    state.P = P;
+    state.progress = clamp01((C[0] - P[0]) / 2);
     paint();
-    return f.reverse ? 1 - state.progress : state.progress;
+    return geri ? 1 - state.progress : state.progress;
   }
 
   function finish(commit, onDone) {
@@ -459,7 +603,8 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     finish,
     run,
     cancel,
-    get active() { return !!state; }
+    get active() { return !!state; },
+    get sheetWidth() { return state ? state.frames.leafW : 0; }
   };
 }
 
@@ -484,107 +629,164 @@ export function drawCoverFrame(view, f, t) {
   const { ctx, w, h } = view;
   const padX = view.padX || 0;
   const padR = view.padR || 0;
+  const padY = view.padY || 0;
+  const olcek = view.olcek || 1;
   const { leafW, leafH, y0 } = f;
-  const e = clamp01(t);
   const spineX = f.spineX;
-  const a = Math.PI * e;
-  const c = Math.cos(a);
-  const s = Math.sin(a);
+  const e = clamp01(t);
+  const th = Math.PI * e;
+  const c = Math.cos(th);
+  const sn = Math.sin(th);
+  const cy = y0 + leafH / 2;
 
-  ctx.clearRect(-padX, 0, w + padX + padR, h);
+  ctx.clearRect(-padX, -padY, w + padX + padR, h + padY * 2);
 
-  // 1) Sayfa bloğu: kapağın altından taşan sayfa kenarları. Kapalıyken yalnız
-  // sağ yaprak kadar, açıldıkça iki yaprağa yayılıyor (ekrandaki .back-sheets
-  // ile aynı kayma, bitince devir teslim belli olmasın).
+  // 1) Sayfa bloğu ve sayfalar. Kapalıyken yalnız kapağın altındaki yaprak,
+  // açıldıkça sol yaprak da ciltten sıyrılarak geliyor.
   const leftIn = f.other ? smooth(clamp01((e - 0.18) / 0.4)) : 0;
   const openW = leafW * leftIn;
-  const blockX = spineX - openW;
-  const blockW = openW + leafW;
-  ctx.fillStyle = "#d6d4cb";
-  ctx.fillRect(blockX + 10, y0 + 6, blockW, leafH);
-  ctx.fillStyle = "#e6e4dc";
-  ctx.fillRect(blockX + 5, y0 + 3, blockW, leafH);
+  // Sol yaprak ciltten sıyrılırken hem kâğıdı hem yatağı aynı yere kırpılıyor:
+  // yatak serbest bırakılırsa defter açılmadan sol yarıda kâğıt varmış gibi
+  // görünüyor. Sonunda kırpma genişliyor ki sayfanın kendi gölgesi çıksın.
+  const solPay = 400 * clamp01((leftIn - 0.9) / 0.1);
+  const solKirp = () => {
+    ctx.beginPath();
+    ctx.rect(spineX - openW - solPay, y0 - padY - 400, openW + solPay, leafH + padY * 2 + 800);
+    ctx.clip();
+  };
+  if (f.other && leftIn > 0) {
+    ctx.save();
+    solKirp();
+    drawSheetBed(ctx, view, spineX - leafW, y0, leafW, leafH);
+    ctx.restore();
+  }
+  drawSheetBed(ctx, view, spineX, y0, leafW, leafH);
 
   if (f.under) ctx.drawImage(f.under, spineX, y0, leafW, leafH);
   else { ctx.fillStyle = "#f6f2e9"; ctx.fillRect(spineX, y0, leafW, leafH); }
+  drawEdgeShade(ctx, spineX, y0, leafW, leafH);
 
-  // 2) Sol yaprak ciltten çıkıyor: kırpma kenarı cilde yapışık, kâğıt oradan
-  // sıyrılıyormuş gibi.
   if (f.other && leftIn > 0) {
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(blockX, y0, openW, leafH);
-    ctx.clip();
+    solKirp();
     ctx.globalAlpha = leftIn;
     ctx.drawImage(f.other, spineX - leafW, y0, leafW, leafH);
+    drawEdgeShade(ctx, spineX - leafW, y0, leafW, leafH);
     ctx.restore();
   }
 
-  // 3) Cilt gölgesi: iki yaprak arasındaki oluk.
-  if (leftIn > 0) {
-    const gw = leafW * 0.06;
-    const g = ctx.createLinearGradient(spineX - gw, 0, spineX + gw, 0);
-    g.addColorStop(0, "rgba(30,22,16,0)");
-    g.addColorStop(0.5, `rgba(30,22,16,${0.2 * leftIn})`);
-    g.addColorStop(1, "rgba(30,22,16,0)");
+  // 2) Kapağın komşu sayfaya düşürdüğü gölge: kapak hangi yarının üstündeyse
+  // orası daha koyu.
+  const shade = (yon, a) => {
+    if (a < 0.01) return;
+    const g = ctx.createLinearGradient(spineX, 0, spineX + yon * leafW * 0.85, 0);
+    g.addColorStop(0, `rgba(40,28,22,${a})`);
+    g.addColorStop(1, "rgba(40,28,22,0)");
     ctx.fillStyle = g;
-    ctx.fillRect(spineX - gw, y0, gw * 2, leafH);
-  }
+    ctx.fillRect(yon > 0 ? spineX : spineX - leafW, y0, leafW, leafH);
+  };
+  shade(1, 0.3 * sn * (c > 0 ? 1 : 0.45));
+  if (f.other && leftIn > 0) shade(-1, 0.3 * sn * leftIn * (c < 0 ? 1 : 0.45));
 
-  // 4) Dönen kapak. Ortalarda hafif kısalma veriliyor: göz levhayı eğik görür.
-  const cw = leafW * Math.abs(c);
-  const x0 = c >= 0 ? spineX : spineX - cw;
-  const k = 1 - 0.05 * s;
-  const yv = y0 + (leafH * (1 - k)) / 2;
-  const hv = leafH * k;
-  // Kapak yatarken sol yaprağın altına giriyor. Karşı yaprak varsa o biniyor
-  // (aşağıda); yoksa — tek sayfa kipinde — kapak sayfanın dışında kalacağı
-  // için kendisi siliniyor, sonunda tuval kalkınca zıplama olmasın.
-  const land = clamp01((-c - 0.86) / 0.14);
-  if (cw > 0.6 && (f.other || land < 1)) {
-    ctx.save();
-    if (!f.other) ctx.globalAlpha = 1 - land;
-    // Kapağın altındaki sayfaya düşen gölge, serbest kenarından dışarı.
-    const edge = c >= 0 ? spineX + cw : spineX - cw;
-    const dir = c >= 0 ? 1 : -1;
-    const sl = leafW * 0.16 * (0.35 + s);
-    const sg = ctx.createLinearGradient(edge, 0, edge + dir * sl, 0);
-    sg.addColorStop(0, `rgba(28,20,14,${0.3 * (0.25 + 0.75 * s)})`);
-    sg.addColorStop(1, "rgba(28,20,14,0)");
-    ctx.fillStyle = sg;
-    ctx.fillRect(Math.min(edge, edge + dir * sl), yv, sl, hv);
+  if (f.other && leftIn > 0) drawCrease(ctx, spineX, y0, leafH, leftIn);
 
-    if (c >= 0 && f.front) {
-      ctx.drawImage(f.front, x0, yv, cw, hv);
-    } else {
-      // İç kapak: sade astar kâğıdı, cilt tarafında koyulaşan.
-      ctx.fillStyle = "#efe7d6";
-      ctx.fillRect(x0, yv, cw, hv);
-      const ig = ctx.createLinearGradient(spineX, 0, spineX - dir * leafW * 0.22, 0);
-      ig.addColorStop(0, "rgba(60,45,30,0.22)");
-      ig.addColorStop(1, "rgba(60,45,30,0)");
-      ctx.fillStyle = ig;
-      ctx.fillRect(x0, yv, cw, hv);
+  // 3) Kapak: menteşeden dönen sert bir levha. Şeritler halinde çiziliyor ki
+  // dönerken perspektifle kısalsın — düz bir yatay ölçek kâğıt gibi yassı
+  // görünüyordu.
+  const img = c >= 0 ? f.front : astarBitmap();
+  const duz = c >= 0;              // ön yüz mü, iç kapak mı
+  if (img) {
+    const D = 8;
+    const proj = (u) => {
+      const k = D / (D - sn * u);
+      return [spineX + c * u * k * leafW, k];
+    };
+    const [xo, ko] = proj(1);
+    const minX = Math.floor(Math.min(spineX, xo)) - 3;
+    const maxX = Math.ceil(Math.max(spineX, xo)) + 3;
+    const yarim = (leafH / 2) * Math.max(1, ko);
+    const minY = Math.floor(cy - yarim) - 3;
+    const maxY = Math.ceil(cy + yarim) + 3;
+    const bw = Math.max(1, Math.ceil((maxX - minX) * olcek));
+    const bh = Math.max(1, Math.ceil((maxY - minY) * olcek));
+    if (!levha) levha = document.createElement("canvas");
+    if (levha.width < bw || levha.height < bh) {
+      levha.width = Math.max(bw, levha.width);
+      levha.height = Math.max(bh, levha.height);
     }
-    // Işık: levha yan dönerken kararıyor.
-    ctx.fillStyle = `rgba(22,16,10,${(c >= 0 ? 0.3 : 0.2) * s})`;
-    ctx.fillRect(x0, yv, cw, hv);
-    // Menteşe: kartonun kalınlığı.
-    ctx.fillStyle = "rgba(20,14,8,0.35)";
-    ctx.fillRect(spineX - (c >= 0 ? 0 : 2.5), yv, 2.5, hv);
+    const b = levha.getContext("2d");
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    b.clearRect(0, 0, levha.width, levha.height);
+    b.setTransform(olcek, 0, 0, olcek, -minX * olcek, -minY * olcek);
+    b.imageSmoothingEnabled = true;
+    b.imageSmoothingQuality = "high";
+    const N = 128;
+    const iw = img.width;
+    const ih = img.height;
+    for (let i = 0; i < N; i++) {
+      const u0 = i / N;
+      const u1 = (i + 1) / N;
+      const x0 = proj(u0)[0];
+      const x1 = proj(u1)[0];
+      const dw = Math.abs(x1 - x0);
+      if (dw < 0.05) continue;
+      const km = D / (D - sn * (u0 + u1) / 2);
+      const hh = leafH * km;
+      const s0 = (duz ? u0 : 1 - u0) * iw;
+      const s1 = (duz ? u1 : 1 - u1) * iw;
+      b.drawImage(img, Math.min(s0, s1), 0, Math.max(1, Math.abs(s1 - s0)), ih,
+        Math.min(x0, x1) - 0.4, cy - hh / 2, dw + 0.8, hh);
+    }
+    // Işıktan dönerken kararıyor (yalnız levhanın kendi şekli üstünde).
+    b.globalCompositeOperation = "source-atop";
+    b.fillStyle = `rgba(30,20,15,${0.2 * sn * sn})`;
+    b.fillRect(minX, minY, maxX - minX, maxY - minY);
+    b.globalCompositeOperation = "source-over";
+
+    ctx.save();
+    // Tek sayfada kapağın altına girecek yaprak yok: son derecelerde kendisi
+    // soluyor, yoksa tuval kalkınca ekrandan bir anda siliniyor.
+    if (!f.other) ctx.globalAlpha = 1 - clamp01((-c - 0.86) / 0.14);
+    ctx.shadowColor = `rgba(55,40,30,${0.2 + 0.14 * sn})`;
+    ctx.shadowBlur = (30 + 8 * sn) * olcek;
+    ctx.shadowOffsetY = 14 * (1 - sn) * olcek;
+    ctx.drawImage(levha, 0, 0, bw, bh, minX, minY, bw / olcek, bh / olcek);
     ctx.restore();
   }
 
-  // 5) Kapak yere yatarken sol yaprak üstüne biniyor (kapak sayfanın altında
-  // kalır); son derecelerde bindirme.
+  // 4) Kapak yere yatarken sol yaprak üstüne biniyor: kapak sayfanın ALTINDA
+  // kalır. Karşı yaprak yoksa (tek sayfa) kapağın kendisi soluyor.
   if (f.other) {
+    const land = clamp01((-c - 0.86) / 0.14);
     if (land > 0) {
       ctx.save();
       ctx.globalAlpha = land;
       ctx.drawImage(f.other, spineX - leafW, y0, leafW, leafH);
+      drawEdgeShade(ctx, spineX - leafW, y0, leafW, leafH);
+      drawCrease(ctx, spineX, y0, leafH, land);
       ctx.restore();
     }
   }
+}
+
+/** İç kapak astarı: krem kâğıt, cilt tarafına doğru koyulaşan. */
+let astar = null;
+let levha = null;
+function astarBitmap() {
+  if (astar) return astar;
+  astar = document.createElement("canvas");
+  astar.width = 64;
+  astar.height = 8;
+  const a = astar.getContext("2d");
+  // İç kapak ters okunuyor (aynalı), o yüzden koyu uç sağda: ekranda cilt
+  // tarafına düşüyor.
+  const g = a.createLinearGradient(0, 0, 64, 0);
+  g.addColorStop(0, "#f4eee0");
+  g.addColorStop(0.82, "#efe7d6");
+  g.addColorStop(1, "#e6dcc6");
+  a.fillStyle = g;
+  a.fillRect(0, 0, 64, 8);
+  return astar;
 }
 
 /**
@@ -623,7 +825,7 @@ export function createCoverAnim(spreadEl, options = {}) {
     host.append(view.canvas);
     host.classList.add("opening-cover");
     const draw = (e) => {
-      drawCoverFrame({ ctx: view.ctx, w: frames.spreadW, h: frames.spreadH, padX: view.padX, padR: view.padR }, frames, e);
+      drawCoverFrame({ ctx: view.ctx, w: frames.spreadW, h: frames.spreadH, padX: view.padX, padR: view.padR, padY: view.padY, olcek: view.olcek }, frames, e);
       if (options.onFrame) options.onFrame(e);
     };
     const duration = dir > 0 ? 820 : 560;

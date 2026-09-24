@@ -817,6 +817,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         return {
           spreadW, spreadH, spineX: leftPage.size.w, y0: 0, side: 1, corner: "bottom",
           leafW: rightPage.size.w, leafH: rightPage.size.h,
+          otherW: leftPage.size.w, otherH: leftPage.size.h,
           front: rightPage, back: nextLeft, under: list[left + 3] || null, other: leftPage
         };
       }
@@ -825,6 +826,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       return {
         spreadW, spreadH, spineX: leftPage.size.w, y0: 0, side: -1, corner: "bottom",
         leafW: leftPage.size.w, leafH: leftPage.size.h,
+        otherW: rightPage.size.w, otherH: rightPage.size.h,
         front: leftPage, back: prevRight, under: list[left - 2] || null, other: rightPage
       };
     }
@@ -2191,6 +2193,7 @@ export function renderEditor(root, notebookId, initialPageId) {
       return flip.begin(dir, at);
     },
     fillWidthZoom,
+    flipWidth: () => flip.sheetWidth * fitScale * zoom,
     dragFlip: (x, y) => flip.follow(x, y),
     endFlip: (commit) => {
       const target = flipTargetId(flipDir);
