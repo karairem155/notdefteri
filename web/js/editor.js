@@ -8,7 +8,7 @@ import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines,
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
 import { createCurlFlip, createCoverAnim } from "./curl.js";
-import { coverBitmap, takeCoverOpening } from "./covers.js";
+import { coverBitmap, coverElement, takeCoverOpening } from "./covers.js";
 import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
@@ -464,9 +464,16 @@ export function renderEditor(root, notebookId, initialPageId) {
     resolutionTimer = setTimeout(() => { for (const ink of inks.values()) ink.setResolution(fitScale * zoom); }, 160);
   }
 
+  /**
+   * Defterin sonu.
+   *
+   * Son açılımın boş yarısında "Sayfa ekle" yazıyordu; orası aslında kitabın
+   * bittiği yer, yani arka kapak. Sayfa eklemek üst çubuktaki + ile.
+   */
   function emptyPage(size) {
-    return h("div", { class: "empty-page", style: { width: size.w + "px", height: size.h + "px" }, role: "button", tabindex: "0",
-      onTap: () => openAddPageSheet(notebookId, pages().length - 1, (id) => selectPage(id)) }, svgIcon("plus", 44), "Sayfa ekle");
+    const kapak = nb().cover || { color: nb().coverColor || "#F4A7C0", pattern: "plain" };
+    return h("div", { class: "page-stack back-cover", style: { width: size.w + "px", height: size.h + "px" } },
+      coverElement(kapak));
   }
 
   function toPageCoords(e, stackEl, page) {
@@ -808,16 +815,22 @@ export function renderEditor(root, notebookId, initialPageId) {
       const left = spreadLeft();
       const leftPage = list[left];
       const rightPage = list[left + 1];
-      if (!leftPage || !rightPage) return null;
-      const spreadW = leftPage.size.w + rightPage.size.w;
-      const spreadH = Math.max(leftPage.size.h, rightPage.size.h);
+      if (!leftPage) return null;
+      // Son açılımda sağ yarı boş olabilir (orada "Sayfa ekle" duruyor).
+      // Eskiden burada null dönüyordu: yaprak sağda olmadığı için GERİ çevirme
+      // de hiç başlamıyordu — son sayfada sayfa geri çevrilmemesinin sebebi.
+      const rightSize = (rightPage || leftPage).size;
+      const spreadW = leftPage.size.w + rightSize.w;
+      const spreadH = Math.max(leftPage.size.h, rightSize.h);
       if (dir === 1) {
         const nextLeft = list[left + 2];
-        if (!nextLeft) return null;
+        if (!nextLeft || !rightPage) return null;
         return {
           spreadW, spreadH, spineX: leftPage.size.w, y0: 0, side: 1, corner: "bottom",
           leafW: rightPage.size.w, leafH: rightPage.size.h,
           otherW: leftPage.size.w, otherH: leftPage.size.h,
+          // Yerinde duran yarı ekranda zaten duruyor: tuval oraya dokunmuyor.
+          crease: true, liveFront: true,
           front: rightPage, back: nextLeft, under: list[left + 3] || null, other: leftPage
         };
       }
@@ -826,8 +839,9 @@ export function renderEditor(root, notebookId, initialPageId) {
       return {
         spreadW, spreadH, spineX: leftPage.size.w, y0: 0, side: -1, corner: "bottom",
         leafW: leftPage.size.w, leafH: leftPage.size.h,
-        otherW: rightPage.size.w, otherH: rightPage.size.h,
-        front: leftPage, back: prevRight, under: list[left - 2] || null, other: rightPage
+        otherW: rightSize.w, otherH: rightSize.h,
+        crease: true, liveFront: true,
+        front: leftPage, back: prevRight, under: list[left - 2] || null, other: rightPage || null
       };
     }
     const index = selectedIndex();
@@ -843,6 +857,7 @@ export function renderEditor(root, notebookId, initialPageId) {
         spreadW: current.size.w, spreadH: current.size.h, padX: current.size.w,
         spineX: 0, y0: 0, side: 1, corner: "bottom",
         leafW: current.size.w, leafH: current.size.h,
+        liveFront: true,
         front: current, back: next, under: next, other: null
       };
     }
@@ -854,6 +869,9 @@ export function renderEditor(root, notebookId, initialPageId) {
       spreadW: current.size.w, spreadH: current.size.h, padX: current.size.w,
       spineX: 0, y0: 0, side: 1, corner: "bottom",
       leafW: prev.size.w, leafH: prev.size.h, reverse: true,
+      // Geri çevirmede altta kalan ZATEN ekrandaki sayfa; üstteki yaprak ise
+      // önceki sayfa, yani yerinde duran kısım ekrandakinden farklı.
+      liveUnder: true,
       front: prev, back: current, under: current, other: null
     };
   }

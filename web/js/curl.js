@@ -199,41 +199,11 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   const fold = foldFor(C, P);
 
   ctx.clearRect(-padX, -padY, w + padX + padR, h + padY * 2);
+  if (!fold) return;   // kâğıt düzken ekranın kendisi görünüyor, çizecek bir şey yok
 
-  // Yaprak birimi → ekran
+  // Yaprak birimi → ekran. Yaprağın kendi yeri: cildin hangi tarafındaysa.
   const toScreen = (q) => [spineX + side * q[0] * leafW, geo.y0 + q[1] * leafW];
-
-  // 1) Altta kalanlar: karşı sayfa ve çevrildiğinde ortaya çıkacak sayfa.
-  // Alttaki sayfa yapragin kendi tarafinda, karsi sayfa obur tarafta.
-  // Karsi sayfa once `spineX - side*leafW` ile ciziliyordu: geri cevirirken
-  // (side = -1) tuvalin disina dusuyor ve sag yari bombos kaliyordu.
-  const underX = side > 0 ? spineX : spineX - leafW;
-  const otherW = geo.otherW || leafW;
-  const otherH = geo.otherH || leafH;
-  const otherX = side > 0 ? spineX - otherW : spineX;
-
-  // Önce defterin mobilyası: her iki yarının yaprak yığını ve gölgesi.
-  if (tex.other) drawSheetBed(ctx, view, otherX, geo.y0, otherW, otherH);
-  drawSheetBed(ctx, view, underX, geo.y0, leafW, leafH);
-
-  if (tex.other) {
-    ctx.drawImage(tex.other, otherX, geo.y0, otherW, otherH);
-    drawEdgeShade(ctx, otherX, geo.y0, otherW, otherH);
-  }
-  if (tex.under) ctx.drawImage(tex.under, underX, geo.y0, leafW, leafH);
-  // Defterin sonunda alttaki sayfa olmayabilir: bos birakilirsa masa gorunur
-  // ve kagit seffaf donuyormus gibi olur.
-  else { ctx.fillStyle = "#f6f2e9"; ctx.fillRect(underX, geo.y0, leafW, leafH); }
-  drawEdgeShade(ctx, underX, geo.y0, leafW, leafH);
-
-  if (!fold) {
-    if (tex.front) {
-      ctx.drawImage(tex.front, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
-      drawEdgeShade(ctx, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
-    }
-    if (tex.other) drawCrease(ctx, spineX, geo.y0, Math.max(leafH, otherH));
-    return;
-  }
+  const leafX = side > 0 ? spineX : spineX - leafW;
 
   const rect = [[0, 0], [1, 0], [1, PH], [0, PH]];
   const flap = clipHalf(rect, fold.m, fold.n, 1);     // kalkan parça
@@ -243,10 +213,21 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   const ms = toScreen(fold.m);
   const ns = [side * fold.n[0], fold.n[1]];
 
-  // 2) Kalkan kâğıdın altındaki sayfaya düşen gölge.
-  if (flap.length > 2 && tex.under) {
+  /** Sayfayı yaprağın yerine koyar, kenar koyuluğu ve cilt oluğuyla. */
+  const sayfaKoy = (bmp) => {
+    if (bmp) ctx.drawImage(bmp, leafX, geo.y0, leafW, leafH);
+    else { ctx.fillStyle = "#f6f2e9"; ctx.fillRect(leafX, geo.y0, leafW, leafH); }
+    drawEdgeShade(ctx, leafX, geo.y0, leafW, leafH);
+    if (geo.crease) drawCrease(ctx, spineX, geo.y0, leafH);
+  };
+
+  // 1) Kalkan kâğıdın altından çıkan sayfa. Yalnız kalkan parçanın altına
+  // çiziliyor: gerisi ekranda zaten duruyor, tuval oraya hiç dokunmuyor.
+  if (flap.length > 2) {
     ctx.save();
     clipTo(ctx, flap.map(toScreen));
+    if (!geo.liveUnder) sayfaKoy(tex.under);
+    // Kalkan kâğıdın alttaki sayfaya düşürdüğü gölge.
     const len = Math.min(0.32, fold.len * 0.5 + 0.04) * leafW;
     const g = ctx.createLinearGradient(ms[0], ms[1], ms[0] + ns[0] * len, ms[1] + ns[1] * len);
     g.addColorStop(0, `rgba(30,22,16,${0.34 * fade})`);
@@ -256,24 +237,20 @@ export function drawCurlFrame(view, geo, tex, C, P) {
     ctx.restore();
   }
 
-  // 3) Yaprağın yerinde duran kısmı (ön yüz).
-  if (flat.length > 2 && tex.front) {
-    const frontX = side > 0 ? spineX : spineX - leafW;
+  // 2) Yaprağın yerinde duran kısmı. Ekranda duran sayfa buysa (ileri
+  // çevirmede öyle) hiç çizilmiyor — tuval ekranın üstüne aynı görüntüyü
+  // koymaya kalkarsa en ufak fark bile "sayfa bir anda bozuldu" gibi duruyor.
+  if (!geo.liveFront && flat.length > 2) {
     ctx.save();
     clipTo(ctx, flat.map(toScreen));
-    ctx.drawImage(tex.front, frontX, geo.y0, leafW, leafH);
-    drawEdgeShade(ctx, frontX, geo.y0, leafW, leafH);
+    sayfaKoy(tex.front);
     ctx.restore();
   }
-
-  // Cilt oluğu yaprakların üstünde: çevirme boyunca yerinde duruyor. Ekranda
-  // bunu .spine yapıyordu, çevirme sırasında gizlendiği için burada çiziliyor.
-  if (tex.other) drawCrease(ctx, spineX, geo.y0, Math.max(leafH, otherH));
 
   if (flap.length < 3) return;
   const flapS = flap.map((q) => toScreen(reflect(q, fold)));
 
-  // 4) Kanadın çevresine düşen gölge: kanat dışına, kenarından itibaren.
+  // 3) Kanadın çevresine düşen gölge: kanat dışına, kenarından itibaren.
   ctx.save();
   ctx.beginPath();
   ctx.rect(-padX, -padY, w + padX + padR, h + padY * 2);
@@ -281,13 +258,13 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   ctx.clip("evenodd");
   ctx.fillStyle = "#000";
   ctx.shadowColor = `rgba(30,22,16,${0.32 * fade})`;
-  ctx.shadowBlur = 24;
+  ctx.shadowBlur = 24 * (view.olcek || 1);
   ctx.beginPath();
   tracePoly(ctx, flapS);
   ctx.fill();
   ctx.restore();
 
-  // 5) Kâğıdın arkası: aynalanmış görüntü. Arka yüz yoksa boş kâğıt rengi.
+  // 4) Kâğıdın arkası: aynalanmış görüntü. Arka yüz yoksa boş kâğıt rengi.
   ctx.save();
   clipTo(ctx, flapS);
   if (tex.back) {
@@ -301,9 +278,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
     const mirrorX = [-1, 0, 0, 1, 0, 0];
     const toScreenM = [side * leafW, 0, 0, leafW, spineX, geo.y0];
     // Arka yuz goruntusu once cildin OBUR tarafina konuyor: mirrorX onu yaprak
-    // yerine tasiyor, katlama aynalamasi da kanadin uzerine. Ayni tarafa
-    // konursa aynalamadan sonra kanadin disina dusuyor ve kalkan kagit bos
-    // gorunuyordu.
+    // yerine tasiyor, katlama aynalamasi da kanadin uzerine.
     const backX = side > 0 ? spineX - leafW : spineX;
     const place = [leafW / tex.back.width, 0, 0, leafW / tex.back.width, backX, geo.y0];
     const T = mul(toScreenM, mul(mirrorFold, mul(mirrorX, mul(toUnit, place))));
@@ -315,7 +290,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   }
   ctx.restore();
 
-  // 6) Kanadın üstündeki ışık: katlama çizgisinde koyu, uca doğru açılıyor.
+  // 5) Kanadın üstündeki ışık: katlama çizgisinde koyu, uca doğru açılıyor.
   ctx.save();
   clipTo(ctx, flapS);
   const len = Math.min(0.5, fold.len * 0.5 + 0.05) * leafW;
@@ -434,7 +409,8 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const P = state.P || pointerForProgress(state.progress, C, PH);
     drawCurlFrame(
       { ctx: state.ctx, w: f.spreadW, h: f.spreadH, ...state.pad },
-      { spineX: f.spineX, y0: f.y0, leafW: f.leafW, leafH: f.leafH, side: f.side, otherW: f.otherW, otherH: f.otherH },
+      { spineX: f.spineX, y0: f.y0, leafW: f.leafW, leafH: f.leafH, side: f.side,
+        crease: !!f.crease, liveUnder: !!f.liveUnder, liveFront: !!f.liveFront },
       state.tex,
       C,
       P
