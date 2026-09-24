@@ -107,18 +107,27 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
  */
 export function drawCurlFrame(view, geo, tex, C, P) {
   const { ctx, w, h } = view;
+  const padX = view.padX || 0;
   const { spineX, leafW, leafH, side } = geo;
   const PH = leafH / leafW;
   const fold = foldFor(C, P);
 
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(-padX, 0, w + padX, h);
 
   // Yaprak birimi → ekran
   const toScreen = (q) => [spineX + side * q[0] * leafW, geo.y0 + q[1] * leafW];
 
   // 1) Altta kalanlar: karşı sayfa ve çevrildiğinde ortaya çıkacak sayfa.
-  if (tex.other) ctx.drawImage(tex.other, spineX - side * leafW, geo.y0, leafW, leafH);
-  if (tex.under) ctx.drawImage(tex.under, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
+  // Alttaki sayfa yapragin kendi tarafinda, karsi sayfa obur tarafta.
+  // Karsi sayfa once `spineX - side*leafW` ile ciziliyordu: geri cevirirken
+  // (side = -1) tuvalin disina dusuyor ve sag yari bombos kaliyordu.
+  const underX = side > 0 ? spineX : spineX - leafW;
+  const otherX = side > 0 ? spineX - leafW : spineX;
+  if (tex.other) ctx.drawImage(tex.other, otherX, geo.y0, leafW, leafH);
+  if (tex.under) ctx.drawImage(tex.under, underX, geo.y0, leafW, leafH);
+  // Defterin sonunda alttaki sayfa olmayabilir: bos birakilirsa masa gorunur
+  // ve kagit seffaf donuyormus gibi olur.
+  else { ctx.fillStyle = "#f6f2e9"; ctx.fillRect(underX, geo.y0, leafW, leafH); }
 
   if (!fold) {
     if (tex.front) ctx.drawImage(tex.front, side > 0 ? spineX : spineX - leafW, geo.y0, leafW, leafH);
@@ -142,7 +151,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
     g.addColorStop(0, `rgba(30,22,16,${0.34 * fade})`);
     g.addColorStop(1, "rgba(30,22,16,0)");
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillRect(-padX, 0, w + padX, h);
     ctx.restore();
   }
 
@@ -160,7 +169,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   // 4) Kanadın çevresine düşen gölge: kanat dışına, kenarından itibaren.
   ctx.save();
   ctx.beginPath();
-  ctx.rect(0, 0, w, h);
+  ctx.rect(-padX, 0, w + padX, h);
   tracePoly(ctx, flapS);
   ctx.clip("evenodd");
   ctx.fillStyle = "#000";
@@ -184,14 +193,18 @@ export function drawCurlFrame(view, geo, tex, C, P) {
     const mirrorFold = [1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * ny, 1 - 2 * ny * ny, md * nx, md * ny];
     const mirrorX = [-1, 0, 0, 1, 0, 0];
     const toScreenM = [side * leafW, 0, 0, leafW, spineX, geo.y0];
-    const backX = side > 0 ? spineX : spineX - leafW;
+    // Arka yuz goruntusu once cildin OBUR tarafina konuyor: mirrorX onu yaprak
+    // yerine tasiyor, katlama aynalamasi da kanadin uzerine. Ayni tarafa
+    // konursa aynalamadan sonra kanadin disina dusuyor ve kalkan kagit bos
+    // gorunuyordu.
+    const backX = side > 0 ? spineX - leafW : spineX;
     const place = [leafW / tex.back.width, 0, 0, leafW / tex.back.width, backX, geo.y0];
     const T = mul(toScreenM, mul(mirrorFold, mul(mirrorX, mul(toUnit, place))));
     ctx.transform(T[0], T[1], T[2], T[3], T[4], T[5]);
     ctx.drawImage(tex.back, 0, 0);
   } else {
     ctx.fillStyle = "#faf7f0";
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillRect(-padX, 0, w + padX, h);
   }
   ctx.restore();
 
@@ -205,7 +218,7 @@ export function drawCurlFrame(view, geo, tex, C, P) {
   g.addColorStop(0.45, `rgba(255,255,255,${0.06 * fade})`);
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(-padX, 0, w + padX, h);
   ctx.restore();
 }
 
@@ -259,16 +272,24 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const scale = viewScale();
     const canvas = document.createElement("canvas");
     canvas.className = "curl-layer";
-    canvas.width = Math.round(frames.spreadW * scale * dpr);
+    // Kalkan yaprak cildin ötesine taşıyor. Çift sayfada karşı yarı zaten orada,
+    // tek sayfada değil: tuval bir sayfa boyu sola uzatılıyor, yoksa kâğıdın
+    // kalkan kısmı tuvalin dışında kalıyor ve sayfa "şeffaf" dönüyormuş gibi
+    // görünüyor.
+    const padX = frames.padX || 0;
+    const totalW = frames.spreadW + padX;
+    canvas.width = Math.round(totalW * scale * dpr);
     canvas.height = Math.round(frames.spreadH * scale * dpr);
+    canvas.style.left = -padX + "px";
     // CSS olcusu sayfa biriminde (ana oge zaten olcekli), arka tuval ise
     // ekranda kac piksele dusuyorsa o kadar: birlesik olcek 1, yani yeniden
     // orneklenme yok, yazi net kaliyor.
-    canvas.style.width = frames.spreadW + "px";
+    canvas.style.width = totalW + "px";
     canvas.style.height = frames.spreadH + "px";
     const ctx = canvas.getContext("2d");
-    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
-    return { canvas, ctx, dpr, scale };
+    // Çizim sahne koordinatında kalsın diye kaydırma matrise giriyor.
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, padX * scale * dpr, 0);
+    return { canvas, ctx, dpr, scale, padX };
   }
 
   function paint() {
@@ -278,7 +299,7 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     const C = state.corner;
     const P = pointerForProgress(state.progress, C, PH);
     drawCurlFrame(
-      { ctx: state.ctx, w: f.spreadW, h: f.spreadH },
+      { ctx: state.ctx, w: f.spreadW, h: f.spreadH, padX: f.padX || 0 },
       { spineX: f.spineX, y0: f.y0, leafW: f.leafW, leafH: f.leafH, side: f.side },
       state.tex,
       C,
@@ -305,7 +326,6 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     };
     const host = hostEl();
     host.append(view.canvas);
-    host.classList.add("curling");
     state.host = host;
     const want = { front: frames.front, back: frames.back, under: frames.under, other: frames.other };
     const current = state;
@@ -317,7 +337,10 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     })).then(() => {
       if (state !== current) return;
       current.ready = true;
+      // Sayfalar ancak tuval çizmeye hazırken gizleniyor: doku beklerken
+      // gizlenirse defter bir an tamamen kayboluyordu.
       paint();
+      current.host.classList.add("curling");
     });
     return true;
   }

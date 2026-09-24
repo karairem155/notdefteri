@@ -760,22 +760,28 @@ export function renderEditor(root, notebookId, initialPageId) {
     const index = selectedIndex();
     const current = list[index];
     if (!current) return null;
+    // Tek sayfada yaprak cildin soluna taşıyor: tuvale o kadar pay veriliyor.
+    // Arka yüz GİDİLECEK sayfa: kâğıt dönerken varacağın sayfa görünüyor,
+    // altından da aynısı çıkıyor — yani çevirme boyunca hedef sayfa ortada.
     if (dir === 1) {
       const next = list[index + 1];
       if (!next) return null;
       return {
-        spreadW: current.size.w, spreadH: current.size.h, spineX: 0, y0: 0, side: 1, corner: "bottom",
+        spreadW: current.size.w, spreadH: current.size.h, padX: current.size.w,
+        spineX: 0, y0: 0, side: 1, corner: "bottom",
         leafW: current.size.w, leafH: current.size.h,
-        front: current, back: null, under: next, other: null
+        front: current, back: next, under: next, other: null
       };
     }
     const prev = list[index - 1];
     if (!prev) return null;
-    // Geriye: önceki sayfa kapalı duruyor, açılarak yerine geliyor.
+    // Geriye: yaprak kapalı başlıyor (üstünde şu anki sayfa), açılınca önceki
+    // sayfa yerine oturuyor.
     return {
-      spreadW: current.size.w, spreadH: current.size.h, spineX: 0, y0: 0, side: 1, corner: "bottom",
+      spreadW: current.size.w, spreadH: current.size.h, padX: current.size.w,
+      spineX: 0, y0: 0, side: 1, corner: "bottom",
       leafW: prev.size.w, leafH: prev.size.h, reverse: true,
-      front: prev, back: null, under: current, other: null
+      front: prev, back: current, under: current, other: null
     };
   }
 
