@@ -7,7 +7,7 @@ import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialo
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
-import { createFlip } from "./flip.js";
+import { createCurlFlip } from "./curl.js";
 import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
@@ -132,7 +132,11 @@ export function renderEditor(root, notebookId, initialPageId) {
     store.setSetting("paletteSeeded", true);
     if (seed.length) store.setSetting("palette", seed);
   }
-  const flip = createFlip(stage, buildSheet, { sound: () => store.settings.flipSound !== false });
+  const flip = createCurlFlip(stage, buildFrames, {
+    sound: () => store.settings.flipSound !== false,
+    viewScale: () => fitScale * zoom,
+    snapshot: flipBitmap
+  });
 
   const nb = () => store.notebook(notebookId);
   const pages = () => nb().pages;
@@ -678,6 +682,80 @@ export function renderEditor(root, notebookId, initialPageId) {
   }
 
   /** Çevrilecek yaprağı kurar (docs/tasarim/03-KapakAcilis.png ruhunda). dir: 1 ileri, -1 geri. */
+  /**
+   * Çevirme dokusu: sayfanın tam görüntüsü (kağıt + nesneler + mürekkep).
+   *
+   * Sayfa sürümüne göre önbelleklenir; çizim değişmediyse ikinci çevirmede
+   * yeniden üretilmez. Çözünürlük ekrandaki boyuta göre, boşuna büyük bitmap
+   * tutulmasın diye 2 katıyla sınırlı.
+   */
+  const flipBitmaps = new Map();
+  async function flipBitmap(page) {
+    if (!page) return null;
+    const version = pageVersions.get(page.id) || 0;
+    const hit = flipBitmaps.get(page.id);
+    if (hit && hit.version === version) return hit.bitmap;
+    const scale = Math.min(2, Math.max(0.6, fitScale * zoom * (window.devicePixelRatio || 1)));
+    const bitmap = await renderPageCanvas(page, scale, { background: true, opaque: true });
+    flipBitmaps.set(page.id, { version, bitmap });
+    if (flipBitmaps.size > 8) flipBitmaps.delete(flipBitmaps.keys().next().value);
+    return bitmap;
+  }
+
+  /**
+   * Çevrilecek yaprağın yerleşimi ve hangi sayfaların göründüğü.
+   *
+   * side = +1 → yaprak cildin sağında, sola çevriliyor; -1 → tersi.
+   * reverse = geriye çevirmede yaprak kapalı başlar, açılarak yerine oturur.
+   */
+  function buildFrames(dir) {
+    const list = pages();
+    if (spreadMode()) {
+      const left = spreadLeft();
+      const leftPage = list[left];
+      const rightPage = list[left + 1];
+      if (!leftPage || !rightPage) return null;
+      const spreadW = leftPage.size.w + rightPage.size.w;
+      const spreadH = Math.max(leftPage.size.h, rightPage.size.h);
+      if (dir === 1) {
+        const nextLeft = list[left + 2];
+        if (!nextLeft) return null;
+        return {
+          spreadW, spreadH, spineX: leftPage.size.w, y0: 0, side: 1, corner: "bottom",
+          leafW: rightPage.size.w, leafH: rightPage.size.h,
+          front: rightPage, back: nextLeft, under: list[left + 3] || null, other: leftPage
+        };
+      }
+      const prevRight = list[left - 1];
+      if (!prevRight) return null;
+      return {
+        spreadW, spreadH, spineX: leftPage.size.w, y0: 0, side: -1, corner: "bottom",
+        leafW: leftPage.size.w, leafH: leftPage.size.h,
+        front: leftPage, back: prevRight, under: list[left - 2] || null, other: rightPage
+      };
+    }
+    const index = selectedIndex();
+    const current = list[index];
+    if (!current) return null;
+    if (dir === 1) {
+      const next = list[index + 1];
+      if (!next) return null;
+      return {
+        spreadW: current.size.w, spreadH: current.size.h, spineX: 0, y0: 0, side: 1, corner: "bottom",
+        leafW: current.size.w, leafH: current.size.h,
+        front: current, back: null, under: next, other: null
+      };
+    }
+    const prev = list[index - 1];
+    if (!prev) return null;
+    // Geriye: önceki sayfa kapalı duruyor, açılarak yerine geliyor.
+    return {
+      spreadW: current.size.w, spreadH: current.size.h, spineX: 0, y0: 0, side: 1, corner: "bottom",
+      leafW: prev.size.w, leafH: prev.size.h, reverse: true,
+      front: prev, back: null, under: current, other: null
+    };
+  }
+
   function buildSheet(dir) {
     const list = pages();
     if (spreadMode()) {
