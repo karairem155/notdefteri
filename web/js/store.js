@@ -120,6 +120,7 @@ const DEFAULT_SETTINGS = {
   spreadMode: false,
   libraryShelf: true,
   folders: [],               // klasör adları; defter.folder bu adlardan birini tutar
+  folderStyles: {},          // klasör adı -> { color, material }: raftaki deri klasörün görünümü
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı

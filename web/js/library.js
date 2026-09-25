@@ -3,6 +3,7 @@
 import { store, COVER_PRESETS, COVER_TITLES } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu } from "./ui.js";
 import { coverElement, sameCover, markCoverOpening } from "./covers.js";
+import { folderElement, folderStyle, setFolderStyle, renameFolderStyle, dropFolderStyle, FOLDER_MATERIALS, FOLDER_COLORS } from "./folders.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { shrinkImage } from "./addpage.js";
 import { pdfPageSizes } from "./paper.js";
@@ -26,16 +27,34 @@ export function renderLibrary(root) {
   function visible() {
     let source = showingTrash ? store.trashedNotebooks : store.activeNotebooks;
     if (currentFolder && !showingTrash) source = source.filter((n) => n.folder === currentFolder);
+    // Kökte klasördeki defterler rafta durmuyor: onlar klasörün içinde.
+    else if (!showingTrash && !search) source = source.filter((n) => !n.folder || !store.settings.folders.includes(n.folder));
     if (!search) return source;
     const needle = search.toLocaleLowerCase("tr");
     return source.filter((n) => n.title.toLocaleLowerCase("tr").includes(needle));
   }
 
-  function current() {
-    const list = visible();
+  /** Raftaki sıra: kökte önce klasörler, sonra klasörsüz defterler. */
+  function hucreler() {
+    const defterler = visible().map((notebook) => ({ tur: "defter", notebook }));
+    if (showingTrash || search || currentFolder) return defterler;
+    const klasorler = store.settings.folders.map((ad) => ({
+      tur: "klasor", ad,
+      sayi: store.activeNotebooks.filter((n) => n.folder === ad).length
+    }));
+    return [...klasorler, ...defterler];
+  }
+
+  function currentCell() {
+    const list = hucreler();
     if (!list.length) return null;
     currentIndex = Math.min(Math.max(currentIndex, 0), list.length - 1);
     return list[currentIndex];
+  }
+
+  function current() {
+    const hucre = currentCell();
+    return hucre && hucre.tur === "defter" ? hucre.notebook : null;
   }
 
   // ---------- üst çubuk ----------
@@ -61,16 +80,34 @@ export function renderLibrary(root) {
 
   function render() {
     renderTopbar();
-    const list = visible();
-    const notebook = current();
+    const list = hucreler();
+    const hucre = currentCell();
     body.replaceChildren(
       h("div", { class: "paper-head" },
-        h("h1", {}, notebook ? notebook.title : (showingTrash ? "Çöp Kutusu" : (currentFolder || "Defterlerim"))),
-        h("div", { class: "sub" }, notebook ? `${notebook.pages.length} sayfa${notebook.folder ? " · " + notebook.folder : ""}${search ? " · arama: " + search : ""}` : (showingTrash ? "Silinen defterler burada" : "Henüz defter yok"))),
+        currentFolder && !showingTrash
+          ? h("button", { class: "geri-klasor", type: "button", onTap: () => { currentFolder = null; currentIndex = 0; render(); } }, svgIcon("back", 16), "Tüm defterler")
+          : null,
+        h("h1", {}, basligi(hucre)),
+        h("div", { class: "sub" }, altYazi(hucre))),
       list.length ? carousel(list) : emptyState(),
-      actionBar(notebook)
+      actionBar(current())
     );
     requestAnimationFrame(() => { centerOn(currentIndex, false); updateCurrent(); });
+  }
+
+  function basligi(hucre) {
+    if (hucre && hucre.tur === "klasor") return hucre.ad;
+    if (hucre) return hucre.notebook.title;
+    return showingTrash ? "Çöp Kutusu" : (currentFolder || "Defterlerim");
+  }
+
+  function altYazi(hucre) {
+    if (hucre && hucre.tur === "klasor") return hucre.sayi ? `${hucre.sayi} defter` : "Boş klasör";
+    if (hucre) {
+      const n = hucre.notebook;
+      return `${n.pages.length} sayfa${n.folder ? " · " + n.folder : ""}${search ? " · arama: " + search : ""}`;
+    }
+    return showingTrash ? "Silinen defterler burada" : "Henüz defter yok";
   }
 
   function emptyState() {
@@ -81,15 +118,36 @@ export function renderLibrary(root) {
 
   function carousel(list) {
     const track = h("div", { class: "carousel", role: "list" });
-    for (const [index, notebook] of list.entries()) {
+    for (const [index, hucre] of list.entries()) {
+      const secili = index === currentIndex;
+      let cell;
+      if (hucre.tur === "klasor") {
+        const klasor = folderElement(folderStyle(hucre.ad), { count: hucre.sayi });
+        klasor.append(h("div", { class: "cover-hit" }));
+        cell = h("div", { class: "carousel-item klasor-hucre" + (secili ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${hucre.ad} klasörü, ${hucre.sayi} defter` },
+          h("div", { class: "cover-wrap" }, klasor),
+          h("div", { class: "carousel-title" }, hucre.ad));
+        pressable(cell, {
+          onTap: () => {
+            if (!secili) { currentIndex = index; centerOn(index, true); updateCurrent(); return; }
+            currentFolder = hucre.ad;
+            currentIndex = 0;
+            render();
+          },
+          onLong: () => folderMenu(hucre.ad)
+        });
+        track.append(cell);
+        continue;
+      }
+      const notebook = hucre.notebook;
       const cover = coverElement(notebook.cover);
       cover.append(h("div", { class: "cover-hit" }));   // düz görünmez katman: 3B yüzlerde dokunma kaçmasın
-      const cell = h("div", { class: "carousel-item" + (index === currentIndex ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` },
+      cell = h("div", { class: "carousel-item" + (secili ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` },
         h("div", { class: "cover-wrap" }, cover),
         h("div", { class: "carousel-title" }, notebook.title));
       pressable(cell, {
         onTap: () => {
-          if (index !== currentIndex) { currentIndex = index; centerOn(index, true); updateCurrent(); return; }
+          if (!secili) { currentIndex = index; centerOn(index, true); updateCurrent(); return; }
           openNotebook(notebook, cover);
         },
         onLong: () => showingTrash ? trashMenu(notebook) : notebookMenu(notebook)
@@ -124,11 +182,11 @@ export function renderLibrary(root) {
 
   /** Ortadaki defter değişince başlık, sayfa sayısı ve vurgu güncellenir; sıra yeniden kurulmaz. */
   function updateCurrent() {
-    const notebook = current();
+    const hucre = currentCell();
     const head = body.querySelector(".paper-head");
-    if (head && notebook) {
-      head.querySelector("h1").textContent = notebook.title;
-      head.querySelector(".sub").textContent = `${notebook.pages.length} sayfa${notebook.folder ? " · " + notebook.folder : ""}`;
+    if (head && hucre) {
+      head.querySelector("h1").textContent = basligi(hucre);
+      head.querySelector(".sub").textContent = altYazi(hucre);
     }
     body.querySelectorAll(".carousel-item").forEach((item, i) => {
       item.classList.toggle("current", i === currentIndex);
@@ -137,7 +195,7 @@ export function renderLibrary(root) {
       item.classList.toggle("far", Math.abs(i - currentIndex) > 1);
     });
     const bar = body.querySelector(".paper-actions");
-    if (bar) bar.replaceWith(actionBar(notebook));
+    if (bar) bar.replaceWith(actionBar(current()));
   }
 
   function actionBar(notebook) {
@@ -189,21 +247,52 @@ export function renderLibrary(root) {
 
   function folderMenu(name) {
     actionSheet(name, [
+      { title: "Klasörü Aç", onSelect: () => { currentFolder = name; currentIndex = 0; render(); } },
+      { title: "Görünüm", onSelect: () => openFolderStyle(name) },
       { title: "Yeniden Adlandır", onSelect: () => promptDialog("Klasörü Yeniden Adlandır", "Klasör adı", name, (newName) => {
         if (newName === name) return;
         if (store.settings.folders.includes(newName)) { toast("Bu adda bir klasör zaten var."); return; }
         store.setSetting("folders", store.settings.folders.map((f) => (f === name ? newName : f)));
+        renameFolderStyle(name, newName);
         for (const n of store.notebooks) if (n.folder === name) store.mutate(n.id, (x) => { x.folder = newName; });
         if (currentFolder === name) currentFolder = newName;
         render();
       }) },
       { title: "Klasörü Sil (defterler kalır)", destructive: true, onSelect: () => {
         store.setSetting("folders", store.settings.folders.filter((f) => f !== name));
+        dropFolderStyle(name);
         for (const n of store.notebooks) if (n.folder === name) store.mutate(n.id, (x) => { x.folder = null; });
         if (currentFolder === name) currentFolder = null;
         render();
       } }
     ]);
+  }
+
+  /** Klasörün rengi ve malzemesi. Seçim anında uygulanıyor. */
+  function openFolderStyle(name) {
+    let secili = { ...folderStyle(name) };
+    const onizleme = h("div", { class: "klasor-onizleme" });
+    const renkler = h("div", { class: "klasor-renkler" });
+    const malzemeler = h("div", { class: "klasor-malzemeler" });
+    const sayi = store.activeNotebooks.filter((n) => n.folder === name).length;
+    const tazele = () => {
+      onizleme.replaceChildren(folderElement(secili, { count: sayi }));
+      renkler.querySelectorAll(".klasor-renk").forEach((el) => el.classList.toggle("secili", el.dataset.renk === secili.color));
+      malzemeler.querySelectorAll(".klasor-malzeme").forEach((el) => el.classList.toggle("secili", el.dataset.malzeme === secili.material));
+    };
+    for (const renk of FOLDER_COLORS) {
+      const nokta = h("button", { class: "klasor-renk", type: "button", "aria-label": renk, dataset: { renk }, style: { background: renk },
+        onTap: () => { secili = { ...secili, color: renk }; setFolderStyle(name, secili); tazele(); render(); } });
+      renkler.append(nokta);
+    }
+    for (const m of FOLDER_MATERIALS) {
+      malzemeler.append(h("button", { class: "klasor-malzeme", type: "button", dataset: { malzeme: m.id },
+        onTap: () => { secili = { ...secili, material: m.id }; setFolderStyle(name, secili); tazele(); render(); } }, m.name));
+    }
+    tazele();
+    openModal(h("div", { class: "dialog", style: { width: "min(420px, 100%)" } },
+      h("h3", {}, name + " — Görünüm"), onizleme, malzemeler, renkler,
+      h("div", { class: "dialog-actions" }, h("button", { class: "btn primary", type: "button", onTap: closeModal }, "Tamam"))));
   }
 
   function moveToFolderMenu(notebook) {
