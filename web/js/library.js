@@ -401,6 +401,7 @@ export function renderLibrary(root) {
       { title: "Aç", onSelect: () => navigate(`#/n/${notebook.id}`) },
       { title: "Yeniden Adlandır", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", notebook.title, (title) => store.mutate(notebook.id, (n) => { n.title = title; })) },
       { title: "Kapağı Değiştir", onSelect: () => coverPicker(notebook) },
+      { title: "Arka Kapağı Değiştir", onSelect: () => coverPicker(notebook, "backCover") },
       { title: "Klasöre Taşı", onSelect: () => moveToFolderMenu(notebook) },
       { title: notebook.isFavourite ? "Favoriden Çıkar" : "Favorilere Ekle", onSelect: () => store.mutate(notebook.id, (n) => { n.isFavourite = !n.isFavourite; }) },
       { title: "Çöpe At", destructive: true, onSelect: () => { store.mutate(notebook.id, (n) => { n.isTrashed = true; }); toast("Çöp kutusuna taşındı"); } }
@@ -414,13 +415,22 @@ export function renderLibrary(root) {
     ]);
   }
 
-  function coverPicker(notebook) {
+  /**
+   * Kapak seçici. `hedef` = "cover" (ön) ya da "backCover" (defterin sonundaki
+   * arka kapak). Arka kapak seçilmemişse ön kapağın aynısı kullanılıyor.
+   */
+  function coverPicker(notebook, hedef = "cover") {
+    const arka = hedef === "backCover";
     const options = [...COVER_PRESETS, ...store.settings.customCovers.map((asset) => ({ pattern: "plain", color: "#DDDDDD", imageAsset: asset }))];
     const grid = h("div", { class: "hscroll", style: { flexWrap: "wrap", gap: "18px" } });
+    if (arka) {
+      grid.append(h("div", { class: "mini-cover ayni" + (notebook.backCover ? "" : " selected"), role: "button", tabindex: "0", "aria-label": "Ön kapakla aynı",
+        onTap: () => { store.mutate(notebook.id, (n) => { n.backCover = null; }); closeModal(); } }, coverElement(notebook.cover), h("span", {}, "Ön kapakla aynı")));
+    }
     for (const option of options) {
-      const cell = h("div", { class: "mini-cover" + (sameCover(option, notebook.cover) ? " selected" : ""), role: "button", tabindex: "0",
+      const cell = h("div", { class: "mini-cover" + (sameCover(option, notebook[hedef]) ? " selected" : ""), role: "button", tabindex: "0",
         "aria-label": option.imageAsset ? "Kendi kapağım" : COVER_TITLES[option.pattern],
-        onTap: () => { store.mutate(notebook.id, (n) => { n.cover = option; }); closeModal(); } }, coverElement(option));
+        onTap: () => { store.mutate(notebook.id, (n) => { n[hedef] = option; }); closeModal(); } }, coverElement(option));
       grid.append(cell);
     }
     grid.append(h("div", { class: "mini-cover", role: "button", tabindex: "0", "aria-label": "Kendi kapağını ekle",
@@ -432,13 +442,13 @@ export function renderLibrary(root) {
           const { blob } = await shrinkImage(file, 1200);
           const asset = await store.importAsset(blob, file.name);
           store.setSetting("customCovers", [...store.settings.customCovers, asset]);
-          store.mutate(notebook.id, (n) => { n.cover = { pattern: "plain", color: "#DDDDDD", imageAsset: asset }; });
+          store.mutate(notebook.id, (n) => { n[hedef] = { pattern: "plain", color: "#DDDDDD", imageAsset: asset }; });
           closeModal();
         } catch (error) { toast("Kapak eklenemedi: " + error.message); }
       } }, svgIcon("plus", 26), "Kendi kapağım"));
     openModal(h("div", { class: "dialog", style: { width: "min(760px, 100%)" } },
-      h("h3", {}, "Kapak"),
-      h("p", {}, "Bir desen seç ya da Fotoğraflar'dan kendi kapağını ekle."),
+      h("h3", {}, arka ? "Arka Kapak" : "Kapak"),
+      h("p", {}, arka ? "Defterin sonunda duran kapak. Bir desen seç ya da kendi görselini ekle." : "Bir desen seç ya da Fotoğraflar'dan kendi kapağını ekle."),
       grid,
       h("div", { class: "dialog-buttons" }, h("button", { class: "btn", type: "button", onTap: closeModal }, "Kapat"))
     ));

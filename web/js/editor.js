@@ -2,13 +2,13 @@
 // Sayfa katmanları (alttan üste): şablon → nesneler (fotoğraf/çıkartma/post-it) → çizim → örtüler.
 // Kipler: çizim / buzlu kalem (örtü katmanı çizgiyi buzlu şerit yapar) / nesne düzenleme.
 import { renderPageCanvas as renderPageCanvasShared, spillFor } from "./pagerender.js";
-import { store, TOOLS, uid } from "./store.js";
+import { store, TOOLS, uid, COVER_PRESETS } from "./store.js";
 import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
 import { createCurlFlip, createCoverAnim } from "./curl.js";
-import { coverBitmap, coverElement, takeCoverOpening } from "./covers.js";
+import { coverBitmap, coverElement, sameCover, takeCoverOpening } from "./covers.js";
 import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
@@ -257,6 +257,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     actionSheet(nb().title, [
       { title: "Defteri Yeniden Adlandır", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", nb().title, (title) => { store.mutate(notebookId, (n) => { n.title = title; }); renderTopbar(); }) },
       { title: "Açık Defterler", onSelect: openNotebooksMenu },
+      { title: "Arka Kapağı Değiştir", onSelect: arkaKapakSec },
       { title: "Sayfalar Izgarası", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); } },
       { title: "Kütüphane", onSelect: () => { flushInk(); navigate("#/"); } }
     ]);
@@ -465,15 +466,58 @@ export function renderEditor(root, notebookId, initialPageId) {
   }
 
   /**
+   * Defterin sonundaki arka kapağı seç.
+   *
+   * Ayrı seçilebiliyor: ön kapak pembe olup arkası düz olabilir. Seçilmemişse
+   * ön kapağın aynısı kullanılıyor.
+   */
+  function arkaKapakSec() {
+    const secenekler = [...COVER_PRESETS, ...store.settings.customCovers.map((asset) => ({ pattern: "plain", color: "#DDDDDD", imageAsset: asset }))];
+    const grid = h("div", { class: "hscroll", style: { flexWrap: "wrap", gap: "18px" } });
+    const sec = (kapak) => {
+      store.mutate(notebookId, (n) => { n.backCover = kapak; });
+      closeModal();
+      renderStage();
+    };
+    grid.append(h("div", { class: "mini-cover ayni" + (nb().backCover ? "" : " selected"), role: "button", tabindex: "0", "aria-label": "Ön kapakla aynı",
+      onTap: () => sec(null) }, coverElement(nb().cover), h("span", {}, "Ön kapakla aynı")));
+    for (const secenek of secenekler) {
+      grid.append(h("div", { class: "mini-cover" + (sameCover(secenek, nb().backCover) ? " selected" : ""), role: "button", tabindex: "0",
+        onTap: () => sec(secenek) }, coverElement(secenek)));
+    }
+    grid.append(h("div", { class: "mini-cover", role: "button", tabindex: "0", "aria-label": "Kendi görselini ekle",
+      style: { display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "8px", border: "1.5px dashed rgba(93,88,214,0.6)", color: "var(--accent)", fontSize: "14px", fontWeight: "600" },
+      onTap: async () => {
+        const file = await pickFile("file-image");
+        if (!file) return;
+        try {
+          const { blob } = await shrinkImage(file, 1200);
+          const asset = await store.importAsset(blob, file.name);
+          store.setSetting("customCovers", [...store.settings.customCovers, asset]);
+          sec({ pattern: "plain", color: "#DDDDDD", imageAsset: asset });
+        } catch (error) { toast("Kapak eklenemedi: " + error.message); }
+      } }, svgIcon("plus", 26), "Kendi görselim"));
+    openModal(h("div", { class: "dialog", style: { width: "min(760px, 100%)" } },
+      h("h3", {}, "Arka Kapak"),
+      h("p", {}, "Defterin sonunda duran kapak."),
+      grid));
+  }
+
+  /**
    * Defterin sonu.
    *
    * Son açılımın boş yarısında "Sayfa ekle" yazıyordu; orası aslında kitabın
    * bittiği yer, yani arka kapak. Sayfa eklemek üst çubuktaki + ile.
    */
   function emptyPage(size) {
-    const kapak = nb().cover || { color: nb().coverColor || "#F4A7C0", pattern: "plain" };
-    return h("div", { class: "page-stack back-cover", style: { width: size.w + "px", height: size.h + "px" } },
+    // Arka kapak ayrı seçilebiliyor; seçilmemişse ön kapağın aynısı.
+    const kapak = nb().backCover || nb().cover || { color: nb().coverColor || "#F4A7C0", pattern: "plain" };
+    // page-stack sınıfı VERİLMİYOR: editör o sınıftaki her öğede mürekkep
+    // katmanları arıyor, arka kapakta yok.
+    const el = h("div", { class: "back-cover", style: { width: size.w + "px", height: size.h + "px" }, role: "button", tabindex: "0" },
       coverElement(kapak));
+    pressable(el, { onTap: arkaKapakSec, onLong: arkaKapakSec });
+    return el;
   }
 
   function toPageCoords(e, stackEl, page) {

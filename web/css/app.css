@@ -311,6 +311,10 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .mini-template.add .preview { display: flex; align-items: center; justify-content: center; border: 1px dashed rgba(93, 88, 214, 0.6); background: rgba(93, 88, 214, 0.06); color: var(--accent); font-size: 28px; }
 .mini-cover { width: 112px; height: 150px; flex: none; cursor: pointer; border-radius: 10px; padding: 4px; }
 .mini-cover.selected { outline: 3px solid var(--accent); }
+/* "Ön kapakla aynı" hücresi: kapağın altında küçük etiket. */
+.mini-cover.ayni { display: flex; flex-direction: column; gap: 4px; height: auto; }
+.mini-cover.ayni > .cover { height: 132px; }
+.mini-cover.ayni > span { font-size: 12px; text-align: center; opacity: 0.75; }
 .settings-palette { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .settings-palette .swatch { width: 44px; height: 44px; }
 .settings-palette .swatch::before { inset: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
@@ -950,20 +954,21 @@ body { background: var(--desk); color: #fff; }
   transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.26s ease-in; }
 .cover > * { position: absolute; }
 .cover-back { inset: 0; border-radius: 4px 10px 10px 4px; background: color-mix(in srgb, var(--cover) 62%, #1a1f3a); }
-.book-spine { top: 0; bottom: 0; left: 0; width: 9px; border-radius: 4px 0 0 4px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--cover) 66%, #000), color-mix(in srgb, var(--cover) 84%, #000) 55%, color-mix(in srgb, var(--cover) 97%, #000)); }
+/* Cilt ayrı bir şerit değil: kapak uçtan uca gidiyor, cilt kapağın üstündeki
+   koyu gölge ile veriliyor. Şerit olduğunda kendi görseli olan kapaklarda o
+   9 px boş/gri kalıyordu. */
+.book-spine { display: none; }
 .book-pages { top: 2.5%; bottom: 2.5%; right: -3px; width: 7px; border-radius: 0 2px 2px 0;
   background: repeating-linear-gradient(0deg, #f7f3e8 0 2px, #ded8c7 2px 3px); box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.16); }
 .book-top, .book-bottom, .cover-pages, .cover-spine { display: none; }
-.cover-front { inset: 0 0 0 9px; border-radius: 3px 10px 10px 3px; overflow: hidden; background: var(--cover);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 8px 0 12px -8px rgba(0, 0, 0, 0.42), inset -5px 0 9px -7px rgba(0, 0, 0, 0.2); }
+.cover-front { inset: 0; border-radius: 4px 10px 10px 4px; overflow: hidden; background: var(--cover);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 12px 0 16px -11px rgba(0, 0, 0, 0.55), inset 2px 0 0 rgba(255, 255, 255, 0.12), inset -6px 0 10px -8px rgba(0, 0, 0, 0.22); }
 .cover-front svg, .cover-front img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-sheen { position: absolute; inset: 0; background: linear-gradient(110deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.06) 35%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.09) 100%); }
 /* Kütüphanede kapak açılmıyor: defter öne geliyor, kapağı editör açıyor. */
 .cover.opening { transform: scale(1.14) translateY(-8px); opacity: 0.9; }
 .list-row .cover { filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3)); }
-.list-row .cover-front { border-radius: 2px 5px 5px 2px; inset: 0 0 0 4px; }
-.list-row .book-spine { width: 4px; }
+.list-row .cover-front { border-radius: 2px 5px 5px 2px; inset: 0; }
 .list-row .book-pages { width: 3px; right: -1px; }
 .cover-label { display: none; }
 
@@ -1161,7 +1166,7 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .pc-dot-wheel.active { box-shadow: 0 0 0 3px var(--accent), inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
 
 /* Defterin sonu: boş yarıda "sayfa ekle" değil arka kapak duruyor. */
-.back-cover { display: flex; align-items: stretch; justify-content: stretch; background: transparent; box-shadow: none; overflow: visible; }
+.back-cover { position: relative; flex: none; display: flex; align-items: stretch; justify-content: stretch; background: transparent; box-shadow: none; overflow: visible; cursor: pointer; }
 .back-cover .cover { filter: drop-shadow(0 26px 40px rgba(0, 0, 0, 0.5)) drop-shadow(0 5px 10px rgba(0, 0, 0, 0.3)); }
 .back-cover .cover-front { border-radius: 3px 10px 10px 3px; }
 
@@ -1184,11 +1189,11 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .carousel-item.current .cover,
 .carousel-item.before .cover,
 .carousel-item.after .cover { transform: none; filter: drop-shadow(0 22px 26px rgba(0, 0, 0, 0.5)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28)); }
-.carousel-item .cover-front { inset: 0 0 0 9px; border-radius: 3px 12px 12px 3px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 8px 0 12px -8px rgba(0, 0, 0, 0.42), inset -5px 0 9px -7px rgba(0, 0, 0, 0.2); }
+.carousel-item .cover-front { inset: 0; border-radius: 4px 12px 12px 4px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 14px 0 18px -12px rgba(0, 0, 0, 0.55), inset 2px 0 0 rgba(255, 255, 255, 0.12), inset -6px 0 10px -8px rgba(0, 0, 0, 0.22); }
 .carousel-item .cover-front::after { display: none; }
 .carousel-item .cover-pages, .carousel-item .cover-spine { display: none; }
 .carousel-item .book-pages { top: 2.5%; bottom: 2.5%; right: -3px; left: auto; width: 7px; transform: none; border-radius: 0 2px 2px 0; background: repeating-linear-gradient(0deg, #f7f3e8 0 2px, #ded8c7 2px 3px); box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.16); }
-.carousel-item .book-spine { display: block; top: 0; bottom: 0; left: 0; width: 9px; transform: none; border-radius: 4px 0 0 4px; }
+.carousel-item .book-spine { display: none; }
 .carousel-item .cover.opening { transform: scale(1.12) translateY(-10px); opacity: 0.9; }
 
 /* ===== Raftaki klasörler =====
