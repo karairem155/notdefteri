@@ -35,7 +35,9 @@ export function folderStyle(name) {
 
 export function setFolderStyle(name, style) {
   const hepsi = { ...(store.settings.folderStyles || {}) };
-  hepsi[name] = { color: style.color, material: style.material };
+  const kayit = { color: style.color, material: style.material };
+  if (style.imageAsset) kayit.imageAsset = style.imageAsset;
+  hepsi[name] = kayit;
   store.setSetting("folderStyles", hepsi);
 }
 
@@ -261,9 +263,16 @@ export function folderElement(style, { className = "", count = 0 } = {}) {
   const on = el("g", { "clip-path": `url(#${id}-kirp)` });
   // Derzlerin dibi: pulların arasından bu koyu zemin görünüyor.
   on.append(el("path", { d: onYol, fill: koyu(renk, 0.74) }));
-  const doku = DOKULAR[s.material] || kroko;
-  on.append(doku(W, H, renk, id));
-  if (s.material !== "kroko") on.append(el("path", { d: onYol, fill: renk, opacity: "0.55" }));
+  if (s.imageAsset) {
+    // Kendi görseli: kapağı tamamen kaplıyor, oranı bozulmuyor (slice).
+    const gorsel = el("image", { x: "0", y: "0", width: String(W), height: String(H), preserveAspectRatio: "xMidYMid slice" });
+    store.assetURL(s.imageAsset).then((url) => { if (url) gorsel.setAttribute("href", url); });
+    on.append(gorsel);
+  } else {
+    const doku = DOKULAR[s.material] || kroko;
+    on.append(doku(W, H, renk, id));
+    if (s.material !== "kroko") on.append(el("path", { d: onYol, fill: renk, opacity: "0.55" }));
+  }
   on.append(el("path", { d: onYol, fill: `url(#${id}-cila)` }));
   on.append(el("path", { d: onYol, fill: `url(#${id}-parlama)` }));
   // Kapağın üst kenarında ince ışık, altında gölge: kartonun kalınlığı.

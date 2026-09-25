@@ -1202,7 +1202,7 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .klasor-onizleme { display: flex; justify-content: center; padding: 6px 0 14px; }
 .klasor-onizleme .klasor { width: min(240px, 70%); }
 .klasor-malzemeler { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 14px; }
-.klasor-malzeme { padding: 8px 14px; border-radius: 999px; background: rgba(0, 0, 0, 0.06); font-size: 14px; }
+.klasor-malzeme { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: rgba(0, 0, 0, 0.06); font-size: 14px; }
 .klasor-malzeme.secili { background: var(--accent); color: #fff; }
 .klasor-renkler { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .klasor-renk { width: 38px; height: 38px; border-radius: 50%; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 5px rgba(0, 0, 0, 0.25); }

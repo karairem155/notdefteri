@@ -278,7 +278,10 @@ export function renderLibrary(root) {
     const tazele = () => {
       onizleme.replaceChildren(folderElement(secili, { count: sayi }));
       renkler.querySelectorAll(".klasor-renk").forEach((el) => el.classList.toggle("secili", el.dataset.renk === secili.color));
-      malzemeler.querySelectorAll(".klasor-malzeme").forEach((el) => el.classList.toggle("secili", el.dataset.malzeme === secili.material));
+      malzemeler.querySelectorAll(".klasor-malzeme").forEach((el) => {
+        el.classList.toggle("secili", !secili.imageAsset && el.dataset.malzeme === secili.material);
+      });
+      malzemeler.querySelector(".klasor-malzeme.gorsel")?.classList.toggle("secili", !!secili.imageAsset);
     };
     for (const renk of FOLDER_COLORS) {
       const nokta = h("button", { class: "klasor-renk", type: "button", "aria-label": renk, dataset: { renk }, style: { background: renk },
@@ -287,7 +290,28 @@ export function renderLibrary(root) {
     }
     for (const m of FOLDER_MATERIALS) {
       malzemeler.append(h("button", { class: "klasor-malzeme", type: "button", dataset: { malzeme: m.id },
-        onTap: () => { secili = { ...secili, material: m.id }; setFolderStyle(name, secili); tazele(); render(); } }, m.name));
+        onTap: () => { secili = { color: secili.color, material: m.id }; setFolderStyle(name, secili); tazele(); render(); } }, m.name));
+    }
+    // Kendi görseli: kapağı tamamen kaplıyor; kaldırınca deriye dönüyor.
+    malzemeler.append(h("button", { class: "klasor-malzeme gorsel", type: "button", onTap: async () => {
+      const file = await pickFile("file-image");
+      if (!file) return;
+      try {
+        const { blob } = await shrinkImage(file, 1200);
+        const asset = await store.importAsset(blob, file.name);
+        secili = { ...secili, imageAsset: asset };
+        setFolderStyle(name, secili);
+        tazele();
+        render();
+      } catch (error) { toast("Görsel eklenemedi: " + error.message); }
+    } }, svgIcon("photo", 16), "Görsel"));
+    if (secili.imageAsset) {
+      malzemeler.append(h("button", { class: "klasor-malzeme", type: "button", onTap: () => {
+        secili = { color: secili.color, material: secili.material };
+        setFolderStyle(name, secili);
+        tazele();
+        render();
+      } }, "Görseli kaldır"));
     }
     tazele();
     openModal(h("div", { class: "dialog", style: { width: "min(420px, 100%)" } },
