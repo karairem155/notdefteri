@@ -1,6 +1,6 @@
 // Çevrimdışı çalışma: uygulama kabuğu önbelleğe alınır.
 // Yeni sürüm yayınlandığında VERSION değişir, eski önbellek silinir.
-const VERSION = "notdefteri-v69";
+const VERSION = "notdefteri-v70";
 const SHELL = [
   "./",
   "./index.html",
@@ -31,7 +31,8 @@ const SHELL = [
   "./vendor/pdf.worker.min.mjs",
   "./icons/icon-180.png",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./icons/logo.png"
 ];
 
 self.addEventListener("install", (event) => {
