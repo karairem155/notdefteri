@@ -839,32 +839,27 @@ export function createCoverAnim(spreadEl, options = {}) {
   return { play, cancel: stop, get active() { return !!live; } };
 }
 
-/** Sayfa sesi — eski çevirmedeki kısa kâğıt hışırtısı. */
-let sesBaglami = null;
+/**
+ * Sayfa sesi.
+ *
+ * Kullanıcının verdiği kayıt çalınıyor (web/sounds/page-flip.mp3). Kıvrım
+ * yazılırken burada WebAudio ile gürültü üretiliyordu; kulağa cızırtı gibi
+ * geliyordu, dosya ise gerçek kâğıt sesi.
+ *
+ * Yol modüle göre çözülüyor: uygulama alt dizinde yayınlandığı için (GitHub
+ * Pages) sayfaya göre çözülen yol yanlış yere düşebiliyor.
+ */
+let sesOge = null;
 function playPaperSound() {
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    sesBaglami = sesBaglami || new Ctx();
-    if (sesBaglami.state === "suspended") sesBaglami.resume();
-    const sure = 0.26;
-    const örnek = Math.floor(sesBaglami.sampleRate * sure);
-    const tampon = sesBaglami.createBuffer(1, örnek, sesBaglami.sampleRate);
-    const veri = tampon.getChannelData(0);
-    for (let i = 0; i < örnek; i++) {
-      const t = i / örnek;
-      veri[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.2) * 0.35;
+    if (!sesOge) {
+      sesOge = new Audio(new URL("../sounds/page-flip.mp3", import.meta.url).href);
+      sesOge.preload = "auto";
+      sesOge.volume = 0.55;
     }
-    const kaynak = sesBaglami.createBufferSource();
-    kaynak.buffer = tampon;
-    const süzgeç = sesBaglami.createBiquadFilter();
-    süzgeç.type = "bandpass";
-    süzgeç.frequency.value = 2100;
-    süzgeç.Q.value = 0.7;
-    const kazanç = sesBaglami.createGain();
-    kazanç.gain.value = 0.5;
-    kaynak.connect(süzgeç).connect(kazanç).connect(sesBaglami.destination);
-    kaynak.start();
+    sesOge.currentTime = 0;
+    const calma = sesOge.play();
+    if (calma && calma.catch) calma.catch(() => { /* kullanıcı etkileşimi yoksa sessiz geç */ });
   } catch (_) {
     /* ses yoksa çevirme yine çalışır */
   }

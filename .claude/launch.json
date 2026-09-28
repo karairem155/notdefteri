@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "notdefteri",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "60716", "--directory", "web"],
+      "port": 60716
+    }
+  ]
+}

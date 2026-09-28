@@ -128,8 +128,10 @@ export function renderLibrary(root) {
           h("div", { class: "cover-wrap" }, klasor),
           h("div", { class: "carousel-title" }, hucre.ad));
         pressable(cell, {
+          // Dokununca doğrudan açılıyor. Eskiden ortadaki hariç hepsi önce
+          // ortalanıyordu: "sadece ilk defter açılıyor" denmesinin sebebi buydu.
           onTap: () => {
-            if (!secili) { currentIndex = index; centerOn(index, true); updateCurrent(); return; }
+            currentIndex = index;
             currentFolder = hucre.ad;
             currentIndex = 0;
             render();
@@ -147,7 +149,8 @@ export function renderLibrary(root) {
         h("div", { class: "carousel-title" }, notebook.title));
       pressable(cell, {
         onTap: () => {
-          if (!secili) { currentIndex = index; centerOn(index, true); updateCurrent(); return; }
+          currentIndex = index;
+          updateCurrent();
           openNotebook(notebook, cover);
         },
         onLong: () => showingTrash ? trashMenu(notebook) : notebookMenu(notebook)

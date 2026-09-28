@@ -57,6 +57,19 @@ export function openTranslateDialog(initial = "") {
   setTimeout(() => area.focus(), 50);
 }
 
+/**
+ * Defterin en son açık olan sayfası.
+ *
+ * Oturumla sınırlı değil: uygulama kapanıp açılsa da defter bıraktığın yerden
+ * devam etsin diye kalıcı saklanıyor.
+ */
+function sonSayfaYaz(notebookId, pageId) {
+  try { localStorage.setItem("notdefteri.sonSayfa." + notebookId, pageId); } catch (_) { /* özel kip */ }
+}
+function sonSayfaOku(notebookId) {
+  try { return localStorage.getItem("notdefteri.sonSayfa." + notebookId); } catch (_) { return null; }
+}
+
 /** Bu oturumda açılmış defterler: hızlı geçiş için (Paper'daki gibi birden çok defter). */
 function openNotebooks() {
   try { return JSON.parse(sessionStorage.getItem("notdefteri.open") || "[]"); } catch (_) { return []; }
@@ -95,7 +108,11 @@ export function penIllustration(pen) {
 
 export function renderEditor(root, notebookId, initialPageId) {
   const notebook = store.notebook(notebookId);
-  let selectedPageId = (initialPageId && notebook.pages.some((p) => p.id === initialPageId)) ? initialPageId : notebook.pages[0].id;
+  // Adreste sayfa varsa o, yoksa en son açık olan sayfa; hiçbiri yoksa ilk sayfa.
+  const hatirlanan = sonSayfaOku(notebookId);
+  let selectedPageId = (initialPageId && notebook.pages.some((p) => p.id === initialPageId)) ? initialPageId
+    : (hatirlanan && notebook.pages.some((p) => p.id === hatirlanan)) ? hatirlanan
+    : notebook.pages[0].id;
   const defaultPen = store.defaultPen;
   let tool = { tool: defaultPen.tool, color: defaultPen.color, width: defaultPen.width, alpha: 1 };
   const toolMemory = {};         // "pen" / "highlighter" grubu için son ayarlar
@@ -367,6 +384,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     selectedPageId = id;
     selectedObjectId = null;
     rememberOpen(notebookId, id);
+    sonSayfaYaz(notebookId, id);
     if (ruler) { const p = pages().find((x) => x.id === id); if (p) { ruler.x = Math.min(ruler.x, p.size.w - 40); ruler.y = Math.min(ruler.y, p.size.h - 40); } }
     renderStage();
     history.replaceState(null, "", `#/n/${notebookId}/p/${id}`);
@@ -2270,6 +2288,7 @@ export function renderEditor(root, notebookId, initialPageId) {
   window.addEventListener("keydown", onKey);
 
   rememberOpen(notebookId, selectedPageId);
+  sonSayfaYaz(notebookId, selectedPageId);
   renderStage();
   renderBench();
   applyModes();
