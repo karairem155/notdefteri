@@ -106,7 +106,15 @@ export function penIllustration(pen) {
   return svg;
 }
 
-export function renderEditor(root, notebookId, initialPageId) {
+/**
+ * Editör.
+ *
+ * `opts.split` verilirse defter yan yana iki bölmeden birinde duruyor: geri
+ * tuşu bölmeyi kapatıyor, adres çubuğuna sayfa yazılmıyor (yan yana adresi
+ * bozulmasın) ve klavye kısayolları yalnız etkin bölmede çalışıyor.
+ */
+export function renderEditor(root, notebookId, initialPageId, opts = {}) {
+  const bolme = !!opts.split;
   const notebook = store.notebook(notebookId);
   // Adreste sayfa varsa o, yoksa en son açık olan sayfa; hiçbiri yoksa ilk sayfa.
   const hatirlanan = sonSayfaOku(notebookId);
@@ -186,7 +194,8 @@ export function renderEditor(root, notebookId, initialPageId) {
     const page = selectedPage();
     topbar.replaceChildren(
       h("div", { class: "topbar-side" },
-        h("button", { class: "back-btn", type: "button", "aria-label": "Defterlerim", onTap: kapatVeCik }, svgIcon("back", 24)),
+        h("button", { class: "back-btn", type: "button", "aria-label": bolme ? "Bölmeyi kapat" : "Defterlerim",
+          onTap: bolme ? () => { flushInk(); opts.kapat(); } : kapatVeCik }, svgIcon(bolme ? "close" : "back", 24)),
         h("button", { class: "topbar-title-btn", type: "button", "aria-label": "Defter menüsü", onTap: notebookMenu },
           h("span", { class: "topbar-cover", style: { "--c": nb().coverColor || nb().cover?.color || "#F4A7C0" } }),
           h("span", { class: "topbar-notebook" }, nb().title), svgIcon("down", 16)),
@@ -226,18 +235,23 @@ export function renderEditor(root, notebookId, initialPageId) {
       grip.addEventListener("pointermove", (e) => {
         if (!session || e.pointerId !== session.id) return;
         e.preventDefault();
-        el.style.left = e.clientX + "px"; el.style.top = e.clientY + "px";
+        // Konum ekranın kendi kutusuna göre: yan yanada pencereye göre
+        // hesaplanırsa çubuk öteki bölmeye kaçıyor.
+        const kutu = screen.getBoundingClientRect();
+        el.style.left = (e.clientX - kutu.left) + "px"; el.style.top = (e.clientY - kutu.top) + "px";
         el.classList.add("free");
       });
       const end = (e) => {
         if (!session || e.pointerId !== session.id) return;
         session = null;
         el.classList.remove("dragging", "free");
-        const W = window.innerWidth, H = window.innerHeight;
-        const dl = e.clientX, dr = W - e.clientX, dt = e.clientY, db = H - e.clientY;
+        const kutu = screen.getBoundingClientRect();
+        const W = kutu.width || window.innerWidth, H = kutu.height || window.innerHeight;
+        const x = e.clientX - kutu.left, y = e.clientY - kutu.top;
+        const dl = x, dr = W - x, dt = y, db = H - y;
         const min = Math.min(dl, dr, dt, db);
         const side = min === dl ? "left" : min === dr ? "right" : min === dt ? "top" : "bottom";
-        const pos = (side === "left" || side === "right") ? e.clientY / H : e.clientX / W;
+        const pos = (side === "left" || side === "right") ? y / H : x / W;
         store.setSetting("favDock", { side, pos: Math.min(0.92, Math.max(0.08, pos)) });
         renderFavDock();
       };
@@ -274,6 +288,9 @@ export function renderEditor(root, notebookId, initialPageId) {
     actionSheet(nb().title, [
       { title: "Defteri Yeniden Adlandır", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", nb().title, (title) => { store.mutate(notebookId, (n) => { n.title = title; }); renderTopbar(); }) },
       { title: "Açık Defterler", onSelect: openNotebooksMenu },
+      bolme
+        ? { title: "Yan Yanayı Kapat", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}`); } }
+        : { title: "Yan Yana Aç", onSelect: yanYanaMenu },
       { title: "Arka Kapağı Değiştir", onSelect: arkaKapakSec },
       { title: "Sayfalar Izgarası", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); } },
       { title: "Kütüphane", onSelect: () => { flushInk(); navigate("#/"); } }
@@ -328,6 +345,16 @@ export function renderEditor(root, notebookId, initialPageId) {
       strip.append(mini);
     }
     return strip;
+  }
+
+  /** İkinci defteri seç: yan yana açılacak. */
+  function yanYanaMenu() {
+    const hepsi = store.activeNotebooks.filter((n) => n.id !== notebookId);
+    if (!hepsi.length) { toast("Yan yana açmak için ikinci bir defter gerekiyor."); return; }
+    actionSheet("Yan Yana Aç", hepsi.slice(0, 12).map((n) => ({
+      title: n.title,
+      onSelect: () => { flushInk(); navigate(`#/s/${notebookId}/${n.id}`); }
+    })));
   }
 
   function openNotebooksMenu() {
@@ -387,7 +414,7 @@ export function renderEditor(root, notebookId, initialPageId) {
     sonSayfaYaz(notebookId, id);
     if (ruler) { const p = pages().find((x) => x.id === id); if (p) { ruler.x = Math.min(ruler.x, p.size.w - 40); ruler.y = Math.min(ruler.y, p.size.h - 40); } }
     renderStage();
-    history.replaceState(null, "", `#/n/${notebookId}/p/${id}`);
+    if (!bolme) history.replaceState(null, "", `#/n/${notebookId}/p/${id}`);
   }
 
   function pageActionsMenu() {
@@ -2283,6 +2310,8 @@ export function renderEditor(root, notebookId, initialPageId) {
   const onSettings = (e) => { if (e.detail && ["pens", "palette", "defaultPenId", "benchCollapsed", "favDock"].includes(e.detail.key)) renderBenchKeepPopover(); };
   store.addEventListener("settings", onSettings);
   const onKey = (e) => {
+    // Yan yanada klavye yalnız son dokunulan bölmeye gidiyor.
+    if (bolme && !screen.parentElement?.classList.contains("aktif")) return;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) activeInk && activeInk.redo(); else activeInk && activeInk.undo(); }
   };
   window.addEventListener("keydown", onKey);

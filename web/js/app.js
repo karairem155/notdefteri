@@ -5,6 +5,7 @@ import { renderLibrary } from "./library.js";
 import { renderEditor } from "./editor.js";
 import { renderPages } from "./pages.js";
 import { renderFan } from "./fan.js";
+import { renderSplit } from "./split.js";
 import { renderSettings } from "./settings.js";
 import { toast } from "./ui.js";
 
@@ -23,14 +24,17 @@ function route() {
   current = null;
   app.replaceChildren();
   window.scrollTo(0, 0);
-  if (parts[0] === "n" && parts[1] && store.notebook(parts[1])) {
+  if (parts[0] === "s" && parts[1] && parts[2] && store.notebook(parts[1]) && store.notebook(parts[2])) {
+    // Yan yana iki defter: #/s/<defter>/<defter>
+    current = renderSplit(app, parts[1], parts[2]);
+  } else if (parts[0] === "n" && parts[1] && store.notebook(parts[1])) {
     if (parts[2] === "pages") current = renderPages(app, parts[1]);
     else if (parts[2] === "fan") current = renderFan(app, parts[1]);
     else current = renderEditor(app, parts[1], parts[2] === "p" ? parts[3] : null);
   } else if (parts[0] === "settings") {
     current = renderSettings(app);
   } else {
-    if (parts[0] === "n") location.hash = "#/";
+    if (parts[0] === "n" || parts[0] === "s") location.hash = "#/";
     current = renderLibrary(app);
   }
 }

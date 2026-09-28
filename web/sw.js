@@ -1,6 +1,6 @@
 // Çevrimdışı çalışma: uygulama kabuğu önbelleğe alınır.
 // Yeni sürüm yayınlandığında VERSION değişir, eski önbellek silinir.
-const VERSION = "notdefteri-v70";
+const VERSION = "notdefteri-v71";
 const SHELL = [
   "./",
   "./index.html",
@@ -26,6 +26,7 @@ const SHELL = [
   "./js/curl.js",
   "./js/gestures.js",
   "./js/fan.js",
+  "./js/split.js",
   "./js/pagerender.js",
   "./vendor/pdf.min.mjs",
   "./vendor/pdf.worker.min.mjs",
