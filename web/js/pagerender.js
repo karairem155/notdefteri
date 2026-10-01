@@ -1,7 +1,7 @@
 // Bir sayfanın tam görüntüsünü (kağıt + nesneler + mürekkep) canvas'a çizer.
 // Hem dışa aktarma hem de defter önizlemeleri aynı çizimi kullanır; böylece önizleme sayfanın gerçeğidir.
 import { store } from "./store.js";
-import { paintPaper, drawImageURL, pdfPageImage } from "./paper.js";
+import { paintPaper, drawImageURL, pdfPageImage, PDF_GENISLIK } from "./paper.js";
 import { drawStroke, orderForDrawing } from "./ink.js";
 
 /**
@@ -46,7 +46,9 @@ export async function renderPageCanvas(page, scale, opts = {}) {
   let drewBackground = opts.background === false;
   if (opts.background === false) { /* arka plan istenmedi */ }
   else if (page.pdf) {
-    const url = await pdfPageImage(page.pdf, 800 * scale);
+    // Ekranla aynı genişlik isteniyor: başka bir ölçü istenirse aynı sayfa
+    // bir kez daha çizilmiş oluyor (PDF'te sayfa başına yüzlerce ms).
+    const url = await pdfPageImage(page.pdf, scale <= 0.5 ? 300 : PDF_GENISLIK);
     if (url) drewBackground = await drawImageURL(ctx, url, 0, 0, w, h);
   } else if (page.templateAsset) {
     const url = await store.assetURL(page.templateAsset);

@@ -5,6 +5,23 @@ import { h, svgIcon, openModal, closeModal, actionSheet, promptDialog, toast, pi
 import { drawPaper, pdfPageSizes } from "./paper.js";
 
 /** Görseli küçültüp (en uzun kenar maxDim) blob olarak verir. */
+/** Tuvalde saydam piksel var mı (kenarlardan ve ızgaradan örnekleyerek). */
+function saydamMi(ctx, canvas) {
+  try {
+    const { width: w, height: h } = canvas;
+    const adim = Math.max(1, Math.floor(Math.min(w, h) / 48));
+    const veri = ctx.getImageData(0, 0, w, h).data;
+    for (let y = 0; y < h; y += adim) {
+      for (let x = 0; x < w; x += adim) {
+        if (veri[(y * w + x) * 4 + 3] < 250) return true;
+      }
+    }
+    return false;
+  } catch (_) {
+    return false;   // başka kaynaktan gelen görselde piksel okunamayabilir
+  }
+}
+
 export async function shrinkImage(file, maxDim = 2000, quality = 0.9) {
   const bitmap = await createImageBitmap(file);
   const longest = Math.max(bitmap.width, bitmap.height);
@@ -16,7 +33,9 @@ export async function shrinkImage(file, maxDim = 2000, quality = 0.9) {
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   const hasAlpha = file.type === "image/png" || file.type === "image/webp";
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, hasAlpha ? "image/png" : "image/jpeg", quality));
-  return { blob, width: canvas.width, height: canvas.height };
+  // Gerçekten saydam mı: PNG olması yetmiyor, çoğu PNG dolu zeminli. Buna göre
+  // görsel ya polaroid çerçeveyle ya da çerçevesiz (çıkartma) konuyor.
+  return { blob, width: canvas.width, height: canvas.height, saydam: hasAlpha && saydamMi(ctx, canvas) };
 }
 
 export async function importTemplateFromFile() {

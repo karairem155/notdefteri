@@ -336,7 +336,23 @@ export function pickFile(inputId) {
   return new Promise((resolve) => {
     const input = document.getElementById(inputId);
     input.value = "";
+    input.multiple = false;
     input.onchange = () => resolve(input.files && input.files[0] ? input.files[0] : null);
+    input.click();
+  });
+}
+
+/** Birden çok dosya seçtirir (aynı anda birkaç fotoğraf eklemek için). */
+export function pickFiles(inputId) {
+  return new Promise((resolve) => {
+    const input = document.getElementById(inputId);
+    input.value = "";
+    input.multiple = true;
+    input.onchange = () => {
+      const files = input.files ? [...input.files] : [];
+      input.multiple = false;
+      resolve(files);
+    };
     input.click();
   });
 }

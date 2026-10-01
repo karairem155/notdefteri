@@ -3,7 +3,7 @@
 // Kipler: çizim / buzlu kalem (örtü katmanı çizgiyi buzlu şerit yapar) / nesne düzenleme.
 import { renderPageCanvas as renderPageCanvasShared, spillFor } from "./pagerender.js";
 import { store, TOOLS, uid, COVER_PRESETS } from "./store.js";
-import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
+import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, pickFiles, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
@@ -1165,6 +1165,15 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
             edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
             todo: object.kind === "text" ? () => toggleTodoMode(object, page) : null,
             cut: (object.kind === "photo" || object.kind === "sticker") ? () => startCut(object, page, stack) : null,
+            // Çerçeve: polaroid kenarlı fotoğraf ile çerçevesiz görsel arasında
+            // gidip gelmek için. Saydam PNG'ler otomatik çerçevesiz geliyor ama
+            // tahmin tutmazsa buradan değiştiriliyor.
+            cerceve: (object.kind === "photo" || object.kind === "sticker")
+              ? () => store.updatePage(notebookId, page.id, (p) => {
+                const o = p.objects.find((x) => x.id === object.id);
+                if (o) o.kind = o.kind === "photo" ? "sticker" : "photo";
+              })
+              : null,
             // Çift sayfada: görseli iki sayfaya birden yayar (kullanıcının istediği "tek
             // görsel, iki sayfa"). Nesne yine tek sayfanın; öbür yarısı komşuda çiziliyor.
             spread: spreadMode() && object.kind !== "text" && object.kind !== "check" && object.kind !== "audio"
@@ -1406,6 +1415,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       actions.edit && btn("Düzenle", "pen", actions.edit), actions.edit && h("div", { class: "sep" }),
       actions.todo && btn(item.todo ? "Kutuları kaldır" : "Onay kutuları", "check", actions.todo), actions.todo && h("div", { class: "sep" }),
       actions.cut && btn("Kes", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
+      actions.cerceve && btn(item.kind === "photo" ? "Çerçeveyi kaldır" : "Çerçeve ekle", "photo", actions.cerceve), actions.cerceve && h("div", { class: "sep" }),
       actions.spread && btn("İki sayfaya yay", "books", actions.spread), actions.spread && h("div", { class: "sep" }),
       actions.font && btn("Yazı tipi", "note", actions.font), actions.font && h("div", { class: "sep" }),
       actions.translate && btn("Çevir", "share", actions.translate), actions.translate && h("div", { class: "sep" }),
@@ -1547,6 +1557,56 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     return { x: (page.size.w - w) / 2 + shift, y: (page.size.h - hh) / 2 + shift, w, h: hh };
   }
 
+  /**
+   * Birden çok fotoğrafı tek seferde koyar.
+   *
+   * Sayfaya ızgara halinde diziliyorlar: hepsi ortaya konursa üst üste binip
+   * tek tek ayıklamak gerekiyor.
+   */
+  async function importImages(kind) {
+    const files = await pickFiles("file-image");
+    if (!files.length) return;
+    if (files.length === 1) { await importImage(kind, files[0]); return; }
+    const page = selectedPage();
+    const sutun = Math.ceil(Math.sqrt(files.length));
+    const satir = Math.ceil(files.length / sutun);
+    const pay = 24;
+    const hucreW = (page.size.w - pay * (sutun + 1)) / sutun;
+    const hucreH = (page.size.h - pay * (satir + 1)) / satir;
+    let sira = 0;
+    for (const file of files) {
+      try {
+        const shrunk = await shrinkImage(file, 1600);
+        const asset = await store.importAsset(shrunk.blob, file.name);
+        const tur = (kind === "photo" && shrunk.saydam) ? "sticker" : kind;
+        if (tur === "photo") store.noteMedia({ asset, name: file.name, kind: "image" });
+        const oran = shrunk.width > 0 ? shrunk.height / shrunk.width : 1;
+        let w = hucreW;
+        let hh = w * oran;
+        if (hh > hucreH) { hh = hucreH; w = hh / oran; }
+        const sx = sira % sutun;
+        const sy = Math.floor(sira / sutun);
+        const object = {
+          id: uid(), kind: tur, asset,
+          rect: {
+            x: Math.round(pay + sx * (hucreW + pay) + (hucreW - w) / 2),
+            y: Math.round(pay + sy * (hucreH + pay) + (hucreH - hh) / 2),
+            w: Math.round(w), h: Math.round(hh)
+          },
+          rotation: 0, z: maxZ(page) + 1 + sira
+        };
+        store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
+        sira++;
+      } catch (error) {
+        toast("Bir görsel eklenemedi: " + error.message);
+      }
+    }
+    touchPage(page);
+    selectedObjectId = null;
+    setEditing(true);
+    toast(sira + " görsel eklendi");
+  }
+
   async function importImage(kind, givenFile = null, givenAsset = null) {
     const file = givenFile || (givenAsset ? null : await pickFile("file-image"));
     if (!file && !givenAsset) return;
@@ -1558,6 +1618,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         const shrunk = await shrinkImage(file, 1600);
         width = shrunk.width; height = shrunk.height;
         asset = await store.importAsset(shrunk.blob, file.name);
+        // Saydam PNG çerçevesiz konuyor: polaroid çerçeve şeffaf görselde
+        // beyaz bir kutu gibi duruyor.
+        if (kind === "photo" && shrunk.saydam) kind = "sticker";
         if (kind === "photo") store.noteMedia({ asset, name: file.name, kind: "image" });
       } else {
         const url = await store.assetURL(asset);
@@ -1617,7 +1680,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       recentMedia: () => store.settings.recentMedia || [],
       assetURL: (id) => store.assetURL(id),
       insertRecent: (entry) => { closePopover(); if (entry.kind === "pdf") toast("PDF sayfaları için Dosyalar'dan yeniden seç"); else importImage("photo", null, entry.asset); },
-      importPhoto: () => { closePopover(); importImage("photo"); },
+      importPhoto: () => { closePopover(); importImages("photo"); },
       capturePhoto: async () => { closePopover(); const file = await pickTemp("image/*", true); if (file) importImage("photo", file); },
       importFile: () => { closePopover(); importFile(); },
       isRecording: () => !!recording,
@@ -1985,7 +2048,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
 
   function imageMenu() {
     actionSheet("Medya", [
-      { title: "Fotoğraf Ekle", onSelect: () => importImage("photo") },
+      { title: "Fotoğraf Ekle", onSelect: () => importImages("photo") },
       { title: recording ? "Ses Kaydını Durdur" : "Sesli Not Kaydet", onSelect: toggleAudioNote },
 
       { title: isFrosted() ? "\u2713 Buzlu Kalem (kapat)" : "Buzlu Kalem (cevabı örter)", onSelect: () => { if (isFrosted()) selectTool("pen"); else { selectTool("frosted"); openFrostedPanel(); } } },
@@ -2066,7 +2129,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     addFrosted: (hex) => addFrostedPostIt(hex),
     addTape: (hex, pattern) => addTape(hex, pattern),
     addEmoji: (e) => addEmojiSticker(e),
-    importSticker: () => importImage("sticker")
+    importSticker: () => importImages("sticker")
   };
 
   function mountPanel(el, kind) {
@@ -2197,8 +2260,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
 
   function photoMenu() {
     actionSheet("Fotoğraf ve nesneler", [
-      { title: "Fotoğraf Ekle", onSelect: () => importImage("photo") },
-      { title: "Çıkartma Ekle (kendi görselin)", onSelect: () => importImage("sticker") },
+      { title: "Fotoğraf Ekle", onSelect: () => importImages("photo") },
+      { title: "Çıkartma Ekle (çerçevesiz)", onSelect: () => importImages("sticker") },
       { title: editingObjects ? "Düzenlemeyi Bitir" : "Nesneleri Düzenle", onSelect: () => setEditing(!editingObjects) }
     ]);
   }

@@ -128,7 +128,41 @@ function pdfjs() {
 }
 
 const pdfDocs = new Map();
+
+// ── PDF sayfa görüntüsü önbelleği ───────────────────────────────────────────
+//
+// Üç dert vardı: (1) aynı sayfa her istenen genişlik için baştan çiziliyordu —
+// ekran 1400, çevirme dokusu 800×ölçek istediği için tek sayfa iki üç kez
+// çiziliyor ve her biri yüzlerce milisaniye sürüyordu; (2) sonuç data URL
+// olarak saklanıyordu, yani sayfa başına yarım megabaytlık metin JS yığınında
+// kalıyordu; (3) önbellek hiç boşalmıyordu, defter uzadıkça bellek şişiyordu.
+//
+// Artık iki sabit boyut var (ekran ve küçük önizleme), sonuç blob olarak
+// tutuluyor ve en eski kayıtlar atılırken adresleri geri veriliyor.
+export const PDF_GENISLIK = 1200;     // ekranda ve çevirme dokusunda aynı
+const PDF_KUCUK = 300;                // ızgara önizlemesi
+const BUYUK_SINIR = 10;
+const KUCUK_SINIR = 60;
 const pdfImages = new Map();
+const pdfThumbs = new Map();
+const pdfBekleyen = new Map();
+
+function onbellektenAl(harita, key) {
+  const url = harita.get(key);
+  if (!url) return null;
+  harita.delete(key);           // en son kullanılan sona gitsin (LRU)
+  harita.set(key, url);
+  return url;
+}
+
+function onbellegeKoy(harita, key, url, sinir) {
+  harita.set(key, url);
+  while (harita.size > sinir) {
+    const eski = harita.keys().next().value;
+    URL.revokeObjectURL(harita.get(eski));
+    harita.delete(eski);
+  }
+}
 
 async function pdfDocument(assetId) {
   if (pdfDocs.has(assetId)) return pdfDocs.get(assetId);
@@ -156,26 +190,39 @@ export async function pdfPageSizes(assetId) {
   return sizes;
 }
 
-/** PDF sayfasını görsel URL'sine çevirir (önbellekli). */
+/** PDF sayfasını görsel adresine çevirir (önbellekli). */
 export async function pdfPageImage(reference, pixelWidth) {
-  const key = `${reference.asset}#${reference.index}@${pixelWidth}`;
-  if (pdfImages.has(key)) return pdfImages.get(key);
-  const doc = await pdfDocument(reference.asset);
-  if (!doc) return null;
-  const page = await doc.getPage(reference.index + 1);
-  const base = page.getViewport({ scale: 1 });
-  const scale = pixelWidth / base.width;
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(viewport.width);
-  canvas.height = Math.round(viewport.height);
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, viewport }).promise;
-  const url = canvas.toDataURL("image/jpeg", 0.88);
-  pdfImages.set(key, url);
-  return url;
+  const kucuk = pixelWidth <= 400;
+  const genislik = kucuk ? PDF_KUCUK : PDF_GENISLIK;
+  const harita = kucuk ? pdfThumbs : pdfImages;
+  const sinir = kucuk ? KUCUK_SINIR : BUYUK_SINIR;
+  const key = `${reference.asset}#${reference.index}@${genislik}`;
+  const hazir = onbellektenAl(harita, key);
+  if (hazir) return hazir;
+  // Aynı sayfa aynı anda iki yerden istenebiliyor (ekran ve çevirme dokusu);
+  // ikisi de çizmeye kalkarsa iş iki katına çıkıyor.
+  if (pdfBekleyen.has(key)) return pdfBekleyen.get(key);
+  const is = (async () => {
+    const doc = await pdfDocument(reference.asset);
+    if (!doc || reference.index + 1 > doc.numPages) return null;
+    const page = await doc.getPage(reference.index + 1);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: genislik / base.width });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
+    if (!blob) return null;
+    const url = URL.createObjectURL(blob);
+    onbellegeKoy(harita, key, url, sinir);
+    return url;
+  })().finally(() => pdfBekleyen.delete(key));
+  pdfBekleyen.set(key, is);
+  return is;
 }
 
 /**
@@ -188,7 +235,7 @@ export async function renderBackground(el, page, { thumbnail = false } = {}) {
   el.style.backgroundImage = "none";
   const { w, h } = page.size;
   if (page.pdf) {
-    const url = await pdfPageImage(page.pdf, thumbnail ? 300 : 1400);
+    const url = await pdfPageImage(page.pdf, thumbnail ? 300 : PDF_GENISLIK);
     if (url) {
       el.style.background = "#fff";
       el.append(img(url));
