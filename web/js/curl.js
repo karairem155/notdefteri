@@ -805,6 +805,7 @@ export function createCoverAnim(spreadEl, options = {}) {
       if (options.onFrame) options.onFrame(e);
     };
     const duration = dir > 0 ? 820 : 560;
+    if (options.sound && options.sound()) playCoverSound(dir);
     const t0 = performance.now();
     draw(dir > 0 ? 0 : 1);
     return new Promise((resolve) => {
@@ -842,18 +843,42 @@ export function createCoverAnim(spreadEl, options = {}) {
 /**
  * Sayfa sesi.
  *
- * Kullanıcının verdiği kayıt çalınıyor (web/sounds/page-flip.mp3). Kıvrım
- * yazılırken burada WebAudio ile gürültü üretiliyordu; kulağa cızırtı gibi
- * geliyordu, dosya ise gerçek kâğıt sesi.
+ * Kullanıcının kaydı (page-flip.mp3) duruyor ama sesin ilk %46'sı sessizdi:
+ * sayfa çevriliyor, ses üçte bir saniye sonra geliyordu. Yerine aynı karakterde
+ * üretilmiş, hemen başlayan bir kayıt kullanılıyor (page-turn.mp3): kâğıdın
+ * titremesi, havanın sesi ve sayfanın oturması.
  *
  * Yol modüle göre çözülüyor: uygulama alt dizinde yayınlandığı için (GitHub
  * Pages) sayfaya göre çözülen yol yanlış yere düşebiliyor.
  */
+/**
+ * Kapak sesi: açılırken kartonun kalkışı, cildin gıcırtısı ve içerideki
+ * yaprakların hışırtısı; kapanırken havanın sesi ve kapağın oturması.
+ */
+const kapakSesleri = {};
+function playCoverSound(dir) {
+  try {
+    const ad = dir > 0 ? "book-open" : "book-close";
+    let kapakSesi = kapakSesleri[ad];
+    if (!kapakSesi) {
+      kapakSesi = new Audio(new URL(`../sounds/${ad}.mp3`, import.meta.url).href);
+      kapakSesi.preload = "auto";
+      kapakSesleri[ad] = kapakSesi;
+    }
+    kapakSesi.volume = 0.5;
+    kapakSesi.currentTime = 0;
+    const calma = kapakSesi.play();
+    if (calma && calma.catch) calma.catch(() => { /* kullanıcı etkileşimi yoksa sessiz geç */ });
+  } catch (_) {
+    /* ses yoksa açılış yine çalışır */
+  }
+}
+
 let sesOge = null;
 function playPaperSound() {
   try {
     if (!sesOge) {
-      sesOge = new Audio(new URL("../sounds/page-flip.mp3", import.meta.url).href);
+      sesOge = new Audio(new URL("../sounds/page-turn.mp3", import.meta.url).href);
       sesOge.preload = "auto";
       sesOge.volume = 0.55;
     }

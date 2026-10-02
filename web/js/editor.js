@@ -169,6 +169,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   let coverGap = 0;
   const coverAnim = createCoverAnim(stage, {
     viewScale: () => fitScale * zoom,
+    sound: () => store.settings.flipSound !== false,
     onFrame: (e) => { coverShift = coverGap * (1 - e) * fitScale * zoom; applyTransform(); }
   });
 
@@ -837,10 +838,15 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     try {
       const res = Math.min(2, Math.max(0.6, fitScale * zoom * (window.devicePixelRatio || 1)));
       const kapak = nb().cover || (nb().coverColor ? { color: nb().coverColor, pattern: "plain" } : null);
-      const [front, under, other] = await Promise.all([
-        coverBitmap(kapak, leafW * res, leafH * res),
-        flipBitmap(main),
-        pair ? flipBitmap(leftPage) : null
+      // Dokular hazır olmazsa animasyon beklemiyor: ağır bir PDF sayfası
+      // yüzünden defterden çıkamamak olmaz.
+      const [front, under, other] = await Promise.race([
+        Promise.all([
+          coverBitmap(kapak, leafW * res, leafH * res),
+          flipBitmap(main),
+          pair ? flipBitmap(leftPage) : null
+        ]),
+        new Promise((resolve) => setTimeout(() => resolve([null, null, null]), 1500))
       ]);
       return await coverAnim.play({
         spreadW, spreadH,

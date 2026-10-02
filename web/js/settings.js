@@ -47,7 +47,7 @@ export function renderSettings(root) {
           row("Parmak ne yapsın", select([["navigate", "Sayfa çevirir, kaydırır"], ["draw", "Çizer"], ["erase", "Siler"]], s.fingerAction, (v) => store.setSetting("fingerAction", v))),
           row("Sabit tutunca şekle dönüştür", toggle(s.shapeRecognition !== false, (v) => store.setSetting("shapeRecognition", v))),
           row("Şekil bekleme süresi", select([["0", "Devre dışı"], ["350", "Kısa"], ["600", "Varsayılan"], ["950", "Uzun"]], String(s.shapeRecognition === false ? 0 : (s.shapeHoldMs == null ? 600 : s.shapeHoldMs)), (v) => { store.setSetting("shapeHoldMs", Number(v)); store.setSetting("shapeRecognition", Number(v) > 0); })),
-          row("Sayfa çevirme sesi", toggle(s.flipSound !== false, (v) => store.setSetting("flipSound", v))),
+          row("Sayfa ve kapak sesi", toggle(s.flipSound !== false, (v) => store.setSetting("flipSound", v))),
           row("Stabilizatör", select([["0", "Temel"], ["1", "Yumuşak"], ["2", "İpek"], ["3", "Akıcı"]], String(s.smoothing == null ? 2 : s.smoothing), (v) => store.setSetting("smoothing", Number(v))))
         )),
         section("UYGULAMA", h("div", { class: "card" },

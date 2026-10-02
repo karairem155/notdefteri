@@ -214,7 +214,18 @@ export async function pdfPageImage(reference, pixelWidth) {
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    // Ağır PDF'lerde çizim bazen hiç bitmiyor. Süre sınırı olmazsa bu sözü
+    // bekleyen her şey (sayfa arka planı, çevirme dokusu, kapak animasyonu)
+    // sonsuza kadar asılı kalıyor ve defterden çıkılamıyor.
+    const gorev = page.render({ canvasContext: ctx, viewport });
+    const bitti = await Promise.race([
+      gorev.promise.then(() => true, () => false),
+      new Promise((resolve) => setTimeout(() => resolve(false), 8000))
+    ]);
+    if (!bitti) {
+      try { gorev.cancel(); } catch (_) { /* iptal edilemezse de bırakıyoruz */ }
+      return null;
+    }
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
     if (!blob) return null;
     const url = URL.createObjectURL(blob);

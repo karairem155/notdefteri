@@ -1,6 +1,6 @@
 // Çevrimdışı çalışma: uygulama kabuğu önbelleğe alınır.
 // Yeni sürüm yayınlandığında VERSION değişir, eski önbellek silinir.
-const VERSION = "notdefteri-v72";
+const VERSION = "notdefteri-v73";
 const SHELL = [
   "./",
   "./index.html",
@@ -19,6 +19,9 @@ const SHELL = [
   "./js/panels.js",
   "./js/export.js",
   "./sounds/page-flip.mp3",
+  "./sounds/page-turn.mp3",
+  "./sounds/book-open.mp3",
+  "./sounds/book-close.mp3",
   "./js/pages.js",
   "./js/settings.js",
   "./js/backup.js",
