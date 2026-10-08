@@ -5,6 +5,7 @@
 // üretiliyor — görsel dosyası taşımıyoruz, her renkte aynı doku çıksın diye.
 import { h } from "./ui.js";
 import { store } from "./store.js";
+import { fitYerlesim } from "./covers.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 let sayac = 0;
@@ -37,6 +38,7 @@ export function setFolderStyle(name, style) {
   const hepsi = { ...(store.settings.folderStyles || {}) };
   const kayit = { color: style.color, material: style.material };
   if (style.imageAsset) kayit.imageAsset = style.imageAsset;
+  if (style.imageAsset && style.imageFit) kayit.imageFit = style.imageFit;
   hepsi[name] = kayit;
   store.setSetting("folderStyles", hepsi);
 }
@@ -266,7 +268,23 @@ export function folderElement(style, { className = "", count = 0 } = {}) {
   if (s.imageAsset) {
     // Kendi görseli: kapağı tamamen kaplıyor, oranı bozulmuyor (slice).
     const gorsel = el("image", { x: "0", y: "0", width: String(W), height: String(H), preserveAspectRatio: "xMidYMid slice" });
-    store.assetURL(s.imageAsset).then((url) => { if (url) gorsel.setAttribute("href", url); });
+    store.assetURL(s.imageAsset).then((url) => {
+      if (!url) return;
+      gorsel.setAttribute("href", url);
+      // Konum seçildiyse görselin boyutu öğrenilip yerleşim elle kuruluyor
+      // (slice yalnız ortalayabiliyor).
+      if (!s.imageFit) return;
+      const olcu = new Image();
+      olcu.onload = () => {
+        const y = fitYerlesim(olcu.naturalWidth, olcu.naturalHeight, W, H, s.imageFit);
+        gorsel.setAttribute("preserveAspectRatio", "none");
+        gorsel.setAttribute("x", y.x.toFixed(2));
+        gorsel.setAttribute("y", y.y.toFixed(2));
+        gorsel.setAttribute("width", y.w.toFixed(2));
+        gorsel.setAttribute("height", y.h.toFixed(2));
+      };
+      olcu.src = url;
+    });
     on.append(gorsel);
   } else {
     const doku = DOKULAR[s.material] || kroko;

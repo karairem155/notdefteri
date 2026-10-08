@@ -1,5 +1,5 @@
 // Defter kapağı (02-DefterGorunumu.png): desenli ön yüz, sağda cilt şeridi, altta sayfa kenarları.
-import { h } from "./ui.js";
+import { h, openModal, closeModal } from "./ui.js";
 import { store, COVER_PRESETS } from "./store.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -52,7 +52,48 @@ function patternGroup(pattern) {
   return g;
 }
 
-/** Kapak öğesi. `cover` = { pattern, color, imageAsset? }. Oran 100:135. */
+// ── Görselin kapaktaki yeri ─────────────────────────────────────────────────
+//
+// Kendi görselini kapak yapınca görsel kapağı tamamen kaplıyor (cover); hangi
+// kısmının görüneceği eskiden hep ortaydı, bazen önemli yer kesiliyordu.
+// `imageFit` = { x, y, z }: x/y 0..1 arası konum (0 sol/üst, 1 sağ/alt), z
+// yakınlaştırma (1 = tam kaplama). Modeli CSS'teki object-position ile aynı:
+// taşan kısmın x kadarı soldan, y kadarı yukarıdan kesiliyor. Yakınlaştırma
+// aynı noktanın etrafında yapılıyor, o yüzden kaydırmak her eksende çalışıyor.
+
+export const FIT_VARSAYILAN = { x: 0.5, y: 0.5, z: 1 };
+
+export function fitDuzelt(fit) {
+  const f = fit || FIT_VARSAYILAN;
+  const k = (v, a, b, d) => (Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d);
+  return { x: k(f.x, 0, 1, 0.5), y: k(f.y, 0, 1, 0.5), z: k(f.z, 1, 4, 1) };
+}
+
+/** Görsel öğesine konumu uygular (object-fit: cover üstüne). */
+export function fitUygula(img, fit) {
+  const f = fitDuzelt(fit);
+  const px = (f.x * 100).toFixed(2) + "%";
+  const py = (f.y * 100).toFixed(2) + "%";
+  img.style.objectPosition = `${px} ${py}`;
+  img.style.transformOrigin = `${px} ${py}`;
+  img.style.transform = f.z > 1.001 ? `scale(${f.z.toFixed(3)})` : "";
+}
+
+/**
+ * Görselin w×h kutudaki yerleşimi (tuvale çizerken ve sürüklemeyi çevirirken).
+ * Dönen: sol üst köşe ve çizim boyutu, ayrıca iki eksendeki toplam taşma.
+ */
+export function fitYerlesim(iw, ih, w, h, fit) {
+  const f = fitDuzelt(fit);
+  const s = Math.max(w / iw, h / ih) * f.z;
+  const dw = iw * s;
+  const dh = ih * s;
+  const tx = dw - w;
+  const ty = dh - h;
+  return { x: -tx * f.x, y: -ty * f.y, w: dw, h: dh, tx, ty };
+}
+
+/** Kapak öğesi. `cover` = { pattern, color, imageAsset?, imageFit? }. Oran 100:135. */
 export function coverElement(cover, { className = "" } = {}) {
   const c = cover || store.settings.defaultCover || COVER_PRESETS[5];
   // Gerçek 3B kitap: arka kapak (z=0), sırt (sol yüz), sayfa bloğu (sağ, üst, alt yüzler), ön kapak (z=kalınlık).
@@ -60,6 +101,7 @@ export function coverElement(cover, { className = "" } = {}) {
   const front = h("div", { class: "cover-front", style: { background: c.color } });
   if (c.imageAsset) {
     const image = h("img", { alt: "", draggable: "false" });
+    fitUygula(image, c.imageFit);
     store.assetURL(c.imageAsset).then((url) => { if (url) image.src = url; });
     front.append(image);
   } else if (c.pattern && c.pattern !== "plain") {
@@ -78,12 +120,10 @@ export function coverElement(cover, { className = "" } = {}) {
   return wrap;
 }
 
-/** Görseli `object-fit: cover` gibi yerleştirir. */
-function drawFitted(ctx, img, w, h) {
-  const k = Math.max(w / img.width, h / img.height);
-  const dw = img.width * k;
-  const dh = img.height * k;
-  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+/** Görseli kapaktaki konumuyla yerleştirir (ekrandaki kapakla aynı). */
+function drawFitted(ctx, img, w, h, fit) {
+  const y = fitYerlesim(img.width, img.height, w, h, fit);
+  ctx.drawImage(img, y.x, y.y, y.w, y.h);
 }
 
 /** Deseni doğrudan tuvale çizer — SVG'nin tuval karşılığı. */
@@ -166,7 +206,7 @@ export async function coverBitmap(cover, w, h) {
         im.onerror = () => res(null);
         im.src = url;
       });
-      if (img) drawFitted(ctx, img, canvas.width, canvas.height);
+      if (img) drawFitted(ctx, img, canvas.width, canvas.height, c.imageFit);
     }
   } else if (c.pattern && c.pattern !== "plain") {
     patternOnCanvas(ctx, c.pattern, canvas.width, canvas.height);
@@ -198,6 +238,93 @@ export function takeCoverOpening(notebookId) {
     sessionStorage.removeItem(ACILIS_ANAHTARI);
     return true;
   } catch (_) { return false; }
+}
+
+/**
+ * Görseli kapakta konumlama penceresi.
+ *
+ * Önizlemede parmakla sürükleyerek kaydırıyorsun, iki parmakla ya da sürgüyle
+ * yakınlaştırıyorsun. `oran` çerçevenin en/boy oranı (kapak 100/135, klasör
+ * 4/3). Kaydedince `onSave(fit)` çağrılıyor.
+ */
+export function openImageFit({ url, oran = 100 / 135, fit, baslik = "Kapağı Konumla", onSave }) {
+  let f = fitDuzelt(fit);
+  const img = h("img", { alt: "", draggable: "false", src: url, class: "konum-gorsel" });
+  const cerceve = h("div", { class: "konum-cerceve", style: { aspectRatio: String(oran) } }, img, h("div", { class: "konum-izgara" }));
+  const surgu = h("input", { type: "range", min: "1", max: "4", step: "0.01", value: String(f.z), class: "konum-surgu", "aria-label": "Yakınlaştırma" });
+  const tazele = () => { fitUygula(img, f); surgu.value = String(f.z); };
+  tazele();
+
+  // Sürüklemeyi konuma çevir: taşan kısım kadar kayabiliyor.
+  const isaretler = new Map();
+  let bas = null;
+  const tasma = () => {
+    const kutu = cerceve.getBoundingClientRect();
+    if (!img.naturalWidth || !kutu.width) return null;
+    return fitYerlesim(img.naturalWidth, img.naturalHeight, kutu.width, kutu.height, f);
+  };
+  cerceve.addEventListener("pointerdown", (e) => {
+    isaretler.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { cerceve.setPointerCapture(e.pointerId); } catch (_) { /* yine çalışır */ }
+    if (isaretler.size === 2) {
+      const [a, b] = [...isaretler.values()];
+      bas = { mesafe: Math.hypot(a.x - b.x, a.y - b.y), z: f.z };
+    }
+    e.preventDefault();
+  });
+  cerceve.addEventListener("pointermove", (e) => {
+    const onceki = isaretler.get(e.pointerId);
+    if (!onceki) return;
+    isaretler.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (isaretler.size >= 2 && bas) {
+      const [a, b] = [...isaretler.values()];
+      f = fitDuzelt({ ...f, z: bas.z * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, bas.mesafe) });
+    } else {
+      const t = tasma();
+      if (!t) return;
+      const dx = e.clientX - onceki.x;
+      const dy = e.clientY - onceki.y;
+      f = fitDuzelt({
+        ...f,
+        x: t.tx > 0.5 ? f.x - dx / t.tx : f.x,
+        y: t.ty > 0.5 ? f.y - dy / t.ty : f.y
+      });
+    }
+    tazele();
+    e.preventDefault();
+  });
+  const birak = (e) => { isaretler.delete(e.pointerId); if (isaretler.size < 2) bas = null; };
+  cerceve.addEventListener("pointerup", birak);
+  cerceve.addEventListener("pointercancel", birak);
+  surgu.addEventListener("input", () => { f = fitDuzelt({ ...f, z: parseFloat(surgu.value) }); tazele(); });
+
+  openModal(h("div", { class: "dialog konum-dialog", style: { width: "min(460px, 100%)" } },
+    h("h3", {}, baslik),
+    h("p", {}, "Sürükleyerek kaydır, iki parmakla ya da sürgüyle yakınlaştır."),
+    cerceve,
+    h("div", { class: "konum-surgu-satir" }, h("span", {}, "−"), surgu, h("span", {}, "+")),
+    h("div", { class: "dialog-actions" },
+      h("button", { class: "btn", type: "button", onTap: () => { f = { ...FIT_VARSAYILAN }; tazele(); } }, "Ortala"),
+      h("button", { class: "btn primary", type: "button", onTap: () => { closeModal(); onSave(f); } }, "Tamam"))));
+}
+
+/** Kapağın görselini konumla ve kaydet (`hedef` = "cover" ya da "backCover"). */
+export async function openCoverFit(notebookId, hedef = "cover", sonra = null) {
+  const nb = store.notebook(notebookId);
+  const kapak = nb && nb[hedef];
+  if (!kapak || !kapak.imageAsset) return false;
+  const url = await store.assetURL(kapak.imageAsset);
+  if (!url) return false;
+  openImageFit({
+    url,
+    fit: kapak.imageFit,
+    baslik: hedef === "backCover" ? "Arka Kapağı Konumla" : "Kapağı Konumla",
+    onSave: (fit) => {
+      store.mutate(notebookId, (n) => { if (n[hedef]) n[hedef] = { ...n[hedef], imageFit: fit }; });
+      if (sonra) sonra();
+    }
+  });
+  return true;
 }
 
 export function sameCover(a, b) {

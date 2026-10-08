@@ -1,8 +1,8 @@
 // Kütüphane, Paper (WeTransfer) tarzı: mor zeminde yatay kapak sırası, üstte ad ve sayfa sayısı,
 // altta işlem düğmeleri. Kapağa dokununca sayfa yelpazesi açılır. Liste görünümü de duruyor.
 import { store, COVER_PRESETS, COVER_TITLES } from "./store.js";
-import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu } from "./ui.js";
-import { coverElement, sameCover, markCoverOpening } from "./covers.js";
+import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu, dokunusIsaretle } from "./ui.js";
+import { coverElement, sameCover, markCoverOpening, openCoverFit, openImageFit } from "./covers.js";
 import { folderElement, folderStyle, setFolderStyle, renameFolderStyle, dropFolderStyle, FOLDER_MATERIALS, FOLDER_COLORS } from "./folders.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { shrinkImage } from "./addpage.js";
@@ -122,7 +122,7 @@ export function renderLibrary(root) {
     body.replaceChildren(
       h("div", { class: "paper-head raf-bas" },
         currentFolder && !showingTrash
-          ? h("button", { class: "geri-klasor", type: "button", onTap: () => { currentFolder = null; render(); } }, svgIcon("back", 16), "Tüm defterler")
+          ? h("button", { class: "geri-klasor", type: "button", dataset: { klasor: "" }, onTap: () => { currentFolder = null; render(); } }, svgIcon("back", 16), "Tüm defterler")
           : null,
         h("h1", {}, showingTrash ? "Çöp Kutusu" : (currentFolder || (search ? `"${search}"` : "Defterlerim"))),
         h("div", { class: "sub" }, alt)),
@@ -159,11 +159,113 @@ export function renderLibrary(root) {
     rafGozlemci.observe(raflar);
   }
 
+  // ---------- sürükleyip klasöre atma ----------
+  //
+  // Basılı tutunca defter raftan kalkıyor ve parmağı izliyor; bir klasörün
+  // üstüne bırakınca o klasöre taşınıyor. Klasörün içindeyken "Tüm defterler"
+  // düğmesine bırakınca klasörden çıkıyor. Kıpırdatmadan bırakırsan eskisi gibi
+  // menü açılıyor; basar basmaz kaydırırsan raf kayıyor, sürükleme başlamıyor.
+
+  let surukleme = null;
+  const KALKMA_MS = 380;
+
+  // iOS, parmak kıpırdayınca sayfayı kaydırmaya karar veriyor ve dokunuşu
+  // iptal ediyor; sürüklerken bunu ancak touchmove'u durdurarak önleyebiliyoruz.
+  const kaydirmayiDurdur = (e) => { if (surukleme) e.preventDefault(); };
+  document.addEventListener("touchmove", kaydirmayiDurdur, { passive: false });
+
+  function suruklenebilir(oge, notebook, cover) {
+    let bekle = null;
+    let bas = null;
+    oge.addEventListener("pointerdown", (e) => {
+      if ((e.pointerType === "mouse" && e.button !== 0) || surukleme) return;
+      bas = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      bekle = setTimeout(() => { bekle = null; if (bas) kaldir(oge, notebook, bas); }, KALKMA_MS);
+    });
+    oge.addEventListener("pointermove", (e) => {
+      if (surukleme && surukleme.id === e.pointerId) { tasi(e.clientX, e.clientY); e.preventDefault(); return; }
+      if (bekle && bas && Math.hypot(e.clientX - bas.x, e.clientY - bas.y) > 10) { clearTimeout(bekle); bekle = null; bas = null; }
+    });
+    const bitir = (e, iptal) => {
+      if (bekle) {
+        clearTimeout(bekle);
+        bekle = null;
+        const dokunus = !iptal && bas && Math.hypot(e.clientX - bas.x, e.clientY - bas.y) <= 10;
+        bas = null;
+        if (dokunus) { dokunusIsaretle(e); openNotebook(notebook, cover); }
+        return;
+      }
+      bas = null;
+      if (surukleme && surukleme.id === e.pointerId) birak(e, iptal);
+    };
+    oge.addEventListener("pointerup", (e) => bitir(e, false));
+    oge.addEventListener("pointercancel", (e) => bitir(e, true));
+  }
+
+  function kaldir(oge, notebook, bas) {
+    const kutu = oge.getBoundingClientRect();
+    const hayalet = oge.cloneNode(true);
+    hayalet.classList.add("raf-hayalet");
+    Object.assign(hayalet.style, { width: kutu.width + "px", height: kutu.height + "px", left: kutu.left + "px", top: kutu.top + "px" });
+    document.body.append(hayalet);
+    oge.classList.add("kalkti");
+    try { oge.setPointerCapture(bas.id); } catch (_) { /* yakalanamazsa da devam */ }
+    surukleme = { id: bas.id, notebook, oge, hayalet, dx: bas.x - kutu.left, dy: bas.y - kutu.top, x0: bas.x, y0: bas.y, kipirdadi: false, hedef: null };
+    if (navigator.vibrate) navigator.vibrate(8);
+    document.body.classList.add("raf-surukleniyor");
+  }
+
+  function tasi(x, y) {
+    const s = surukleme;
+    if (!s) return;
+    if (!s.kipirdadi && Math.hypot(x - s.x0, y - s.y0) > 10) s.kipirdadi = true;
+    s.hayalet.style.left = (x - s.dx) + "px";
+    s.hayalet.style.top = (y - s.dy) + "px";
+    const altta = document.elementFromPoint(x, y);
+    const hedef = altta && altta.closest ? altta.closest("[data-klasor]") : null;
+    // Defter zaten o klasördeyse hedef sayılmıyor.
+    const gecerli = hedef && (hedef.dataset.klasor || null) !== (s.notebook.folder || null) ? hedef : null;
+    if (gecerli !== s.hedef) {
+      if (s.hedef) s.hedef.classList.remove("birak-hedef");
+      if (gecerli) gecerli.classList.add("birak-hedef");
+      s.hedef = gecerli;
+    }
+  }
+
+  function birak(e, iptal) {
+    const s = surukleme;
+    surukleme = null;
+    document.body.classList.remove("raf-surukleniyor");
+    if (s.hedef) s.hedef.classList.remove("birak-hedef");
+    const temizle = () => { s.hayalet.remove(); s.oge.classList.remove("kalkti"); };
+    if (iptal) { temizle(); return; }
+    if (!s.kipirdadi) {
+      // Basılı tutup bıraktı: menü (eski uzun basma).
+      temizle();
+      dokunusIsaretle(e);
+      notebookMenu(s.notebook);
+      return;
+    }
+    if (!s.hedef) { temizle(); return; }
+    const ad = s.hedef.dataset.klasor || null;
+    // Hayalet klasörün içine süzülüp kayboluyor.
+    const k = s.hedef.getBoundingClientRect();
+    const h0 = s.hayalet.getBoundingClientRect();
+    s.hayalet.style.transition = "transform 0.24s ease-in, opacity 0.24s ease-in";
+    s.hayalet.style.transform = `translate(${k.left + k.width / 2 - (h0.left + h0.width / 2)}px, ${k.top + k.height / 2 - (h0.top + h0.height / 2)}px) scale(0.25)`;
+    s.hayalet.style.opacity = "0";
+    setTimeout(() => {
+      temizle();
+      store.mutate(s.notebook.id, (n) => { n.folder = ad; });
+      toast(ad ? `“${s.notebook.title}” → ${ad}` : `“${s.notebook.title}” klasörden çıkarıldı`);
+    }, 240);
+  }
+
   /** Raftaki tek öğe: dokununca açılıyor, uzun basınca menü. */
   function rafOgesi(hucre) {
     if (hucre.tur === "klasor") {
       const klasor = folderElement(folderStyle(hucre.ad), { count: hucre.sayi });
-      const oge = h("div", { class: "raf-oge raf-klasor", role: "button", tabindex: "0", "aria-label": `${hucre.ad} klasörü, ${hucre.sayi} defter` }, klasor);
+      const oge = h("div", { class: "raf-oge raf-klasor", role: "button", tabindex: "0", dataset: { klasor: hucre.ad }, "aria-label": `${hucre.ad} klasörü, ${hucre.sayi} defter` }, klasor);
       pressable(oge, {
         onTap: () => { currentFolder = hucre.ad; currentIndex = 0; render(); },
         onLong: () => folderMenu(hucre.ad)
@@ -174,10 +276,11 @@ export function renderLibrary(root) {
     const notebook = hucre.notebook;
     const cover = coverElement(notebook.cover);
     const oge = h("div", { class: "raf-oge raf-defter", role: "button", tabindex: "0", "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` }, cover);
-    pressable(oge, {
-      onTap: () => { if (showingTrash) { trashMenu(notebook); return; } openNotebook(notebook, cover); },
-      onLong: () => showingTrash ? trashMenu(notebook) : notebookMenu(notebook)
-    });
+    if (showingTrash) {
+      pressable(oge, { onTap: () => trashMenu(notebook), onLong: () => trashMenu(notebook) });
+    } else {
+      suruklenebilir(oge, notebook, cover);
+    }
     const etiket = h("div", { class: "raf-etiket" },
       h("span", { class: "ad" }, notebook.isFavourite ? "★ " + notebook.title : notebook.title),
       h("span", { class: "say" }, `${notebook.pages.length} sayfa`));
@@ -392,11 +495,26 @@ export function renderLibrary(root) {
         const { blob } = await shrinkImage(file, 1200);
         const asset = await store.importAsset(blob, file.name);
         secili = { ...secili, imageAsset: asset };
+        delete secili.imageFit;
         setFolderStyle(name, secili);
         tazele();
         render();
+        klasorKonumla();
       } catch (error) { toast("Görsel eklenemedi: " + error.message); }
     } }, svgIcon("photo", 16), "Görsel"));
+    // Klasör görselinin yeri: kapaktaki gibi kaydırıp yakınlaştırma.
+    const klasorKonumla = async () => {
+      if (!secili.imageAsset) return;
+      const url = await store.assetURL(secili.imageAsset);
+      if (!url) return;
+      openImageFit({
+        url, oran: 4 / 3, fit: secili.imageFit, baslik: name + " — Görseli Konumla",
+        onSave: (fit) => { secili = { ...secili, imageFit: fit }; setFolderStyle(name, secili); render(); }
+      });
+    };
+    if (secili.imageAsset) {
+      malzemeler.append(h("button", { class: "klasor-malzeme", type: "button", onTap: klasorKonumla }, "Konumla"));
+    }
     if (secili.imageAsset) {
       malzemeler.append(h("button", { class: "klasor-malzeme", type: "button", onTap: () => {
         secili = { color: secili.color, material: secili.material };
@@ -494,6 +612,8 @@ export function renderLibrary(root) {
       { title: "Yeniden Adlandır", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", notebook.title, (title) => store.mutate(notebook.id, (n) => { n.title = title; })) },
       { title: "Kapağı Değiştir", onSelect: () => coverPicker(notebook) },
       { title: "Arka Kapağı Değiştir", onSelect: () => coverPicker(notebook, "backCover") },
+      notebook.cover && notebook.cover.imageAsset && { title: "Kapağı Konumla", onSelect: () => openCoverFit(notebook.id, "cover") },
+      notebook.backCover && notebook.backCover.imageAsset && { title: "Arka Kapağı Konumla", onSelect: () => openCoverFit(notebook.id, "backCover") },
       { title: "Klasöre Taşı", onSelect: () => moveToFolderMenu(notebook) },
       { title: notebook.isFavourite ? "Favoriden Çıkar" : "Favorilere Ekle", onSelect: () => store.mutate(notebook.id, (n) => { n.isFavourite = !n.isFavourite; }) },
       { title: "Çöpe At", destructive: true, onSelect: () => { store.mutate(notebook.id, (n) => { n.isTrashed = true; }); toast("Çöp kutusuna taşındı"); } }
@@ -522,7 +642,11 @@ export function renderLibrary(root) {
     for (const option of options) {
       const cell = h("div", { class: "mini-cover" + (sameCover(option, notebook[hedef]) ? " selected" : ""), role: "button", tabindex: "0",
         "aria-label": option.imageAsset ? "Kendi kapağım" : COVER_TITLES[option.pattern],
-        onTap: () => { store.mutate(notebook.id, (n) => { n[hedef] = option; }); closeModal(); } }, coverElement(option));
+        onTap: () => {
+          store.mutate(notebook.id, (n) => { n[hedef] = { ...option }; });
+          closeModal();
+          if (option.imageAsset) setTimeout(() => openCoverFit(notebook.id, hedef), 250);
+        } }, coverElement(option));
       grid.append(cell);
     }
     grid.append(h("div", { class: "mini-cover", role: "button", tabindex: "0", "aria-label": "Kendi kapağını ekle",
@@ -536,6 +660,8 @@ export function renderLibrary(root) {
           store.setSetting("customCovers", [...store.settings.customCovers, asset]);
           store.mutate(notebook.id, (n) => { n[hedef] = { pattern: "plain", color: "#DDDDDD", imageAsset: asset }; });
           closeModal();
+          // Yeni görsel hemen konumlansın: ortası her zaman doğru yer değil.
+          setTimeout(() => openCoverFit(notebook.id, hedef), 250);
         } catch (error) { toast("Kapak eklenemedi: " + error.message); }
       } }, svgIcon("plus", 26), "Kendi kapağım"));
     openModal(h("div", { class: "dialog", style: { width: "min(760px, 100%)" } },
@@ -554,6 +680,8 @@ export function renderLibrary(root) {
   return {
     destroy() {
       if (rafGozlemci) rafGozlemci.disconnect();
+      document.removeEventListener("touchmove", kaydirmayiDurdur);
+      if (surukleme) { surukleme.hayalet.remove(); surukleme = null; document.body.classList.remove("raf-surukleniyor"); }
       store.removeEventListener("change", onChange);
       store.removeEventListener("settings", onChange);
     }

@@ -150,7 +150,7 @@ const HAYALET_MS = 700;
 const HAYALET_PX = 26;
 const sonDokunuslar = [];
 
-function dokunusIsaretle(e) {
+export function dokunusIsaretle(e) {
   sonDokunuslar.push({ at: Date.now(), x: e && e.clientX != null ? e.clientX : 0, y: e && e.clientY != null ? e.clientY : 0 });
   if (sonDokunuslar.length > 4) sonDokunuslar.shift();
 }
@@ -370,7 +370,7 @@ export function popoverMenu(anchor, actions, { title = null } = {}) {
   const backdrop = h("div", { class: "pop-backdrop" });
   const menu = h("div", { class: "pop-menu", role: "menu" },
     title ? h("div", { class: "pop-title" }, title) : null,
-    ...actions.map((a) => h("button", { class: "pop-item" + (a.destructive ? " destructive" : ""), type: "button", role: "menuitem", disabled: a.disabled || null,
+    ...actions.filter(Boolean).map((a) => h("button", { class: "pop-item" + (a.destructive ? " destructive" : ""), type: "button", role: "menuitem", disabled: a.disabled || null,
       onTap: () => { close(); a.onSelect(); } }, a.icon ? svgIcon(a.icon, 20) : null, h("span", {}, a.title))));
   const close = () => {
     menu.classList.remove("in");

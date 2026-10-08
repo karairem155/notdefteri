@@ -8,7 +8,7 @@ import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines,
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
 import { createCurlFlip, createCoverAnim } from "./curl.js";
-import { coverBitmap, coverElement, sameCover, takeCoverOpening } from "./covers.js";
+import { coverBitmap, coverElement, sameCover, takeCoverOpening, openCoverFit } from "./covers.js";
 import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
@@ -293,6 +293,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         ? { title: "Yan Yanayı Kapat", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}`); } }
         : { title: "Yan Yana Aç", onSelect: yanYanaMenu },
       { title: "Arka Kapağı Değiştir", onSelect: arkaKapakSec },
+      nb().backCover && nb().backCover.imageAsset && { title: "Arka Kapağı Konumla", onSelect: () => openCoverFit(notebookId, "backCover", renderStage) },
       { title: "Sayfalar Izgarası", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); } },
       { title: "Kütüphane", onSelect: () => { flushInk(); navigate("#/"); } }
     ]);
@@ -541,6 +542,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
           const asset = await store.importAsset(blob, file.name);
           store.setSetting("customCovers", [...store.settings.customCovers, asset]);
           sec({ pattern: "plain", color: "#DDDDDD", imageAsset: asset });
+          setTimeout(() => openCoverFit(notebookId, "backCover", renderStage), 250);
         } catch (error) { toast("Kapak eklenemedi: " + error.message); }
       } }, svgIcon("plus", 26), "Kendi görselim"));
     openModal(h("div", { class: "dialog", style: { width: "min(760px, 100%)" } },
