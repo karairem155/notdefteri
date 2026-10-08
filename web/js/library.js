@@ -66,6 +66,9 @@ export function renderLibrary(root) {
         iconButton(showingTrash ? "books" : "trash", showingTrash ? "Kütüphane" : "Çöp Kutusu", () => { showingTrash = !showingTrash; search = ""; currentIndex = 0; render(); })),
       h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },
+        !showingTrash && iconButton(rafModu() ? "books" : "grid", rafModu() ? "Tek tek göster" : "Raf görünümü", () => {
+          store.setSetting("libraryView", rafModu() ? "karusel" : "raf");
+        }),
         iconButton("search", "Ara", openSearch),
         !showingTrash && iconButton("share", "Yedekle", () => exportBackup()),
         !showingTrash && iconButton("gear", "Ayarlar", () => navigate("#/settings")))
@@ -80,6 +83,8 @@ export function renderLibrary(root) {
 
   function render() {
     renderTopbar();
+    if (rafGozlemci) { rafGozlemci.disconnect(); rafGozlemci = null; }
+    if (rafModu()) { rafCiz(); return; }
     const list = hucreler();
     const hucre = currentCell();
     body.replaceChildren(
@@ -93,6 +98,90 @@ export function renderLibrary(root) {
       actionBar(current())
     );
     requestAnimationFrame(() => { centerOn(currentIndex, false); updateCurrent(); });
+  }
+
+  // ---------- raf görünümü ----------
+  //
+  // Karuselde tek defter ortada duruyor, gerisi yanlarda küçülüyor: aranan
+  // defteri bulmak için tek tek kaydırmak gerekiyordu. Rafta hepsi bir arada:
+  // klasörler ve defterler sıralar halinde camdan rafların üstünde duruyor,
+  // adları rafın altında. Sütun sayısı ekran genişliğine göre.
+
+  let rafGozlemci = null;
+  const rafModu = () => (store.settings.libraryView || "raf") === "raf";
+  const RAF_EN = 132;       // bir rafa düşen öğenin eni
+  const RAF_ARA = 26;
+
+  function rafCiz() {
+    const list = hucreler();
+    const say = list.filter((x) => x.tur === "defter").length;
+    const klasorSay = list.filter((x) => x.tur === "klasor").length;
+    const alt = showingTrash ? (say ? `${say} silinmiş defter` : "Silinen defterler burada")
+      : [klasorSay ? `${klasorSay} klasör` : null, say ? `${say} defter` : null].filter(Boolean).join(" · ") || "Henüz defter yok";
+    const raflar = h("div", { class: "raflar" });
+    body.replaceChildren(
+      h("div", { class: "paper-head raf-bas" },
+        currentFolder && !showingTrash
+          ? h("button", { class: "geri-klasor", type: "button", onTap: () => { currentFolder = null; render(); } }, svgIcon("back", 16), "Tüm defterler")
+          : null,
+        h("h1", {}, showingTrash ? "Çöp Kutusu" : (currentFolder || (search ? `"${search}"` : "Defterlerim"))),
+        h("div", { class: "sub" }, alt)),
+      list.length ? raflar : emptyState(),
+      actionBar(null)
+    );
+    if (!list.length) return;
+    // Dar ekranda (bölünmüş iPad) iki iri öğe yerine üç küçük öğe sığsın.
+    const sutunSay = () => {
+      const en = raflar.clientWidth || body.clientWidth || 600;
+      return Math.max(en >= 400 ? 3 : 2, Math.floor((en - 56 + RAF_ARA) / (RAF_EN + RAF_ARA)));
+    };
+    const diz = (sutun) => {
+      raflar.replaceChildren();
+      raflar.style.setProperty("--sutun", String(sutun));
+      for (let i = 0; i < list.length; i += sutun) {
+        const sira = list.slice(i, i + sutun);
+        const ogeler = h("div", { class: "raf-ogeler" });
+        const etiketler = h("div", { class: "raf-etiketler" });
+        for (const hucre of sira) {
+          const [oge, etiket] = rafOgesi(hucre);
+          ogeler.append(oge);
+          etiketler.append(etiket);
+        }
+        raflar.append(h("div", { class: "raf-satir" }, ogeler, h("div", { class: "raf-tahta" }), etiketler));
+      }
+    };
+    let sonSutun = sutunSay();
+    diz(sonSutun);
+    rafGozlemci = new ResizeObserver(() => {
+      const sutun = sutunSay();
+      if (sutun !== sonSutun) { sonSutun = sutun; diz(sutun); }
+    });
+    rafGozlemci.observe(raflar);
+  }
+
+  /** Raftaki tek öğe: dokununca açılıyor, uzun basınca menü. */
+  function rafOgesi(hucre) {
+    if (hucre.tur === "klasor") {
+      const klasor = folderElement(folderStyle(hucre.ad), { count: hucre.sayi });
+      const oge = h("div", { class: "raf-oge raf-klasor", role: "button", tabindex: "0", "aria-label": `${hucre.ad} klasörü, ${hucre.sayi} defter` }, klasor);
+      pressable(oge, {
+        onTap: () => { currentFolder = hucre.ad; currentIndex = 0; render(); },
+        onLong: () => folderMenu(hucre.ad)
+      });
+      const etiket = h("div", { class: "raf-etiket" }, h("span", { class: "ad" }, hucre.ad), h("span", { class: "say" }, hucre.sayi ? `${hucre.sayi} defter` : "boş"));
+      return [oge, etiket];
+    }
+    const notebook = hucre.notebook;
+    const cover = coverElement(notebook.cover);
+    const oge = h("div", { class: "raf-oge raf-defter", role: "button", tabindex: "0", "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` }, cover);
+    pressable(oge, {
+      onTap: () => { if (showingTrash) { trashMenu(notebook); return; } openNotebook(notebook, cover); },
+      onLong: () => showingTrash ? trashMenu(notebook) : notebookMenu(notebook)
+    });
+    const etiket = h("div", { class: "raf-etiket" },
+      h("span", { class: "ad" }, notebook.isFavourite ? "★ " + notebook.title : notebook.title),
+      h("span", { class: "say" }, `${notebook.pages.length} sayfa`));
+    return [oge, etiket];
   }
 
   function basligi(hucre) {
@@ -464,6 +553,7 @@ export function renderLibrary(root) {
 
   return {
     destroy() {
+      if (rafGozlemci) rafGozlemci.disconnect();
       store.removeEventListener("change", onChange);
       store.removeEventListener("settings", onChange);
     }
