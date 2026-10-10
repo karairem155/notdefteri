@@ -66,6 +66,20 @@ export const TOOLS = {
   frosted: { title: "Buzlu Kalem" }
 };
 
+/**
+ * Sayfa sekmeleri: kitaplara yapıştırılan renkli işaret bayrakları.
+ * Her defterin kendi türleri olabilir (nb.sekmeTurleri); yoksa bunlar.
+ * Renkler fotoğraftaki yarı saydam bayraklardan.
+ */
+export const SEKME_TURLERI = [
+  { renk: "#7FC4F0", ad: "Önemli" },
+  { renk: "#F2B8C6", ad: "Komik" },
+  { renk: "#2F6FD6", ad: "Fikir" },
+  { renk: "#BFE0F5", ad: "Alıntı" },
+  { renk: "#8FA9C9", ad: "Soru" },
+  { renk: "#6F6FB8", ad: "Tekrar" }
+];
+
 export const COVER_PRESETS = [
   { pattern: "plain", color: "#F6A9C6" },
   { pattern: "plain", color: "#A9C7F5" },

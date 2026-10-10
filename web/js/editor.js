@@ -2,7 +2,7 @@
 // Sayfa katmanları (alttan üste): şablon → nesneler (fotoğraf/çıkartma/post-it) → çizim → örtüler.
 // Kipler: çizim / buzlu kalem (örtü katmanı çizgiyi buzlu şerit yapar) / nesne düzenleme.
 import { renderPageCanvas as renderPageCanvasShared, spillFor } from "./pagerender.js";
-import { store, TOOLS, uid, COVER_PRESETS } from "./store.js";
+import { store, TOOLS, uid, COVER_PRESETS, SEKME_TURLERI } from "./store.js";
 import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, pickFiles, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
@@ -419,11 +419,110 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     if (!bolme) history.replaceState(null, "", `#/n/${notebookId}/p/${id}`);
   }
 
+  // ---------- sayfa sekmeleri ----------
+  //
+  // Kitaplara yapıştırılan renkli bayraklar gibi: sayfaya sekme takınca
+  // defterin dış kenarından taşıyor. Gerçek kitaptaki gibi önceki sayfaların
+  // sekmeleri sol kenarda, sonrakilerinki sağ kenarda duruyor; açık sayfanınki
+  // biraz daha dışarıda. Her türün kendi yüksekliği var, yani kenara bakınca
+  // bütün "Alıntı"lar aynı hizada. Dokununca o sayfaya gidiliyor.
+
+  const SEKME_DIS = 30;        // sayfanın dışına taşan kısım (sayfa birimi)
+  const SEKME_ACIK = 42;       // açık sayfanın sekmesi daha dışarıda
+  const SEKME_IC = 16;         // sayfanın üstüne yapışan kısım
+  const SEKME_BOY = 50;
+
+  const sekmeTurleri = () => (nb().sekmeTurleri && nb().sekmeTurleri.length ? nb().sekmeTurleri : SEKME_TURLERI);
+
+  function renderSekmeler(spreadEl) {
+    const list = pages();
+    if (!list.some((p) => p.sekme)) return;
+    const turler = sekmeTurleri();
+    const genis = parseFloat(spreadEl.style.width) || 0;
+    const yuksek = parseFloat(spreadEl.style.height) || 0;
+    const solSon = spreadMode() ? spreadLeft() : selectedIndex() - 1;        // bu ve öncesi solda
+    const acik = spreadMode() ? [spreadLeft(), spreadLeft() + 1] : [selectedIndex()];
+    const kenar = h("div", { class: "sekme-kenari" });
+    list.forEach((page, i) => {
+      if (!page.sekme) return;
+      const tur = Math.min(turler.length - 1, Math.max(0, page.sekme.tur | 0));
+      const solda = i <= solSon;
+      const acikMi = acik.includes(i);
+      const dis = acikMi ? SEKME_ACIK : SEKME_DIS;
+      // Tür bandı + aynı banttakiler biraz kaysın diye küçük sapma.
+      const bant = (yuksek * 0.8) / turler.length;
+      const y = yuksek * 0.08 + bant * (tur + 0.5) - SEKME_BOY / 2 + ((i % 4) - 1.5) * 7;
+      const el = h("div", {
+        class: "sekme" + (solda ? " sol" : " sag") + (acikMi ? " acik" : ""),
+        style: {
+          "--renk": turler[tur].renk,
+          top: y + "px",
+          height: SEKME_BOY + "px",
+          width: (dis + SEKME_IC) + "px",
+          left: solda ? -dis + "px" : (genis - SEKME_IC) + "px",
+          zIndex: String(solda ? 10 + i : 10 + list.length - i)
+        }
+      }, h("div", { class: "sekme-dil", role: "button", tabindex: "0", "aria-label": `${turler[tur].ad} sekmesi, ${i + 1}. sayfa` }));
+      pressable(el.firstChild, { onTap: () => { if (page.id !== selectedPageId) selectPage(page.id); } });
+      kenar.append(el);
+    });
+    spreadEl.append(kenar);
+  }
+
+  /** Bu sayfanın sekmesi: tür seç, kaldır, türlerin adlarını değiştir. */
+  function sekmeMenu() {
+    const page = selectedPage();
+    const turler = sekmeTurleri().map((t) => ({ ...t }));
+    const govde = h("div", { class: "sekme-secici" });
+    const ciz = (duzenleniyor) => {
+      govde.replaceChildren(...turler.map((t, i) => {
+        if (duzenleniyor) {
+          const giris = h("input", { type: "text", value: t.ad, class: "sekme-ad-girisi", "aria-label": "Sekme adı" });
+          giris.addEventListener("input", () => { t.ad = giris.value.trim() || t.ad; });
+          return h("div", { class: "sekme-satir" }, h("span", { class: "sekme-ornek", style: { "--renk": t.renk } }), giris);
+        }
+        const secili = page.sekme && (page.sekme.tur | 0) === i;
+        return h("button", { class: "sekme-satir" + (secili ? " secili" : ""), type: "button", onTap: () => {
+          store.updatePage(notebookId, page.id, (p) => { p.sekme = { tur: i }; });
+          closeModal();
+          renderStage();
+        } }, h("span", { class: "sekme-ornek", style: { "--renk": t.renk } }), h("span", {}, t.ad));
+      }));
+    };
+    ciz(false);
+    let duzenleme = false;
+    const duzenleBtn = h("button", { class: "btn", type: "button", onTap: () => {
+      if (duzenleme) {
+        // Adlar bu deftere kaydediliyor (varsayılanlar değişmiyor).
+        store.mutate(notebookId, (n) => { n.sekmeTurleri = turler.map((t) => ({ renk: t.renk, ad: t.ad })); });
+        duzenleme = false;
+        duzenleBtn.textContent = "Adları Düzenle";
+      } else {
+        duzenleme = true;
+        duzenleBtn.textContent = "Kaydet";
+      }
+      ciz(duzenleme);
+    } }, "Adları Düzenle");
+    openModal(h("div", { class: "dialog", style: { width: "min(380px, 100%)" } },
+      h("h3", {}, "Sayfa Sekmesi"),
+      h("p", {}, "Sekme defterin kenarından taşar; dokununca bu sayfaya gelirsin."),
+      govde,
+      h("div", { class: "dialog-actions" },
+        page.sekme && h("button", { class: "btn danger", type: "button", onTap: () => {
+          store.updatePage(notebookId, page.id, (p) => { delete p.sekme; });
+          closeModal();
+          renderStage();
+        } }, "Kaldır"),
+        duzenleBtn,
+        h("button", { class: "btn primary", type: "button", onTap: closeModal }, "Kapat"))));
+  }
+
   function pageActionsMenu() {
     const page = selectedPage();
     const index = selectedIndex();
     const count = pages().length;
     actionSheet(`${index + 1}. sayfa`, [
+      { title: page.sekme ? "Sekmeyi Değiştir" : "Sekme Tak", onSelect: sekmeMenu },
       { title: "Açık Defterler", onSelect: openNotebooksMenu },
       { title: "Yedekle", onSelect: () => import("./backup.js").then((m) => m.exportBackup()) },
       { title: "Ayarlar", onSelect: () => { flushInk(); navigate("#/settings"); } },
@@ -472,6 +571,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       content = h("div", { class: "spread", style: { width: page.size.w + "px", height: page.size.h + "px" } }, h("div", { class: "back-sheets" }), pageStack(page));
     }
     stage.append(content);
+    renderSekmeler(content);
     activeInk = inks.get(selectedPageId) || inks.values().next().value || null;
     fit();
     prewarmFlip();
@@ -485,7 +585,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     const w = parseFloat(spread.style.width);
     const hgt = parseFloat(spread.style.height);
     const margin = spread.classList.contains("double") ? 26 : 12;   // tek sayfa köşelere kadar otursun
-    fitScale = Math.max(0.1, Math.min((editorBody.clientWidth - margin) / w, (editorBody.clientHeight - margin) / hgt));
+    // Sekmeler sayfanın dışına taşıyor: varsa iki yana o kadar pay.
+    const sekmePay = pages().some((p) => p.sekme) ? SEKME_DIS * 2 + 8 : 0;
+    fitScale = Math.max(0.1, Math.min((editorBody.clientWidth - margin) / (w + sekmePay), (editorBody.clientHeight - margin) / hgt));
     stage.style.width = w + "px";
     stage.style.height = hgt + "px";
     applyTransform();

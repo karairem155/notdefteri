@@ -1,6 +1,6 @@
 // Kütüphane, Paper (WeTransfer) tarzı: mor zeminde yatay kapak sırası, üstte ad ve sayfa sayısı,
 // altta işlem düğmeleri. Kapağa dokununca sayfa yelpazesi açılır. Liste görünümü de duruyor.
-import { store, COVER_PRESETS, COVER_TITLES } from "./store.js";
+import { store, COVER_PRESETS, COVER_TITLES, SEKME_TURLERI } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu, dokunusIsaretle } from "./ui.js";
 import { coverElement, sameCover, markCoverOpening, openCoverFit, openImageFit } from "./covers.js";
 import { folderElement, folderStyle, setFolderStyle, renameFolderStyle, dropFolderStyle, FOLDER_MATERIALS, FOLDER_COLORS } from "./folders.js";
@@ -276,6 +276,18 @@ export function renderLibrary(root) {
     const notebook = hucre.notebook;
     const cover = coverElement(notebook.cover);
     const oge = h("div", { class: "raf-oge raf-defter", role: "button", tabindex: "0", "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` }, cover);
+    // Sekmeli defterde kapağın kenarından minik bayraklar görünüyor.
+    const sekmeli = notebook.pages.filter((p) => p.sekme);
+    if (sekmeli.length) {
+      const turler = notebook.sekmeTurleri && notebook.sekmeTurleri.length ? notebook.sekmeTurleri : SEKME_TURLERI;
+      const kenar = h("div", { class: "kapak-sekmeler" });
+      sekmeli.slice(0, 14).forEach((p, j) => {
+        const tur = Math.min(turler.length - 1, Math.max(0, p.sekme.tur | 0));
+        const y = 8 + (80 / turler.length) * (tur + 0.5) + ((j % 3) - 1) * 1.6;
+        kenar.append(h("span", { style: { "--renk": turler[tur].renk, top: `calc(${y}% - 6px)` } }));
+      });
+      oge.append(kenar);
+    }
     if (showingTrash) {
       pressable(oge, { onTap: () => trashMenu(notebook), onLong: () => trashMenu(notebook) });
     } else {
