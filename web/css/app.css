@@ -472,7 +472,10 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 /* 3B derinlik: sayfa yelpazesi kartları */
 
 /* Bant: kodla çizilen yarı saydam şerit, yırtık uçlar, desenler */
-.placed.tape, .tape-preview { --tape-clip: polygon(0 6%, 1.5% 0, 3% 8%, 4.5% 0, 6% 6%, 100% 0, 98.5% 8%, 97% 0, 95.5% 7%, 94% 0, 100% 100%, 98.5% 92%, 97% 100%, 95.5% 93%, 94% 100%, 6% 100%, 4.5% 92%, 3% 100%, 1.5% 94%, 0 100%); }
+/* Bandın yalnız kısa uçları yırtık (sağ ve sol kenar dişli), üst ve alt düz.
+   Eskiden dişler üst kenarda yatay gidiyor, sağ üstten sağ alta çapraz bir
+   çizgi çekiliyordu: bantlar yamuk görünüyordu. */
+.placed.tape, .tape-preview { --tape-clip: polygon(100% 0%, 97.5% 6%, 100% 12%, 97% 19%, 100% 26%, 97.8% 33%, 100% 40%, 97.2% 47%, 100% 54%, 97.6% 61%, 100% 68%, 97% 75%, 100% 82%, 97.7% 89%, 100% 95%, 98.5% 100%, 1.5% 100%, 0% 95%, 2.4% 89%, 0% 82%, 2.8% 75%, 0% 68%, 2.2% 61%, 0% 54%, 2.9% 47%, 0% 40%, 2.3% 33%, 0% 26%, 2.7% 19%, 0% 12%, 2.4% 6%, 1.2% 0%); }
 .placed.tape .tape-body, .tape-preview .tape-body { position: absolute; inset: 0; clip-path: var(--tape-clip); background: color-mix(in srgb, var(--tint) 82%, transparent); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
 .placed.tape { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.18)); opacity: 0.94; }
 .placed.tape .tape-body::after, .tape-preview .tape-body::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 40%, rgba(0, 0, 0, 0.06)); }
@@ -1303,4 +1306,7 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .raf-defter { position: relative; }
 .kapak-sekmeler { position: absolute; top: 0; bottom: 0; right: -7px; width: 12px; pointer-events: none; }
 .kapak-sekmeler > span { position: absolute; left: 0; width: 12px; height: 12px; border-radius: 1px 3px 3px 1px; background: color-mix(in srgb, var(--renk) 88%, transparent); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+.sekme.tasiniyor { z-index: 60 !important; }
+.sekme.tasiniyor .sekme-dil { filter: brightness(1.06); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); cursor: grabbing; }
+.sekme-dil { touch-action: none; }
 

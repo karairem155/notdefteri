@@ -19,6 +19,9 @@ export function spillFor(pages, index) {
   return { objects: left.objects || [], dx: -left.size.w };
 }
 
+/** Bandın yırtık uçlu şekli (CSS'teki --tape-clip ile aynı noktalar, 0..1). */
+const BANT_SEKLI = [[1, 0], [0.975, 0.06], [1, 0.12], [0.97, 0.19], [1, 0.26], [0.978, 0.33], [1, 0.4], [0.972, 0.47], [1, 0.54], [0.976, 0.61], [1, 0.68], [0.97, 0.75], [1, 0.82], [0.977, 0.89], [1, 0.95], [0.985, 1], [0.015, 1], [0, 0.95], [0.024, 0.89], [0, 0.82], [0.028, 0.75], [0, 0.68], [0.022, 0.61], [0, 0.54], [0.029, 0.47], [0, 0.4], [0.023, 0.33], [0, 0.26], [0.027, 0.19], [0, 0.12], [0.024, 0.06], [0.012, 0]];
+
 /** İki rengi karıştırır (CSS'teki color-mix karşılığı). */
 function karistir(a, b, oran) {
   const oku = (c) => {
@@ -96,9 +99,19 @@ export async function renderPageCanvas(page, scale, opts = {}) {
       ctx.fillStyle = karistir(tint, "#000000", 0.25);
       ctx.fill();
     } else if (object.kind === "tape") {
-      ctx.globalAlpha = 0.85;
+      // Ekrandaki bantla aynı yırtık uçlu şekil.
+      const w = object.rect.w;
+      const h = object.rect.h;
+      ctx.globalAlpha = 0.82;
       ctx.fillStyle = object.tint || "#F5D76E";
-      ctx.fillRect(-object.rect.w / 2, -object.rect.h / 2, object.rect.w, object.rect.h);
+      ctx.beginPath();
+      BANT_SEKLI.forEach(([x, y], i) => {
+        const px = -w / 2 + x * w;
+        const py = -h / 2 + y * h;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.fill();
       ctx.globalAlpha = 1;
     } else if (object.kind === "check") {
       const r = object.rect.w / 2;

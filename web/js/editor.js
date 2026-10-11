@@ -449,9 +449,12 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       const solda = i <= solSon;
       const acikMi = acik.includes(i);
       const dis = acikMi ? SEKME_ACIK : SEKME_DIS;
-      // Tür bandı + aynı banttakiler biraz kaysın diye küçük sapma.
+      // Kullanıcı yerini kendisi seçtiyse o; yoksa tür bandı + aynı banttakiler
+      // biraz kaysın diye küçük sapma.
       const bant = (yuksek * 0.8) / turler.length;
-      const y = yuksek * 0.08 + bant * (tur + 0.5) - SEKME_BOY / 2 + ((i % 4) - 1.5) * 7;
+      const y = Number.isFinite(page.sekme.y)
+        ? page.sekme.y * yuksek - SEKME_BOY / 2
+        : yuksek * 0.08 + bant * (tur + 0.5) - SEKME_BOY / 2 + ((i % 4) - 1.5) * 7;
       const el = h("div", {
         class: "sekme" + (solda ? " sol" : " sag") + (acikMi ? " acik" : ""),
         style: {
@@ -463,10 +466,52 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
           zIndex: String(solda ? 10 + i : 10 + list.length - i)
         }
       }, h("div", { class: "sekme-dil", role: "button", tabindex: "0", "aria-label": `${turler[tur].ad} sekmesi, ${i + 1}. sayfa` }));
-      pressable(el.firstChild, { onTap: () => { if (page.id !== selectedPageId) selectPage(page.id); } });
+      sekmeSuruklenebilir(el, page, yuksek);
       kenar.append(el);
     });
     spreadEl.append(kenar);
+  }
+
+  /**
+   * Sekmeyi kenar boyunca sürükleyerek yerini değiştir; dokununca o sayfaya git.
+   *
+   * Editörün kendi jestleri (sayfa çevirme, kaydırma) devreye girmesin diye
+   * olay burada durduruluyor. Bırakınca yer, sayfa boyunun oranı olarak
+   * kaydediliyor (sayfa boyutu değişse de aynı yerde kalsın).
+   */
+  function sekmeSuruklenebilir(el, page, yuksek) {
+    const dil = el.firstChild;
+    let bas = null;
+    dil.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      bas = { id: e.pointerId, y: e.clientY, top: parseFloat(el.style.top) || 0, oynadi: false };
+      try { dil.setPointerCapture(e.pointerId); } catch (_) { /* yine çalışır */ }
+    });
+    dil.addEventListener("pointermove", (e) => {
+      if (!bas || e.pointerId !== bas.id) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const olcek = parseFloat(stage.dataset.scale) || 1;
+      const dy = (e.clientY - bas.y) / olcek;
+      if (!bas.oynadi && Math.abs(e.clientY - bas.y) < 6) return;
+      bas.oynadi = true;
+      el.classList.add("tasiniyor");
+      const top = Math.max(-SEKME_BOY / 3, Math.min(yuksek - SEKME_BOY * 2 / 3, bas.top + dy));
+      el.style.top = top + "px";
+    });
+    const bitir = (e) => {
+      if (!bas || e.pointerId !== bas.id) return;
+      e.stopPropagation();
+      const b = bas;
+      bas = null;
+      el.classList.remove("tasiniyor");
+      if (!b.oynadi) { if (page.id !== selectedPageId) selectPage(page.id); return; }
+      const merkez = (parseFloat(el.style.top) || 0) + SEKME_BOY / 2;
+      const oran = Math.max(0, Math.min(1, merkez / yuksek));
+      store.updatePage(notebookId, page.id, (p) => { if (p.sekme) p.sekme.y = oran; });
+    };
+    dil.addEventListener("pointerup", bitir);
+    dil.addEventListener("pointercancel", (e) => { if (bas && e.pointerId === bas.id) { bas = null; el.classList.remove("tasiniyor"); renderStage(); } });
   }
 
   /** Bu sayfanın sekmesi: tür seç, kaldır, türlerin adlarını değiştir. */
@@ -483,7 +528,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         }
         const secili = page.sekme && (page.sekme.tur | 0) === i;
         return h("button", { class: "sekme-satir" + (secili ? " secili" : ""), type: "button", onTap: () => {
-          store.updatePage(notebookId, page.id, (p) => { p.sekme = { tur: i }; });
+          store.updatePage(notebookId, page.id, (p) => { p.sekme = { ...(p.sekme || {}), tur: i }; });
           closeModal();
           renderStage();
         } }, h("span", { class: "sekme-ornek", style: { "--renk": t.renk } }), h("span", {}, t.ad));
@@ -505,7 +550,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     } }, "Adları Düzenle");
     openModal(h("div", { class: "dialog", style: { width: "min(380px, 100%)" } },
       h("h3", {}, "Sayfa Sekmesi"),
-      h("p", {}, "Sekme defterin kenarından taşar; dokununca bu sayfaya gelirsin."),
+      h("p", {}, "Sekme defterin kenarından taşar; dokununca bu sayfaya gelirsin. Yerini değiştirmek için kenarda yukarı aşağı sürükle."),
       govde,
       h("div", { class: "dialog-actions" },
         page.sekme && h("button", { class: "btn danger", type: "button", onTap: () => {

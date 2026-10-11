@@ -283,7 +283,7 @@ export function renderLibrary(root) {
       const kenar = h("div", { class: "kapak-sekmeler" });
       sekmeli.slice(0, 14).forEach((p, j) => {
         const tur = Math.min(turler.length - 1, Math.max(0, p.sekme.tur | 0));
-        const y = 8 + (80 / turler.length) * (tur + 0.5) + ((j % 3) - 1) * 1.6;
+        const y = Number.isFinite(p.sekme.y) ? p.sekme.y * 100 : 8 + (80 / turler.length) * (tur + 0.5) + ((j % 3) - 1) * 1.6;
         kenar.append(h("span", { style: { "--renk": turler[tur].renk, top: `calc(${y}% - 6px)` } }));
       });
       oge.append(kenar);
