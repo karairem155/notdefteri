@@ -259,14 +259,18 @@ html[data-masa="pudra"] .paper-head h1 { font-weight: 700; letter-spacing: -0.4p
 html[data-masa="pudra"] .paper-empty { color: var(--murekkep); }
 
 
-/* ===== Masa: Logo (deneme) =====
+/* ===== Masa: Marka (varsayılan) ve Gül =====
+   Logo bağını lacivert kütle kuruyor, pembe değil: zemin nötr (pembeye çalmayan
+   sıcak gri), çubuklar mat lacivert, pembe yalnız küçük vurgu. "Gül" seçeneği
+   aynı arayüzü logo pembesinin tozlu akrabası bir zeminde gösteriyor.
+   Eski not:
    Logodaki ilişki: pembe zemin üstünde dolgun lacivert kütle. Zemin tozlu gül
    (logo pembesinin akrabası), çubuklar ve düğmeler mat, hafif kabarık lacivert
    (logodaki malzeme), simgeler kâğıt rengi, vurgu canlı pembe. Menüler ve
    paneller pudradaki gibi kâğıt kalıyor; defter ve sayfalar gerçekçi. */
 html[data-logo] {
-  --desk: #e8c6ce; --pudra: #e8c6ce; --sis: #46526a; --masa-soluk: #46526a;
-  --masa: radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.4), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(110, 30, 60, 0.16), transparent 60%), var(--doku-tane), #e8c6ce;
+  --desk: #ece6e3; --pudra: #ece6e3; --sis: #4b566c; --masa-soluk: #4b566c;
+  --masa: radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.5), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(40, 40, 60, 0.12), transparent 60%), var(--doku-tane), #ece6e3;
   --kil: linear-gradient(180deg, #243a5e, #172a45 52%, #13233a);
   --kil-golge: inset 0 1.5px 0 rgba(255, 255, 255, 0.16), inset 0 -2px 0 rgba(0, 0, 0, 0.28), 0 8px 18px rgba(23, 42, 69, 0.3), 0 2px 4px rgba(23, 42, 69, 0.2);
 }
@@ -299,3 +303,6 @@ html[data-logo] .raf-etiket .say, html[data-logo] .paper-head .sub { color: var(
 html[data-logo] .raf-defter .cover, html[data-logo] .raf-klasor .klasor { filter: drop-shadow(0 8px 10px rgba(80, 20, 40, 0.22)) drop-shadow(0 2px 3px rgba(80, 20, 40, 0.18)); }
 html[data-logo] .raf-tahta { box-shadow: 0 14px 18px -8px rgba(80, 20, 40, 0.28), 0 2px 0 #d9b9c0; }
 html[data-logo] .fav-grip { color: rgba(251, 246, 243, 0.55); }
+
+html[data-gul] { --desk: #e8c6ce; --pudra: #e8c6ce; --sis: #46526a; --masa-soluk: #46526a;
+  --masa: radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.4), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(110, 30, 60, 0.16), transparent 60%), var(--doku-tane), #e8c6ce; }

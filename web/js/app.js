@@ -70,16 +70,19 @@ async function surumKontrol() {
  */
 function masaYaz(masa) {
   const kok = document.documentElement;
-  kok.dataset.masa = masa === "logo" ? "pudra" : masa;
-  if (masa === "logo") kok.dataset.logo = ""; else delete kok.dataset.logo;
+  // "marka": nötr zemin + lacivert çubuklar (varsayılan). "gul": aynısı, gül zeminde. ("logo" eski adı.)
+  const lacivertCubuk = masa === "marka" || masa === "gul" || masa === "logo";
+  kok.dataset.masa = lacivertCubuk ? "pudra" : masa;
+  if (lacivertCubuk) kok.dataset.logo = ""; else delete kok.dataset.logo;
+  if (masa === "gul" || masa === "logo") kok.dataset.gul = ""; else delete kok.dataset.gul;
 }
 function masaUygula() {
-  const masa = store.settings.masa || "pudra";
+  const masa = store.settings.masa || "marka";
   masaYaz(masa);
   try { localStorage.setItem("notdefteri.masa", masa); } catch (_) {}
 }
 // Veri yüklenene kadar yanlış renk parlamasın: son seçilen masa hemen gelsin.
-try { masaYaz(localStorage.getItem("notdefteri.masa") || "pudra"); } catch (_) {}
+try { masaYaz(localStorage.getItem("notdefteri.masa") || "marka"); } catch (_) {}
 store.addEventListener("settings", (e) => { if (!e.detail || e.detail.key === "masa") masaUygula(); });
 
 store.load().then(async () => {

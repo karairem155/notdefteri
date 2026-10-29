@@ -139,8 +139,8 @@ const DEFAULT_SETTINGS = {
   folderStyles: {},          // klasör adı -> { color, material }: raftaki deri klasörün görünümü
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
-  masa: "pudra",             // masanın yüzeyi: "pudra" marka; denemeler "gece", "krem", "pembe", "ceviz", "lacivert"
-  masaSecildi2: false,       // kullanıcı marka paletinden sonra masayı kendisi seçti mi
+  masa: "marka",             // masanın yüzeyi: "marka" (nötr zemin, lacivert çubuklar); seçenekler "gul", "pudra", "gece", "krem", "pembe", "ceviz", "lacivert"
+  masaSecildi3: false,       // kullanıcı marka varsayılanından sonra masayı kendisi seçti mi
   libraryView: "raf",        // kütüphane: "raf" hepsi bir arada, "karusel" tek tek
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
@@ -205,8 +205,8 @@ class Store extends EventTarget {
     // ile çalışıyor; iPad'de 3B düzleştiği için kapak açılışı orada bozuk
     // görünüyordu ve sayfa parmakla sürüklenmiyordu (eşik geçilince zıplıyordu).
     if (!this.settings.openModeByUser) this.settings.openMode = "page";
-    // Marka paleti geldi: kullanıcı yeniden seçene kadar herkes pudra masada.
-    if (!this.settings.masaSecildi2) this.settings.masa = "pudra";
+    // Varsayılan marka masası: kullanıcı yeniden seçene kadar herkes onda.
+    if (!this.settings.masaSecildi3) this.settings.masa = "marka";
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
     if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {
