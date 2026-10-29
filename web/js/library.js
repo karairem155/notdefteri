@@ -319,8 +319,10 @@ export function renderLibrary(root) {
   }
 
   function emptyState() {
+    // Maskot yalnız boş ekranlarda görünür: çöp boşsa uykulu, arama boşsa şaşkın, ilk defterde mutlu.
+    const hal = showingTrash ? "uykulu" : (search ? "saskin" : "mutlu");
     return h("div", { class: "paper-empty" },
-      svgIcon(showingTrash ? "trash" : "books", 40),
+      h("img", { class: "maskot", src: `img/maskot/${hal}.svg`, alt: "", draggable: "false" }),
       h("p", {}, showingTrash ? "Çöp kutusu boş." : (search ? "Bu ada uyan defter yok." : "İlk defterini + ile aç.")));
   }
 

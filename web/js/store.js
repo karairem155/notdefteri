@@ -81,6 +81,8 @@ export const SEKME_TURLERI = [
 ];
 
 export const COVER_PRESETS = [
+  { pattern: "plain", color: "#172A45" },   // marka: mürekkep (yeni defterlerin varsayılanı)
+  { pattern: "plain", color: "#EFE3E1" },   // marka: pudra
   { pattern: "plain", color: "#F6A9C6" },
   { pattern: "plain", color: "#A9C7F5" },
   { pattern: "plain", color: "#C9B8F0" },
@@ -137,8 +139,8 @@ const DEFAULT_SETTINGS = {
   folderStyles: {},          // klasör adı -> { color, material }: raftaki deri klasörün görünümü
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
-  masa: "gece",              // masanın yüzeyi ("gece", "krem", "lacivert", "pembe", "ceviz")
-  masaSecildi: false,        // kullanıcı masayı kendisi seçti mi
+  masa: "pudra",             // masanın yüzeyi: "pudra" marka; denemeler "gece", "krem", "pembe", "ceviz", "lacivert"
+  masaSecildi2: false,       // kullanıcı marka paletinden sonra masayı kendisi seçti mi
   libraryView: "raf",        // kütüphane: "raf" hepsi bir arada, "karusel" tek tek
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
@@ -203,8 +205,8 @@ class Store extends EventTarget {
     // ile çalışıyor; iPad'de 3B düzleştiği için kapak açılışı orada bozuk
     // görünüyordu ve sayfa parmakla sürüklenmiyordu (eşik geçilince zıplıyordu).
     if (!this.settings.openModeByUser) this.settings.openMode = "page";
-    // Kullanıcı kendisi seçene kadar varsayılan masa (şu an deneme: gece mavisi).
-    if (!this.settings.masaSecildi) this.settings.masa = "gece";
+    // Marka paleti geldi: kullanıcı yeniden seçene kadar herkes pudra masada.
+    if (!this.settings.masaSecildi2) this.settings.masa = "pudra";
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
     if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {

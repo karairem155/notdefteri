@@ -1,0 +1,254 @@
+/* ===== Marka: Pudra masa, Kâğıt yüzeyler, Mürekkep yazı =====
+   Logodan ölçülen palet (29 Eki 2026):
+     Logo pembesi #F2649A  vurgu: düğme, seçili, işaret
+     Mürekkep     #172A45  yazı, simge
+     Yanak        #FAC7D2  sekme, bant, yumuşak dolgu
+     Kâğıt        #FBF6F3  çubuklar, menüler, kartlar
+     Pudra        #EFE3E1  masa (pembenin nötrü)
+     Sis          #7D869B  ikincil yazı
+   Oran: çoğu nötr, ağırlık mürekkep, pembe yalnız küçük vurgu.
+   Yazı tipi: Plus Jakarta Sans (uygulamanın içinde, çevrimdışı da çalışır).
+   Bu dosyanın alt yarısı app.css'teki koyu cam kurallarından türetildi:
+   beyaz yazı -> mürekkep, koyu cam zemin -> kâğıt; pembe dolgulu düğmeler
+   olduğu gibi kaldı. Hepsi html[data-masa="pudra"] altında, eski masalar
+   (Ayarlar > Masa) etkilenmiyor. */
+
+/* ---- app.css'ten türetilen kurallar (elle yazılanlar aşağıda, onlar kazanır) ---- */
+html[data-masa="pudra"] .screen-dark { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-dark .topbar { background: var(--kagit); color: var(--murekkep); }
+html[data-masa="pudra"] .screen-dark .icon-btn:active { background: rgba(23, 42, 69, 0.072); }
+html[data-masa="pudra"] .screen-dark .segmented { background: rgba(23, 42, 69, 0.084); }
+html[data-masa="pudra"] .screen-dark .pill { background: rgba(23, 42, 69, 0.084); }
+html[data-masa="pudra"] .empty-page { color: rgba(23, 42, 69, 0.63); border: 2px dashed rgba(23, 42, 69, 0.24); background: rgba(23, 42, 69, 0.036); }
+html[data-masa="pudra"] .object-menu { color: var(--murekkep); }
+html[data-masa="pudra"] .object-menu button { color: var(--murekkep); }
+html[data-masa="pudra"] .object-menu .sep { background: rgba(23, 42, 69, 0.090); }
+html[data-masa="pudra"] .bench { color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .palette-row { border-bottom: 1px solid rgba(23, 42, 69, 0.06); }
+html[data-masa="pudra"] .bench-sep { background: rgba(23, 42, 69, 0.072); }
+html[data-masa="pudra"] .tool-btn { background: rgba(23, 42, 69, 0.036); color: rgba(23, 42, 69, 0.73); }
+html[data-masa="pudra"] .tool-btn.selected { background: rgba(23, 42, 69, 0.096); color: var(--murekkep); }
+html[data-masa="pudra"] .popover { background: var(--kagit); color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .popover::after { background: var(--kagit); }
+html[data-masa="pudra"] .popover h3 { color: var(--murekkep); }
+html[data-masa="pudra"] .panel-sep { background: rgba(23, 42, 69, 0.048); }
+html[data-masa="pudra"] .panel-hint { color: rgba(23, 42, 69, 0.53); }
+html[data-masa="pudra"] .fav-cell { color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .fav-cell.selected { background: rgba(23, 42, 69, 0.048); }
+html[data-masa="pudra"] .fav-cell.add { border: 1px dashed rgba(23, 42, 69, 0.24); }
+html[data-masa="pudra"] .default-row { background: rgba(23, 42, 69, 0.036); }
+html[data-masa="pudra"] .default-row .sub { color: rgba(23, 42, 69, 0.53); }
+html[data-masa="pudra"] .modal-card.dark { color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .toast { color: var(--murekkep); }
+html[data-masa="pudra"] .info-box { background: rgba(23, 42, 69, 0.036); color: rgba(23, 42, 69, 0.79); }
+html[data-masa="pudra"] .folder-item.active .count { color: rgba(23, 42, 69, 0.84); }
+html[data-masa="pudra"] .tool-caption { color: rgba(23, 42, 69, 0.73); }
+html[data-masa="pudra"] .tool-btn.selected .tool-caption { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-paper { color: var(--murekkep); }
+html[data-masa="pudra"] .paper-topbar { color: var(--murekkep); }
+html[data-masa="pudra"] .paper-topbar .icon-btn { color: rgba(23, 42, 69, 0.95); background: rgba(23, 42, 69, 0.072); }
+html[data-masa="pudra"] .back-btn.light { color: var(--murekkep); }
+html[data-masa="pudra"] .paper-head h1 { color: var(--murekkep); }
+html[data-masa="pudra"] .paper-head .sub { color: rgba(23, 42, 69, 0.68); }
+html[data-masa="pudra"] .paper-actions .icon-btn { background: rgba(23, 42, 69, 0.084); color: var(--murekkep); }
+html[data-masa="pudra"] .paper-empty { color: rgba(23, 42, 69, 0.79); }
+html[data-masa="pudra"] .cut-path { stroke: var(--murekkep); }
+html[data-masa="pudra"] .fav-mini.current::after { border: 1.5px dashed rgba(23, 42, 69, 0.56); }
+html[data-masa="pudra"] .pen-btn.current::after { border: 1.5px dashed rgba(23, 42, 69, 0.40); }
+html[data-masa="pudra"] .emoji-cell { background: rgba(23, 42, 69, 0.036); }
+html[data-masa="pudra"] .emoji-cell:active { background: rgba(23, 42, 69, 0.096); }
+html[data-masa="pudra"] .screen-dark .back-btn { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-dark .icon-btn { color: rgba(23, 42, 69, 0.97); }
+html[data-masa="pudra"] .screen-dark .segmented { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .screen-dark .pill { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .screen-dark .topbar-notebook { color: var(--murekkep); }
+html[data-masa="pudra"] .palette-pill .swatch.selected { outline: 2.5px solid var(--murekkep); }
+html[data-masa="pudra"] .palette-pill .swatch.more, html[data-masa="pudra"] .palette-pill .swatch.heart { color: rgba(23, 42, 69, 0.95); }
+html[data-masa="pudra"] .palette-pill .swatch.more::before, html[data-masa="pudra"] .palette-pill .swatch.heart::before { background: rgba(23, 42, 69, 0.072); }
+html[data-masa="pudra"] .toolbar { background: var(--kagit); }
+html[data-masa="pudra"] .tb-btn { color: rgba(23, 42, 69, 0.97); }
+html[data-masa="pudra"] .tb-btn:active { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .tb-sep { background: rgba(23, 42, 69, 0.096); }
+html[data-masa="pudra"] .side-panel, html[data-masa="pudra"] .popover { background: var(--kagit); border: 1px solid rgba(23, 42, 69, 0.10); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-head { background: var(--kagit); }
+html[data-masa="pudra"] .sp-close { background: rgba(23, 42, 69, 0.060); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-card { background: rgba(23, 42, 69, 0.030); border: 1px solid rgba(23, 42, 69, 0.08); }
+html[data-masa="pudra"] .sp-card-label { color: rgba(23, 42, 69, 0.79); }
+html[data-masa="pudra"] .sp-option { background: rgba(23, 42, 69, 0.024); border: 1.5px solid rgba(23, 42, 69, 0.13); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-option-icon { color: var(--murekkep); }
+html[data-masa="pudra"] .sp-option-sub { color: rgba(23, 42, 69, 0.65); }
+html[data-masa="pudra"] .sp-value { color: rgba(23, 42, 69, 0.95); }
+html[data-masa="pudra"] .sp-range::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--pink) 0 var(--p, 50%), rgba(23, 42, 69, 0.108) var(--p, 50%) 100%); }
+html[data-masa="pudra"] .sp-range::-moz-range-track { background: rgba(23, 42, 69, 0.108); }
+html[data-masa="pudra"] .sp-preset { border: 1px solid rgba(23, 42, 69, 0.13); background: rgba(23, 42, 69, 0.024); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-row-icon { color: var(--murekkep); }
+html[data-masa="pudra"] .sp-row-sub { color: rgba(23, 42, 69, 0.65); }
+html[data-masa="pudra"] .sp-scale { color: rgba(23, 42, 69, 0.63); }
+html[data-masa="pudra"] .sp-sep { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .sp-link-btn { border: 1px solid rgba(23, 42, 69, 0.13); background: rgba(23, 42, 69, 0.024); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-outline-btn { border: 1.5px solid rgba(23, 42, 69, 0.24); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-action { background: rgba(23, 42, 69, 0.024); border: 1.5px solid rgba(23, 42, 69, 0.10); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-desc { color: rgba(23, 42, 69, 0.76); }
+html[data-masa="pudra"] .fav-row { background: rgba(23, 42, 69, 0.024); border: 1.5px solid rgba(23, 42, 69, 0.10); }
+html[data-masa="pudra"] .fav-drag { color: rgba(23, 42, 69, 0.53); }
+html[data-masa="pudra"] .fav-width { color: rgba(23, 42, 69, 0.65); }
+html[data-masa="pudra"] .fav-icon-btn { color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .cp-knob { border: 2.5px solid var(--murekkep); }
+html[data-masa="pudra"] .cp-hue-knob { border: 2.5px solid var(--murekkep); }
+html[data-masa="pudra"] .cp-field { background: rgba(23, 42, 69, 0.024); border: 1px solid rgba(23, 42, 69, 0.13); color: rgba(23, 42, 69, 0.65); }
+html[data-masa="pudra"] .cp-field-input { color: var(--murekkep); }
+html[data-masa="pudra"] .cp-swatch.selected { outline: 2.5px solid var(--murekkep); }
+html[data-masa="pudra"] .cp-swatch.add { background: rgba(23, 42, 69, 0.048); color: var(--murekkep); border: 1px solid rgba(23, 42, 69, 0.20); }
+html[data-masa="pudra"] .object-menu { background: var(--kagit); border: 1px solid rgba(23, 42, 69, 0.10); }
+html[data-masa="pudra"] .palette-pill .swatch.current { color: var(--murekkep); outline: 2px dashed rgba(23, 42, 69, 0.56); }
+html[data-masa="pudra"] body { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-light, html[data-masa="pudra"] .screen-paper { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-light .topbar { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-light .back-btn, html[data-masa="pudra"] .screen-light .icon-btn { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-light .segmented { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .screen-light .pill { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .search { background: rgba(23, 42, 69, 0.048); }
+html[data-masa="pudra"] .search input { color: var(--murekkep); }
+html[data-masa="pudra"] .settings-row { border-bottom-color: rgba(23, 42, 69, 0.06); color: var(--murekkep); }
+html[data-masa="pudra"] .select { background: rgba(23, 42, 69, 0.060); color: var(--murekkep); }
+html[data-masa="pudra"] .settings-row .select { color: var(--murekkep); }
+html[data-masa="pudra"] .mini-template .preview, html[data-masa="pudra"] .template-cell .preview, html[data-masa="pudra"] .page-cell .thumb { border-color: rgba(23, 42, 69, 0.12); }
+html[data-masa="pudra"] .folder-item { color: var(--murekkep); }
+html[data-masa="pudra"] .empty h2 { color: var(--murekkep); }
+html[data-masa="pudra"] .btn { background: rgba(23, 42, 69, 0.072); color: var(--murekkep); }
+html[data-masa="pudra"] .modal-card, html[data-masa="pudra"] .modal-card.dark { background: var(--kagit); color: var(--murekkep); }
+html[data-masa="pudra"] .sheet-action { color: var(--murekkep); }
+html[data-masa="pudra"] .sheet-action:active { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .dialog h3, html[data-masa="pudra"] .sheet-head { color: var(--murekkep); }
+html[data-masa="pudra"] .sheet-head { border-bottom-color: rgba(23, 42, 69, 0.08); }
+html[data-masa="pudra"] .text-input { background: rgba(23, 42, 69, 0.048); color: var(--murekkep); }
+html[data-masa="pudra"] .info-box { background: rgba(23, 42, 69, 0.036); }
+html[data-masa="pudra"] .toast { background: var(--kagit); }
+html[data-masa="pudra"] .screen-dark .topbar { background: var(--kagit); }
+html[data-masa="pudra"] .topbar-title-btn { color: var(--murekkep); }
+html[data-masa="pudra"] .topbar-title-btn:active { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .fav-strip .swatch.selected { outline: 2.5px solid var(--murekkep); }
+html[data-masa="pudra"] .fav-strip .swatch.current { color: var(--murekkep); outline: 2px dashed rgba(23, 42, 69, 0.56); }
+html[data-masa="pudra"] .fav-strip .swatch.heart::before { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .toolbar { background: var(--kagit); }
+html[data-masa="pudra"] .toolbar::before { background: linear-gradient(180deg, rgba(23, 42, 69, 0.054), rgba(23, 42, 69, 0.000) 45%); }
+html[data-masa="pudra"] .tb-btn { color: rgba(23, 42, 69, 0.95); }
+html[data-masa="pudra"] .tb-btn:active { background: rgba(23, 42, 69, 0.048); }
+html[data-masa="pudra"] .tb-sep { background: rgba(23, 42, 69, 0.084); }
+html[data-masa="pudra"] .side-panel, html[data-masa="pudra"] .popover { background: var(--kagit); }
+html[data-masa="pudra"] .side-panel::before { background: linear-gradient(180deg, rgba(23, 42, 69, 0.042), rgba(23, 42, 69, 0.000) 30%); }
+html[data-masa="pudra"] .sp-card, html[data-masa="pudra"] .sp-option, html[data-masa="pudra"] .sp-preset, html[data-masa="pudra"] .sp-link-btn, html[data-masa="pudra"] .sp-action, html[data-masa="pudra"] .fav-row, html[data-masa="pudra"] .cp-field, html[data-masa="pudra"] .sp-radio { background: rgba(23, 42, 69, 0.033); border-color: rgba(23, 42, 69, 0.11); }
+html[data-masa="pudra"] .sp-outline-btn { background: rgba(23, 42, 69, 0.024); }
+html[data-masa="pudra"] .sp-tabs { background: rgba(23, 42, 69, 0.042); }
+html[data-masa="pudra"] .sp-tabs button { color: rgba(23, 42, 69, 0.84); }
+html[data-masa="pudra"] .sp-tabs button.active { color: var(--murekkep); }
+html[data-masa="pudra"] .sp-radio { color: var(--murekkep); }
+html[data-masa="pudra"] .sp-radio-dot { border: 2px solid rgba(23, 42, 69, 0.40); }
+html[data-masa="pudra"] .sp-seg { border: 1.5px solid rgba(23, 42, 69, 0.11); }
+html[data-masa="pudra"] .sp-seg button { color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .sp-seg button + button { border-left: 1px solid rgba(23, 42, 69, 0.11); }
+html[data-masa="pudra"] .sp-seg button.active { color: var(--murekkep); }
+html[data-masa="pudra"] .cp-alpha-value { border: 1px solid rgba(23, 42, 69, 0.13); }
+html[data-masa="pudra"] .cp-hexrow .cp-field > span { border-right: 1px solid rgba(23, 42, 69, 0.11); }
+html[data-masa="pudra"] .cp-rgbrow .cp-field > span { color: rgba(23, 42, 69, 0.73); }
+html[data-masa="pudra"] .st-cell { border: 1px solid rgba(23, 42, 69, 0.11); background: rgba(23, 42, 69, 0.033); }
+html[data-masa="pudra"] .object-menu { background: var(--kagit); }
+html[data-masa="pudra"] .mode-banner { background: var(--kagit); }
+html[data-masa="pudra"] .screen-fan { color: var(--murekkep); }
+html[data-masa="pudra"] .screen-fan::before { background: radial-gradient(circle at 70% 30%, rgba(23, 42, 69, 0.048), transparent 40%), radial-gradient(circle at 20% 80%, rgba(0, 0, 40, 0.35), transparent 45%); }
+html[data-masa="pudra"] .fan-round { border: 1px solid rgba(23, 42, 69, 0.13); background: rgba(23, 42, 69, 0.060); color: var(--murekkep); }
+html[data-masa="pudra"] .fan-head .sub { color: rgba(23, 42, 69, 0.82); }
+html[data-masa="pudra"] .fan-count { color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .bench .palette-pill { background: var(--kagit); }
+html[data-masa="pudra"] .pop-menu { background: var(--kagit); color: var(--murekkep); }
+html[data-masa="pudra"] .pop-menu::after { background: var(--kagit); }
+html[data-masa="pudra"] .pop-title { color: rgba(23, 42, 69, 0.63); }
+html[data-masa="pudra"] .pop-item { color: var(--murekkep); }
+html[data-masa="pudra"] .pop-item:active { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .toolbar { background: var(--kagit); }
+html[data-masa="pudra"] .sel-bar { background: var(--kagit); }
+html[data-masa="pudra"] .sel-item { color: var(--murekkep); }
+html[data-masa="pudra"] .sel-item:active { background: rgba(23, 42, 69, 0.072); }
+html[data-masa="pudra"] .sp-nav-row { background: rgba(23, 42, 69, 0.033); border: 1px solid rgba(23, 42, 69, 0.11); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-nav-row:active { background: rgba(23, 42, 69, 0.060); }
+html[data-masa="pudra"] .sp-nav-icon { background: rgba(23, 42, 69, 0.048); color: var(--murekkep); }
+html[data-masa="pudra"] .sp-nav-row > svg:last-child { color: rgba(23, 42, 69, 0.63); }
+html[data-masa="pudra"] .sp-recent-cell { border: 1px solid rgba(23, 42, 69, 0.11); background: rgba(23, 42, 69, 0.036); }
+html[data-masa="pudra"] .sp-recent-doc { color: var(--murekkep); }
+html[data-masa="pudra"] .fav-dock { background: var(--kagit); }
+html[data-masa="pudra"] .fav-grip { color: rgba(23, 42, 69, 0.58); }
+html[data-masa="pudra"] .pc-cell { color: rgba(23, 42, 69, 0.79); }
+html[data-masa="pudra"] .pc-cell.active { color: var(--murekkep); }
+html[data-masa="pudra"] .bench-peek { background: var(--kagit); color: rgba(23, 42, 69, 0.89); }
+html[data-masa="pudra"] .split { background: var(--kagit); }
+html[data-masa="pudra"] .raf-tahta { background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(23, 42, 69, 0.072) 40%, rgba(23, 42, 69, 0.030)); border-top: 1px solid rgba(23, 42, 69, 0.36); }
+html[data-masa="pudra"] .raf-etiket .ad { color: var(--murekkep); }
+html[data-masa="pudra"] .raf-etiket .say { color: rgba(23, 42, 69, 0.58); }
+
+
+/* ---- elle yazılan marka kuralları ---- */
+@font-face { font-family: "Plus Jakarta Sans"; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url(../fonts/plus-jakarta-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Plus Jakarta Sans"; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url(../fonts/plus-jakarta-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+/* Marka yazı tipi her masada. Sayfadaki metin kutuları kendi yazı tipini (--font) kullanmaya devam eder. */
+body, button, input, select, textarea { font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+html[data-masa="pudra"] {
+  --murekkep: #172a45; --kagit: #fbf6f3; --pudra: #efe3e1; --yanak: #fac7d2; --sis: #7d869b;
+  --accent: #f2649a; --accent-soft: rgba(242, 100, 154, 0.14); --pink: #f2649a; --pink-soft: rgba(242, 100, 154, 0.2);
+  --text: var(--murekkep); --muted: var(--sis); --card: var(--kagit); --panel: var(--kagit); --library-bg: var(--pudra);
+  --glass: var(--kagit); --glass-border: rgba(23, 42, 69, 0.1); --desk: var(--pudra); --masa-yazi: var(--murekkep); --masa-soluk: var(--sis);
+  --golge-yuzey: 0 10px 28px rgba(23, 42, 69, 0.14), 0 2px 6px rgba(23, 42, 69, 0.08);
+  --masa: radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.55), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(120, 70, 80, 0.12), transparent 60%), var(--doku-tane), #efe3e1;
+}
+html[data-masa="pudra"] .screen-light { background: var(--masa); background-color: var(--pudra); }
+
+/* Yüzeyler kâğıt: cam bulanıklığı yok, gölge yumuşak ve lacivert tonlu. */
+html[data-masa="pudra"] .screen-dark .topbar, html[data-masa="pudra"] .toolbar, html[data-masa="pudra"] .fav-dock,
+html[data-masa="pudra"] .side-panel, html[data-masa="pudra"] .popover, html[data-masa="pudra"] .pop-menu,
+html[data-masa="pudra"] .object-menu, html[data-masa="pudra"] .mode-banner, html[data-masa="pudra"] .toast,
+html[data-masa="pudra"] .modal-card, html[data-masa="pudra"] .modal-card.dark {
+  background: var(--kagit); color: var(--murekkep); border: 1px solid rgba(23, 42, 69, 0.08);
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--golge-yuzey); }
+html[data-masa="pudra"] .toolbar::before, html[data-masa="pudra"] .side-panel::before { display: none; }
+html[data-masa="pudra"] .modal-backdrop { background: rgba(23, 42, 69, 0.28); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+html[data-masa="pudra"] .card, html[data-masa="pudra"] .settings-rows, html[data-masa="pudra"] .list-row { background: var(--kagit); border: 1px solid rgba(23, 42, 69, 0.07); box-shadow: 0 4px 14px rgba(23, 42, 69, 0.07); }
+html[data-masa="pudra"] .sp-card, html[data-masa="pudra"] .sp-option, html[data-masa="pudra"] .sp-preset, html[data-masa="pudra"] .sp-link-btn,
+html[data-masa="pudra"] .sp-action, html[data-masa="pudra"] .fav-row, html[data-masa="pudra"] .cp-field, html[data-masa="pudra"] .sp-radio,
+html[data-masa="pudra"] .st-cell, html[data-masa="pudra"] .sp-outline-btn { box-shadow: none; }
+html[data-masa="pudra"] .sp-option.active, html[data-masa="pudra"] .sp-preset.active, html[data-masa="pudra"] .sp-action.active,
+html[data-masa="pudra"] .fav-row.selected, html[data-masa="pudra"] .sp-radio.active { background: var(--accent-soft); border-color: var(--accent); box-shadow: none; }
+html[data-masa="pudra"] .sp-tabs button.active, html[data-masa="pudra"] .sp-seg button.active { background: var(--murekkep); color: var(--kagit); box-shadow: none; }
+html[data-masa="pudra"] .sp-primary-btn { background: var(--accent); box-shadow: 0 6px 16px rgba(242, 100, 154, 0.3); }
+
+/* Düğmeler: masadakiler kâğıt hap, seçili olan mürekkep. */
+html[data-masa="pudra"] .paper-topbar .icon-btn, html[data-masa="pudra"] .paper-actions .icon-btn:not(.accent-fill),
+html[data-masa="pudra"] .geri-klasor, html[data-masa="pudra"] .fan-round {
+  background: var(--kagit); color: var(--murekkep); border: 1px solid rgba(23, 42, 69, 0.08); box-shadow: 0 3px 10px rgba(23, 42, 69, 0.1); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-masa="pudra"] .paper-actions .icon-btn.accent-fill, html[data-masa="pudra"] .paper-actions .btn.primary { background: var(--accent); color: #fff; box-shadow: 0 6px 16px rgba(242, 100, 154, 0.35); }
+html[data-masa="pudra"] .segmented button.active, html[data-masa="pudra"] .screen-dark .segmented button.active { background: var(--murekkep); color: var(--kagit); }
+html[data-masa="pudra"] .tb-btn.active { color: var(--accent); }
+html[data-masa="pudra"] .tb-btn.active .tb-icon { background: var(--accent-soft); box-shadow: none; }
+html[data-masa="pudra"] .btn.primary { background: var(--accent); color: #fff; box-shadow: 0 6px 16px rgba(242, 100, 154, 0.3); }
+html[data-masa="pudra"] .fav-strip .swatch::before { box-shadow: inset 0 0 0 1px rgba(23, 42, 69, 0.12), 0 1px 3px rgba(23, 42, 69, 0.2); }
+html[data-masa="pudra"] .fav-strip .swatch.current svg { filter: none; }
+html[data-masa="pudra"] .select option { color: #000; }
+
+/* Raf: kâğıt renginde boyalı tahta; defterlerin gölgesi masaya düşüyor. */
+html[data-masa="pudra"] .raf-tahta { height: 14px; border-radius: 3px; border-top: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: linear-gradient(180deg, #ffffff, var(--kagit) 45%, #e9dcd8);
+  box-shadow: 0 14px 18px -8px rgba(23, 42, 69, 0.22), 0 2px 0 #ddd0cc; }
+html[data-masa="pudra"] .raf-defter .cover, html[data-masa="pudra"] .raf-klasor .klasor { filter: drop-shadow(0 8px 10px rgba(23, 42, 69, 0.18)) drop-shadow(0 2px 3px rgba(23, 42, 69, 0.14)); }
+html[data-masa="pudra"] .raf-etiket .ad, html[data-masa="pudra"] .paper-head h1 { color: var(--murekkep); }
+html[data-masa="pudra"] .raf-etiket .say, html[data-masa="pudra"] .paper-head .sub { color: var(--sis); }
+html[data-masa="pudra"] .paper-head h1 { font-weight: 700; letter-spacing: -0.4px; }
+
+/* Maskot: yalnız boş ekranlarda (kütüphane, çöp kutusu, sonuçsuz arama). */
+.maskot { width: 132px; height: 132px; object-fit: contain; filter: drop-shadow(0 10px 14px rgba(23, 42, 69, 0.18)); }
+.paper-empty p { margin: 0; font-size: 17px; font-weight: 600; }
+html[data-masa="pudra"] .paper-empty { color: var(--murekkep); }
+
