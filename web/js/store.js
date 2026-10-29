@@ -137,7 +137,7 @@ const DEFAULT_SETTINGS = {
   folderStyles: {},          // klasör adı -> { color, material }: raftaki deri klasörün görünümü
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
-  masa: "krem",              // masanın yüzeyi ("krem", "lacivert", "pembe", "ceviz")
+  masa: "gece",              // masanın yüzeyi ("gece", "krem", "lacivert", "pembe", "ceviz")
   masaSecildi: false,        // kullanıcı masayı kendisi seçti mi
   libraryView: "raf",        // kütüphane: "raf" hepsi bir arada, "karusel" tek tek
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
@@ -203,8 +203,8 @@ class Store extends EventTarget {
     // ile çalışıyor; iPad'de 3B düzleştiği için kapak açılışı orada bozuk
     // görünüyordu ve sayfa parmakla sürüklenmiyordu (eşik geçilince zıplıyordu).
     if (!this.settings.openModeByUser) this.settings.openMode = "page";
-    // Krem keten varsayılan oldu; denerken seçilmiş eski değer de bir kez krem olsun.
-    if (!this.settings.masaSecildi) this.settings.masa = "krem";
+    // Kullanıcı kendisi seçene kadar varsayılan masa (şu an deneme: gece mavisi).
+    if (!this.settings.masaSecildi) this.settings.masa = "gece";
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
     if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {
