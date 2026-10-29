@@ -1,6 +1,6 @@
 // Çevrimdışı çalışma: uygulama kabuğu önbelleğe alınır.
 // Yeni sürüm yayınlandığında VERSION değişir, eski önbellek silinir.
-const VERSION = "notdefteri-v83";
+const VERSION = "notdefteri-v84";
 const SHELL = [
   "./",
   "./index.html",
@@ -9,10 +9,11 @@ const SHELL = [
   "./css/marka.css",
   "./fonts/plus-jakarta-latin.woff2",
   "./fonts/plus-jakarta-latin-ext.woff2",
-  "./img/maskot/sakin.svg",
-  "./img/maskot/mutlu.svg",
-  "./img/maskot/uykulu.svg",
-  "./img/maskot/saskin.svg",
+  "./img/maskot/sakin.png",
+  "./img/maskot/mutlu.png",
+  "./img/maskot/uykulu.png",
+  "./img/maskot/saskin.png",
+  "./img/maskot/saskin-kirp.png",
   "./js/app.js",
   "./js/db.js",
   "./js/store.js",

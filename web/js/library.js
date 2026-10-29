@@ -322,8 +322,39 @@ export function renderLibrary(root) {
     // Maskot yalnız boş ekranlarda görünür: çöp boşsa uykulu, arama boşsa şaşkın, ilk defterde mutlu.
     const hal = showingTrash ? "uykulu" : (search ? "saskin" : "mutlu");
     return h("div", { class: "paper-empty" },
-      h("img", { class: "maskot", src: `img/maskot/${hal}.svg`, alt: "", draggable: "false" }),
+      maskot(hal),
       h("p", {}, showingTrash ? "Çöp kutusu boş." : (search ? "Bu ada uyan defter yok." : "İlk defterini + ile aç.")));
+  }
+
+  /**
+   * Maskot: hafifçe nefes alır, dokununca zıplayıp bir an mutlu olur; gözü
+   * açık hâller ara sıra göz kırpar. Görseller şimdilik kullanıcının çizimlerinden
+   * kesilmiş PNG'ler; SVG gelince gözler ayrı katman olup parmağı da izleyebilir.
+   */
+  function maskot(hal) {
+    const yol = (ad) => `img/maskot/${ad}.png`;
+    const img = h("img", { class: "maskot", src: yol(hal), alt: "", draggable: "false" });
+    const kutu = h("div", { class: "maskot-kutu", role: "presentation" }, img);
+    const kirpma = { saskin: "saskin-kirp", sakin: "uykulu" }[hal];
+    if (kirpma) {
+      new Image().src = yol(kirpma);
+      const kirp = () => {
+        if (!kutu.isConnected) return;
+        img.src = yol(kirpma);
+        setTimeout(() => { img.src = yol(hal); setTimeout(kirp, 2600 + Math.random() * 2600); }, 140);
+      };
+      setTimeout(kirp, 1800);
+    }
+    new Image().src = yol("mutlu");
+    kutu.addEventListener("pointerdown", () => {
+      kutu.classList.remove("zipla");
+      void kutu.offsetWidth;
+      kutu.classList.add("zipla");
+      img.src = yol("mutlu");
+      clearTimeout(kutu._geri);
+      kutu._geri = setTimeout(() => { img.src = yol(hal); }, 900);
+    });
+    return kutu;
   }
 
   function carousel(list) {
