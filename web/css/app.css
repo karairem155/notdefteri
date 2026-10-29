@@ -1310,3 +1310,56 @@ button, [role="button"], .swatch, .tb-btn, .sp-option, .sp-preset, .sp-action, .
 .sekme.tasiniyor .sekme-dil { filter: brightness(1.06); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); cursor: grabbing; }
 .sekme-dil { touch-action: none; }
 
+
+/* ===== Deneme teması: masa yüzeyi (Ayarlar > Masa) =====
+   Uygulamanın içi gerçekçi kalsın diye yalnızca masa değişiyor; cam
+   çubuklar ve paneller logodaki lacivertte kalıyor. Açık masalarda masanın
+   üstüne doğrudan yazılan yazılar laciverte dönüyor, düğmeler lacivert hap
+   oluyor. Ayarlar ve sayfa ızgarası şimdilik lacivert masada. */
+:root {
+  --doku-tane: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.22 0 0 0 -0.06'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --doku-lif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.02 0.6' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.7 0 0 0 -0.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --doku-damar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.09' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.1 0 0 0 -0.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+}
+html[data-masa="krem"] { --desk: #e9dfcc; --masa-yazi: #1f2b4a; --masa-soluk: rgba(31, 43, 74, 0.6);
+  --masa: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.45), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(110, 80, 40, 0.18), transparent 60%),
+          var(--doku-tane), repeating-linear-gradient(0deg, rgba(120, 95, 60, 0.05) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 3px), #ebe1cf; }
+html[data-masa="pembe"] { --desk: #efc7d3; --masa-yazi: #1f2b4a; --masa-soluk: rgba(31, 43, 74, 0.62);
+  --masa: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.4), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(150, 40, 80, 0.2), transparent 60%),
+          var(--doku-tane), #f2c9d6; }
+html[data-masa="ceviz"] { --desk: #4a3022; --masa-yazi: #fff; --masa-soluk: rgba(255, 255, 255, 0.62);
+  --masa: radial-gradient(ellipse at 50% 0%, rgba(255, 220, 170, 0.16), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(0, 0, 0, 0.45), transparent 60%),
+          var(--doku-damar), var(--doku-lif), linear-gradient(90deg, #4f3324, #5a3a28 30%, #462d20 60%, #553726); }
+
+html[data-masa]:not([data-masa="lacivert"]) body,
+html[data-masa]:not([data-masa="lacivert"]) .screen-paper,
+html[data-masa]:not([data-masa="lacivert"]) .screen-dark,
+html[data-masa]:not([data-masa="lacivert"]) .screen-fan { background: var(--masa); background-color: var(--desk); }
+html[data-masa]:not([data-masa="lacivert"]) .screen-fan::before { display: none; }
+
+/* Açık masalar: masaya yazılanlar lacivert, düğmeler lacivert hap. */
+html[data-masa="krem"] .paper-head h1, html[data-masa="pembe"] .paper-head h1,
+html[data-masa="krem"] .raf-etiket .ad, html[data-masa="pembe"] .raf-etiket .ad,
+html[data-masa="krem"] .fan-head h1, html[data-masa="pembe"] .fan-head h1,
+html[data-masa="krem"] .paper-empty, html[data-masa="pembe"] .paper-empty { color: var(--masa-yazi); text-shadow: none; }
+html[data-masa="krem"] .paper-head .sub, html[data-masa="pembe"] .paper-head .sub,
+html[data-masa="krem"] .raf-etiket .say, html[data-masa="pembe"] .raf-etiket .say,
+html[data-masa="krem"] .fan-head .sub, html[data-masa="pembe"] .fan-head .sub,
+html[data-masa="krem"] .fan-count, html[data-masa="pembe"] .fan-count { color: var(--masa-soluk); }
+html[data-masa="krem"] .paper-topbar .icon-btn, html[data-masa="pembe"] .paper-topbar .icon-btn,
+html[data-masa="krem"] .paper-actions .icon-btn:not(.accent-fill), html[data-masa="pembe"] .paper-actions .icon-btn:not(.accent-fill),
+html[data-masa="krem"] .geri-klasor, html[data-masa="pembe"] .geri-klasor,
+html[data-masa="krem"] .fan-round, html[data-masa="pembe"] .fan-round { background: rgba(31, 43, 74, 0.9); color: #fff; border-color: transparent; box-shadow: 0 6px 14px rgba(31, 43, 74, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.16); }
+html[data-masa="krem"] .empty-page, html[data-masa="pembe"] .empty-page { color: var(--masa-soluk); border-color: rgba(31, 43, 74, 0.3); background: rgba(255, 255, 255, 0.25); }
+
+/* Raf: açık masalarda cam yerine meşe tahta, cevizde koyu ceviz. */
+html[data-masa="krem"] .raf-tahta, html[data-masa="pembe"] .raf-tahta, html[data-masa="ceviz"] .raf-tahta {
+  height: 16px; border-radius: 3px; border-top: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 30%, rgba(0, 0, 0, 0.18)), var(--doku-lif), linear-gradient(90deg, #c99a64, #d8ad78 40%, #c08f58 70%, #cfa26c);
+  box-shadow: 0 16px 20px -8px rgba(60, 35, 10, 0.45), 0 3px 0 #9a6d3e; }
+html[data-masa="ceviz"] .raf-tahta { background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 30%, rgba(0, 0, 0, 0.3)), var(--doku-lif), linear-gradient(90deg, #6e4a34, #7d5640 40%, #684430 70%, #77513b); box-shadow: 0 16px 22px -8px rgba(0, 0, 0, 0.6), 0 3px 0 #3a2418; }
+html[data-masa="krem"] .raf-defter .cover, html[data-masa="pembe"] .raf-defter .cover,
+html[data-masa="krem"] .raf-klasor .klasor, html[data-masa="pembe"] .raf-klasor .klasor { filter: drop-shadow(0 8px 10px rgba(60, 35, 20, 0.3)) drop-shadow(0 2px 3px rgba(60, 35, 20, 0.25)); }
+/* Cam çubuklar açık masada soluk mora dönmesin: logodaki gibi dolgun lacivert. */
+html[data-masa="krem"], html[data-masa="pembe"] { --glass: rgba(31, 43, 74, 0.9); }
+html[data-masa]:not([data-masa="lacivert"]) .segmented button.active { color: #1f2b4a; }

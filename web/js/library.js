@@ -66,7 +66,7 @@ export function renderLibrary(root) {
         iconButton(showingTrash ? "books" : "trash", showingTrash ? "Kütüphane" : "Çöp Kutusu", () => { showingTrash = !showingTrash; search = ""; currentIndex = 0; render(); })),
       h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },
-        !showingTrash && iconButton(rafModu() ? "books" : "grid", rafModu() ? "Tek tek göster" : "Raf görünümü", () => {
+        KARUSEL_ACIK && !showingTrash && iconButton(rafModu() ? "books" : "grid", rafModu() ? "Tek tek göster" : "Raf görünümü", () => {
           store.setSetting("libraryView", rafModu() ? "karusel" : "raf");
         }),
         iconButton("search", "Ara", openSearch),
@@ -107,8 +107,12 @@ export function renderLibrary(root) {
   // klasörler ve defterler sıralar halinde camdan rafların üstünde duruyor,
   // adları rafın altında. Sütun sayısı ekran genişliğine göre.
 
+  // Karusel (tek tek defter önizlemesi) Paper'a fazla benziyordu; şimdilik
+  // kapalı, kod ve "libraryView" ayarı duruyor. Geri açmak için true yap.
+  const KARUSEL_ACIK = false;
+
   let rafGozlemci = null;
-  const rafModu = () => (store.settings.libraryView || "raf") === "raf";
+  const rafModu = () => !KARUSEL_ACIK || (store.settings.libraryView || "raf") === "raf";
   const RAF_EN = 132;       // bir rafa düşen öğenin eni
   const RAF_ARA = 26;
 

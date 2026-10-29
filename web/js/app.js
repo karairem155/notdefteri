@@ -63,7 +63,18 @@ async function surumKontrol() {
   } catch (_) { /* çevrimdışı olabilir */ }
 }
 
+/** Deneme teması: masa yüzeyi <html data-masa> ile CSS'te değişiyor. */
+function masaUygula() {
+  const masa = store.settings.masa || "lacivert";
+  document.documentElement.dataset.masa = masa;
+  try { localStorage.setItem("notdefteri.masa", masa); } catch (_) {}
+}
+// Veri yüklenene kadar lacivert parlamasın: son seçilen masa hemen gelsin.
+try { document.documentElement.dataset.masa = localStorage.getItem("notdefteri.masa") || "lacivert"; } catch (_) {}
+store.addEventListener("settings", (e) => { if (!e.detail || e.detail.key === "masa") masaUygula(); });
+
 store.load().then(async () => {
+  masaUygula();
   route();
   const persisted = await requestPersistentStorage();
   if (!persisted) console.info("Kalıcı depolama verilmedi; yedekleme önemli.");

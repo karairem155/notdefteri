@@ -39,6 +39,7 @@ export function renderSettings(root) {
         section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Alt bardaki renkler: kullandığın renkler kendiliğinden başa geçer (en çok 12). Bir renge uzun basınca değiştirir, taşır ya da çıkarırsın."))),
         section("VARSAYILAN KALEM", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
         section("SAYFA", h("div", { class: "settings-rows" },
+          row("Masa (deneme)", select([["lacivert", "Lacivert (şimdiki)"], ["krem", "Krem keten"], ["pembe", "Pembe keçe"], ["ceviz", "Ceviz ahşap"]], s.masa || "lacivert", (v) => store.setSetting("masa", v))),
           row("Varsayılan sayfa boyutu", select(pageSizeOptions(), s.pageSize, (v) => store.setSetting("pageSize", v))),
           row("Varsayılan görünüm", select([["single", "Tek sayfa"], ["spread", "Çift sayfa"]], s.spreadMode ? "spread" : "single", (v) => store.setSetting("spreadMode", v === "spread"))),
           row("Defter açılınca", select([["page", "Doğrudan sayfa"], ["fan", "Sayfa yelpazesi"]], s.openMode || "page", (v) => { store.setSetting("openModeByUser", true); store.setSetting("openMode", v); })),

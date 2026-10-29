@@ -137,6 +137,7 @@ const DEFAULT_SETTINGS = {
   folderStyles: {},          // klasör adı -> { color, material }: raftaki deri klasörün görünümü
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
+  masa: "lacivert",          // deneme teması: masanın yüzeyi ("lacivert", "krem", "pembe", "ceviz")
   libraryView: "raf",        // kütüphane: "raf" hepsi bir arada, "karusel" tek tek
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
