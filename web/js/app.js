@@ -63,14 +63,23 @@ async function surumKontrol() {
   } catch (_) { /* çevrimdışı olabilir */ }
 }
 
-/** Deneme teması: masa yüzeyi <html data-masa> ile CSS'te değişiyor. */
+/**
+ * Masa yüzeyi <html data-masa> ile CSS'te değişiyor. "logo" masası pudranın
+ * üstüne kurulu (menüler, paneller aynı), yalnız zemin, çubuklar ve düğmeler
+ * logodaki gibi: gül zemin üstünde dolgun lacivert. O yüzden data-logo ekleniyor.
+ */
+function masaYaz(masa) {
+  const kok = document.documentElement;
+  kok.dataset.masa = masa === "logo" ? "pudra" : masa;
+  if (masa === "logo") kok.dataset.logo = ""; else delete kok.dataset.logo;
+}
 function masaUygula() {
   const masa = store.settings.masa || "pudra";
-  document.documentElement.dataset.masa = masa;
+  masaYaz(masa);
   try { localStorage.setItem("notdefteri.masa", masa); } catch (_) {}
 }
-// Veri yüklenene kadar lacivert parlamasın: son seçilen masa hemen gelsin.
-try { document.documentElement.dataset.masa = localStorage.getItem("notdefteri.masa") || "pudra"; } catch (_) {}
+// Veri yüklenene kadar yanlış renk parlamasın: son seçilen masa hemen gelsin.
+try { masaYaz(localStorage.getItem("notdefteri.masa") || "pudra"); } catch (_) {}
 store.addEventListener("settings", (e) => { if (!e.detail || e.detail.key === "masa") masaUygula(); });
 
 store.load().then(async () => {
