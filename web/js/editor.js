@@ -576,7 +576,6 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       { title: "Sayfa Boyutu", onSelect: () => openPageSizeSheet(notebookId, page, () => { invalidateSnapshot(page); renderStage(); }) },
       { title: "Tanılama (çizim netliği)", onSelect: cizimTanilama },
       { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
-      { title: "Sayfa Yelpazesi", onSelect: () => { flushInk(); navigate(`#/n/${notebookId}/fan?p=${page.id}`); } },
       { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
       { title: "Sayfayı Öne Taşı", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); renderStage(); } },
       { title: "Sayfayı Arkaya Taşı", disabled: index >= count - 1, onSelect: () => { store.movePage(notebookId, page.id, index + 1); renderStage(); } },

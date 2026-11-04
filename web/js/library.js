@@ -611,9 +611,8 @@ export function renderLibrary(root) {
     // Kapak burada acilmiyor: defter one dogru gelip editore devrediliyor,
     // kapagi orada aciliyor. Ikisi de acsaydi kapak iki kez acilmis olurdu.
     cover.classList.add("opening");
-    const fan = store.settings.openMode === "fan";
-    if (!fan) markCoverOpening(notebook.id);
-    setTimeout(() => navigate(fan ? `#/n/${notebook.id}/fan` : `#/n/${notebook.id}`), 260);
+    markCoverOpening(notebook.id);
+    setTimeout(() => navigate(`#/n/${notebook.id}`), 260);
   }
 
   function newMenu(e) {
