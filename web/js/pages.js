@@ -27,7 +27,104 @@ export function renderPages(root, notebookId) {
     return Math.max(0, store.notebook(notebookId).pages.findIndex((p) => p.id === id));
   }
 
-  let drag = null;
+  // ---------- sürükleyip sıralama ----------
+  //
+  // Basılı tutunca sayfa kalkıyor ve parmağı izliyor, öbür sayfalar yol açıyor;
+  // numaralar da bırakınca alacakları değeri gösteriyor. Kıpırdatmadan bırakırsan
+  // menü açılıyor; basar basmaz kaydırırsan ızgara kayıyor, sürükleme başlamıyor.
+
+  let surukleme = null;
+  const KALKMA_MS = 380;
+  const KENAR_PAYI = 80;       // ekranın üst/alt kenarına bu kadar yaklaşınca ızgara kayıyor
+  const KAYMA_HIZI = 14;
+  const onizlemeler = new Map();   // sayfa id -> son önizleme: sıralayınca kareler boş yanıp sönmesin
+
+  // iOS, parmak kıpırdayınca sayfayı kaydırmaya karar veriyor ve dokunuşu
+  // iptal ediyor; sürüklerken bunu ancak touchmove'u durdurarak önleyebiliyoruz.
+  const kaydirmayiDurdur = (e) => { if (surukleme) e.preventDefault(); };
+  document.addEventListener("touchmove", kaydirmayiDurdur, { passive: false });
+
+  function kaldir(el, bas) {
+    const hucreler = [...body.querySelectorAll(".page-cell")];
+    const kutu = el.getBoundingClientRect();
+    // Yuvalar içerik koordinatında: ızgara kayınca da geçerli.
+    const yuvalar = hucreler.map((c) => {
+      const r = c.getBoundingClientRect();
+      return { x: r.left, y: r.top + body.scrollTop, w: r.width, h: r.height };
+    });
+    const hayalet = el.cloneNode(true);
+    hayalet.classList.add("sayfa-hayalet");
+    Object.assign(hayalet.style, { width: kutu.width + "px", left: kutu.left + "px", top: kutu.top + "px" });
+    document.body.append(hayalet);
+    el.parentElement.classList.add("siralaniyor");
+    el.classList.add("dragging");
+    try { el.setPointerCapture(bas.id); } catch (_) { /* yakalanamazsa da devam */ }
+    const kaynak = hucreler.indexOf(el);
+    surukleme = { id: bas.id, hucreler, yuvalar, hayalet, kaynak, hedef: kaynak,
+      dx: bas.x - kutu.left, dy: bas.y - kutu.top, x0: bas.x, y0: bas.y, x: bas.x, y: bas.y, kipirdadi: false,
+      kayma: setInterval(kenardaKaydir, 16) };
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  function tasi(x, y) {
+    const s = surukleme;
+    if (!s) return;
+    if (!s.kipirdadi && Math.hypot(x - s.x0, y - s.y0) > 12) s.kipirdadi = true;
+    s.x = x;
+    s.y = y;
+    s.hayalet.style.left = (x - s.dx) + "px";
+    s.hayalet.style.top = (y - s.dy) + "px";
+    hedefiGuncelle();
+  }
+
+  /** Parmağa en yakın yuva hedef; aradaki sayfalar birer yuva kayarak yer açıyor. */
+  function hedefiGuncelle() {
+    const s = surukleme;
+    const py = s.y + body.scrollTop;
+    let hedef = s.hedef;
+    let enYakin = Infinity;
+    s.yuvalar.forEach((y, i) => {
+      const uzaklik = Math.hypot(s.x - (y.x + y.w / 2), py - (y.y + y.h / 2));
+      if (uzaklik < enYakin) { enYakin = uzaklik; hedef = i; }
+    });
+    if (hedef === s.hedef) return;
+    s.hedef = hedef;
+    s.hucreler.forEach((c, i) => {
+      let j = i;
+      if (i === s.kaynak) j = hedef;
+      else if (s.kaynak < hedef && i > s.kaynak && i <= hedef) j = i - 1;
+      else if (hedef < s.kaynak && i >= hedef && i < s.kaynak) j = i + 1;
+      c.style.transform = j === i ? "" : `translate(${s.yuvalar[j].x - s.yuvalar[i].x}px, ${s.yuvalar[j].y - s.yuvalar[i].y}px)`;
+      c.querySelector(".num").textContent = String(j + 1);
+    });
+    s.hayalet.querySelector(".num").textContent = String(hedef + 1);
+  }
+
+  /** Uzak bir sayfaya taşırken: parmak kenara gelince ızgara kayıyor. */
+  function kenardaKaydir() {
+    const s = surukleme;
+    if (!s) return;
+    const r = body.getBoundingClientRect();
+    let hiz = 0;
+    if (s.y < r.top + KENAR_PAYI) hiz = -Math.min(1, (r.top + KENAR_PAYI - s.y) / KENAR_PAYI) * KAYMA_HIZI;
+    else if (s.y > r.bottom - KENAR_PAYI) hiz = Math.min(1, (s.y - (r.bottom - KENAR_PAYI)) / KENAR_PAYI) * KAYMA_HIZI;
+    if (!hiz) return;
+    const once = body.scrollTop;
+    body.scrollTop += hiz;
+    if (body.scrollTop !== once) hedefiGuncelle();
+  }
+
+  /** Sürüklemeyi bitirir; taşınacak bir şey varsa önce onu yapar. */
+  function surukleBitir(page, iptal) {
+    const s = surukleme;
+    surukleme = null;
+    clearInterval(s.kayma);
+    s.hayalet.remove();
+    if (!iptal && s.kipirdadi && s.hedef !== s.kaynak) store.movePage(notebookId, page.id, s.hedef);
+    // Menü basılan kareye bağlanıyor: kare yeniden çizilmeden önce açılmalı.
+    if (!iptal && !s.kipirdadi) pageMenu(page);
+    render();
+  }
 
   function render() {
     const pages = store.notebook(notebookId).pages;
@@ -36,7 +133,7 @@ export function renderPages(root, notebookId) {
     pages.forEach((page, index) => grid.append(cell(page, index)));
     body.replaceChildren(
       h("div", { class: "pages-hint" },
-        h("span", {}, `${pages.length} sayfa · sürükleyerek sırayı değiştir`),
+        h("span", {}, `${pages.length} sayfa · basılı tutup sürükleyerek sırayı değiştir`),
         h("span", {}, "Sayfaya uzun bas: rengi, boyutu, şablonu değiştir; çoğalt, sil")),
       grid
     );
@@ -61,67 +158,37 @@ export function renderPages(root, notebookId) {
     const thumb = h("div", { class: "thumb", style: { aspectRatio: `${page.size.w} / ${page.size.h}` } });
     // Önizleme sayfanın gerçeği: kağıt + nesneler + mürekkep aynı çizimle üretilir.
     const ink = h("img", { class: "ink", alt: "", draggable: "false" });
+    if (onizlemeler.has(page.id)) ink.src = onizlemeler.get(page.id);
     renderPageCanvas(page, Math.min(1, 460 / page.size.w), { background: true, opaque: true, spill: spillFor(store.notebook(notebookId).pages, index) })
-      .then((canvas) => { ink.src = canvas.toDataURL("image/jpeg", 0.85); })
+      .then((canvas) => { ink.src = canvas.toDataURL("image/jpeg", 0.85); onizlemeler.set(page.id, ink.src); })
       .catch(() => {});
     thumb.append(ink);
     const el = h("div", { class: "page-cell" + (page.id === selectedId ? " selected" : ""), dataset: { index: String(index) }, role: "button", tabindex: "0", "aria-label": `${index + 1}. sayfa` },
       thumb, h("div", { class: "num" }, String(index + 1)));
 
-    // Kısa dokunuş: sayfaya git. Uzun basıp bırakmadan sürükleme: sıralama. Uzun basıp bırakma: menü.
-    let timer = null;
-    let startPoint = null;
-    let dragging = false;
+    // Kısa dokunuş: sayfaya git. Basılı tutup sürükleme: sıralama. Basılı tutup bırakma: menü.
+    let bekle = null;
+    let bas = null;
     el.addEventListener("pointerdown", (e) => {
-      startPoint = { x: e.clientX, y: e.clientY };
-      dragging = false;
-      timer = setTimeout(() => {
-        timer = null;
-        dragging = true;
-        el.classList.add("dragging");
-        try { el.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olay */ }
-        drag = { pageId: page.id };
-      }, 380);
+      if ((e.pointerType === "mouse" && e.button !== 0) || surukleme) return;
+      bas = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      bekle = setTimeout(() => { bekle = null; if (bas) kaldir(el, bas); }, KALKMA_MS);
     });
     el.addEventListener("pointermove", (e) => {
-      if (!startPoint) return;
-      if (!dragging) {
-        if (timer && Math.hypot(e.clientX - startPoint.x, e.clientY - startPoint.y) > 10) { clearTimeout(timer); timer = null; startPoint = null; }
-        return;
-      }
-      e.preventDefault();
-      const target = document.elementFromPoint(e.clientX, e.clientY);
-      const cellEl = target && target.closest(".page-cell");
-      body.querySelectorAll(".page-cell.drop-target").forEach((c) => c.classList.remove("drop-target"));
-      if (cellEl && cellEl !== el) cellEl.classList.add("drop-target");
+      if (surukleme && surukleme.id === e.pointerId) { tasi(e.clientX, e.clientY); e.preventDefault(); return; }
+      if (bekle && bas && Math.hypot(e.clientX - bas.x, e.clientY - bas.y) > 10) { clearTimeout(bekle); bekle = null; bas = null; }
     });
-    const finish = (e) => {
-      if (timer) { clearTimeout(timer); timer = null; }
-      if (dragging) {
-        const target = document.elementFromPoint(e.clientX, e.clientY);
-        const cellEl = target && target.closest(".page-cell");
-        el.classList.remove("dragging");
-        body.querySelectorAll(".page-cell.drop-target").forEach((c) => c.classList.remove("drop-target"));
-        const moved = Math.hypot(e.clientX - startPoint.x, e.clientY - startPoint.y) > 12;
-        if (cellEl && cellEl !== el) {
-          store.movePage(notebookId, page.id, Number(cellEl.dataset.index));
-        } else if (!moved) {
-          pageMenu(page);
-        }
-        drag = null;
-        dragging = false;
-        startPoint = null;
-        render();
-        return;
-      }
-      if (startPoint && e.type === "pointerup") {
+    const bitir = (e, iptal) => {
+      if (surukleme && surukleme.id === e.pointerId) { bas = null; surukleBitir(page, iptal); return; }
+      if (bekle) { clearTimeout(bekle); bekle = null; }
+      if (bas && !iptal) {
         selectedId = page.id;
         navigate(`#/n/${notebookId}/p/${page.id}`);
       }
-      startPoint = null;
+      bas = null;
     };
-    el.addEventListener("pointerup", finish);
-    el.addEventListener("pointercancel", finish);
+    el.addEventListener("pointerup", (e) => bitir(e, false));
+    el.addEventListener("pointercancel", (e) => bitir(e, true));
     el.addEventListener("contextmenu", (e) => e.preventDefault());
     return el;
   }
@@ -138,6 +205,10 @@ export function renderPages(root, notebookId) {
   }
 
   render();
-  void drag;
-  return { destroy() {} };
+  return {
+    destroy() {
+      document.removeEventListener("touchmove", kaydirmayiDurdur);
+      if (surukleme) { clearInterval(surukleme.kayma); surukleme.hayalet.remove(); surukleme = null; }
+    }
+  };
 }

@@ -283,12 +283,12 @@ input, textarea { font: inherit; -webkit-user-select: text; user-select: text; }
 .page-cell { display: flex; flex-direction: column; align-items: center; gap: 12px; cursor: pointer; touch-action: none; }
 .page-cell .thumb { width: 100%; border-radius: 10px; overflow: hidden; border: 1px solid rgba(0, 0, 0, 0.15); background: var(--paper); position: relative; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08); }
 .page-cell .thumb > * { position: absolute; inset: 0; width: 100%; height: 100%; }
-.page-cell .thumb img.ink { object-fit: contain; }
+.page-cell .thumb img.ink { object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
 .page-cell.selected .thumb { border: 3px solid var(--accent); }
 .page-cell .num { font-weight: 600; color: var(--muted); padding: 3px 12px; border-radius: 999px; }
 .page-cell.selected .num { background: var(--accent); color: #fff; }
-.page-cell.dragging { opacity: 0.4; }
-.page-cell.drop-target .thumb { outline: 3px dashed var(--accent); outline-offset: 4px; }
+.page-cell.dragging { opacity: 0.25; }
+.pages-grid.siralaniyor .page-cell { transition: transform 0.18s ease; }
 
 /* Ayarlar */
 .settings-body { flex: 1; overflow: auto; padding: 24px 28px calc(var(--safe-bottom) + 30px); }
@@ -1399,3 +1399,6 @@ html[data-masa="gece"] .fav-strip .swatch.current svg { filter: none; }
 html[data-masa="gece"] .fav-strip .swatch.heart::before { background: rgba(31, 43, 74, 0.07); box-shadow: inset 0 0 0 1px rgba(31, 43, 74, 0.12); }
 html[data-masa="gece"] .screen-dark .topbar .back-btn,
 html[data-masa="gece"] .screen-dark .topbar .topbar-notebook { color: var(--murekkep); }
+
+/* Sayfa sıralarken parmağı izleyen kopya */
+.sayfa-hayalet { position: fixed; z-index: 1000; pointer-events: none; margin: 0; transform: scale(1.06) rotate(-2deg); filter: drop-shadow(0 18px 24px rgba(23, 42, 69, 0.4)); }
