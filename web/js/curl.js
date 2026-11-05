@@ -843,10 +843,8 @@ export function createCoverAnim(spreadEl, options = {}) {
 /**
  * Sayfa sesi.
  *
- * Kullanıcının kendi kaydı çalınıyor. Ham dosyanın (page-flip.mp3) ilk %46'sı
- * sessizdi — sayfa çevriliyor, ses üçte bir saniye sonra geliyordu — ve çok
- * kısıktı. page-flip-temiz.mp3 aynı kayıt: baştaki sessizlik kırpılmış,
- * seviyesi düzeltilmiş, 380 Hz altı gürültüsü alınmış.
+ * sayfa-cevir.mp3: kullanıcının altı ElevenLabs denemesi arasından seçtiği ses;
+ * boşlukları kırpılmış, eski kaydın (page-flip.mp3) seviyesine getirilmiş.
  *
  * Yol modüle göre çözülüyor: uygulama alt dizinde yayınlandığı için (GitHub
  * Pages) sayfaya göre çözülen yol yanlış yere düşebiliyor.
@@ -865,7 +863,7 @@ let sesOge = null;
 function playPaperSound(ses = 0.6) {
   try {
     if (!sesOge) {
-      sesOge = new Audio(new URL("../sounds/page-flip-temiz.mp3", import.meta.url).href);
+      sesOge = new Audio(new URL("../sounds/sayfa-cevir.mp3", import.meta.url).href);
       sesOge.preload = "auto";
     }
     sesOge.volume = ses;
