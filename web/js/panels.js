@@ -1,6 +1,6 @@
 // Sol kenar panelleri (tasarım ekranları): Kalem Ayarları, Silgi Ayarları, Şekiller ve Cetvel,
 // Seçim, Favoriler, Renk Seçici. Editör bir `ctx` verir; paneller durumu oradan okur/yazar.
-import { h, svgIcon, toast, promptDialog, actionSheet } from "./ui.js";
+import { h, svgIcon, toast, promptDialog, actionSheet, pressable } from "./ui.js";
 
 export const WIDTH_PRESETS = [1.2, 2, 3.2, 4.8, 8];          // mm karşılığı: 0.3 0.5 0.8 1.2 2.0
 export const HL_PRESETS = [6, 8, 10, 14, 20];
@@ -468,7 +468,7 @@ export function stickerPanel(ctx) {
   const emojiGrid = (list) => h("div", { class: "st-grid emoji" }, ...list.map((e) =>
     h("button", { class: "st-cell", type: "button", "aria-label": "Çıkartma " + e, onTap: () => ctx.addEmoji(e) }, e)));
   const build = () => {
-    tabs.replaceChildren(...[["postit", "Post-it"], ["sticker", "Sticker"], ["marks", "İşaretler"], ["recent", "Sık Kullanılanlar"]].map(([k, t]) =>
+    tabs.replaceChildren(...[["postit", "Post-it"], ["benim", "Benim"], ["sticker", "Sticker"], ["marks", "İşaretler"], ["recent", "Sık Kullanılanlar"]].map(([k, t]) =>
       h("button", { type: "button", class: tab === k ? "active" : "", onTap: () => { tab = k; build(); } }, t)));
     if (tab === "postit") {
       body.replaceChildren(
@@ -481,6 +481,24 @@ export function stickerPanel(ctx) {
           h("button", { class: "st-cell", type: "button", "aria-label": name, onTap: () => ctx.addFrosted(hex) }, h("div", { class: "st-postit frosted", style: { "--tint": hex } })))),
         section("Sticker"),
         emojiGrid(STICKERS.slice(0, 16)));
+    } else if (tab === "benim") {
+      const liste = ctx.store.settings.myStickers || [];
+      const izgara = h("div", { class: "st-grid" }, ...liste.map((giris) => {
+        const resim = h("img", { class: "st-benim", alt: "", draggable: "false" });
+        ctx.store.assetURL(giris.asset).then((url) => { if (url) resim.src = url; });
+        const hucre = h("button", { class: "st-cell", type: "button", "aria-label": "Çıkartmam" }, resim);
+        pressable(hucre, {
+          onTap: () => ctx.putMySticker(giris),
+          onLong: () => actionSheet("Çıkartma", [{ title: "Kitaplıktan kaldır", destructive: true, onSelect: () => { ctx.store.removeMySticker(giris.asset); build(); } }])
+        });
+        return hucre;
+      }));
+      body.replaceChildren(
+        h("button", { class: "sp-primary-btn", type: "button", onTap: () => ctx.makeSticker() }, svgIcon("scissors", 18), "Fotoğraftan çıkartma yap"),
+        h("p", { class: "sp-desc" }, liste.length
+          ? "Dokununca sayfaya eklenir; basılı tutunca kitaplıktan kaldırırsın."
+          : "Yaptığın çıkartmalar burada birikir, her defterde kullanabilirsin. Sayfadaki bir fotoğrafa dokunup \"Çıkartma yap\" da diyebilirsin."),
+        izgara);
     } else if (tab === "sticker") {
       body.replaceChildren(section("Sticker"), emojiGrid(STICKERS),
         section("Kendi görselim"),
@@ -522,6 +540,7 @@ export function mediaPanel(ctx) {
   return shell("Fotoğraf ve Dosya Ekle", ctx.close,
     h("div", { class: "sp-nav" },
       navRow("photos", "Fotoğraflar", () => ctx.importPhoto()),
+      navRow("scissors", "Fotoğraftan Çıkartma Yap", () => ctx.makeSticker(), "Çevresini çiz ya da şekil seç"),
       navRow("camera", "Kamera", () => ctx.capturePhoto()),
       navRow("folder", "Dosyalar", () => ctx.importFile(), "Görsel ya da PDF"),
       navRow("scan", "Belge Tara", () => ctx.capturePhoto(true), "Kamerayla çekilir"),
@@ -532,7 +551,7 @@ export function mediaPanel(ctx) {
     h("div", { class: "sp-nav" },
       navRow("audio", ctx.isRecording() ? "Ses Kaydını Durdur" : "Sesli Not Kaydet", () => ctx.toggleAudio(), "Sayfaya oynatılabilir not düşer"),
       navRow("frost", ctx.isFrosted() ? "Buzlu Kalemi Kapat" : "Buzlu Kalem", () => ctx.toggleFrosted(), "Cevabın üstünü örter; dokununca açılır"),
-      navRow("objects", ctx.isEditingObjects() ? "Düzenlemeyi Bitir" : "Nesneleri Düzenle", () => ctx.toggleEditing(), "Taşı, döndür, kes"),
+      navRow("objects", ctx.isEditingObjects() ? "Düzenlemeyi Bitir" : "Nesneleri Düzenle", () => ctx.toggleEditing(), "Taşı, döndür, çıkartma yap"),
       ctx.hasClipboard() ? navRow("copy", "Yapıştır", () => ctx.paste()) : null));
 }
 

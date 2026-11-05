@@ -52,7 +52,6 @@ html[data-masa="pudra"] .paper-head h1 { color: var(--murekkep); }
 html[data-masa="pudra"] .paper-head .sub { color: rgba(23, 42, 69, 0.68); }
 html[data-masa="pudra"] .paper-actions .icon-btn { background: rgba(23, 42, 69, 0.084); color: var(--murekkep); }
 html[data-masa="pudra"] .paper-empty { color: rgba(23, 42, 69, 0.79); }
-html[data-masa="pudra"] .cut-path { stroke: var(--murekkep); }
 html[data-masa="pudra"] .fav-mini.current::after { border: 1.5px dashed rgba(23, 42, 69, 0.56); }
 html[data-masa="pudra"] .pen-btn.current::after { border: 1.5px dashed rgba(23, 42, 69, 0.40); }
 html[data-masa="pudra"] .emoji-cell { background: rgba(23, 42, 69, 0.036); }
@@ -306,3 +305,33 @@ html[data-logo] .fav-grip { color: rgba(251, 246, 243, 0.55); }
 
 html[data-gul] { --desk: #e8c6ce; --pudra: #e8c6ce; --sis: #46526a; --masa-soluk: #46526a;
   --masa: radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.4), transparent 60%), radial-gradient(ellipse at 50% 120%, rgba(110, 30, 60, 0.16), transparent 60%), var(--doku-tane), #e8c6ce; }
+
+/* ===== Çıkartma yapma ekranı =====
+   Her masada aynı: görsel öne çıksın diye koyu mürekkep zemin, kâğıt düğmeler. */
+.cikartma-ekran { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; background: #172a45; color: #fbf6f3;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px calc(env(safe-area-inset-bottom, 0px) + 14px); gap: 10px; }
+.ck-ust { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.ck-baslik { font-size: 17px; font-weight: 700; }
+.ck-vazgec, .ck-bitti, .ck-sekiller button, .ck-kenar-dugme { border: 0; border-radius: 999px; min-height: 44px; padding: 0 18px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.ck-vazgec { background: rgba(255, 255, 255, 0.12); color: #fbf6f3; }
+.ck-bitti { background: #f2649a; color: #172a45; }
+.ck-bitti:disabled { background: rgba(255, 255, 255, 0.12); color: rgba(251, 246, 243, 0.4); }
+.ck-sahne { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: none; overflow: hidden; }
+.ck-tuval { position: relative; flex: none; background: repeating-conic-gradient(#e9e4e1 0 25%, #fbf6f3 0 50%) 0 0 / 22px 22px; pointer-events: none; }
+.ck-svg { display: block; width: 100%; height: 100%; overflow: hidden; -webkit-user-select: none; user-select: none; }
+.ck-karart { fill: rgba(23, 42, 69, 0.72); }
+.ck-kenar { fill: none; stroke: #fff; stroke-linejoin: round; stroke-linecap: round; }
+.ck-cizgi { fill: none; stroke: #f2649a; stroke-linejoin: round; stroke-linecap: round; }
+.ck-tutamak { fill: #fbf6f3; stroke: #f2649a; }
+.ck-ipucu { text-align: center; font-size: 14px; color: rgba(251, 246, 243, 0.78); min-height: 20px; }
+.ck-alt { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
+.ck-sekiller { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.ck-sekiller button { background: rgba(255, 255, 255, 0.12); color: #fbf6f3; }
+.ck-sekiller button.secili { background: #fbf6f3; color: #172a45; }
+.ck-kenar-dugme { background: transparent; color: rgba(251, 246, 243, 0.78); box-shadow: inset 0 0 0 1.5px rgba(251, 246, 243, 0.3); }
+.ck-kenar-dugme.acik { color: #fbf6f3; box-shadow: inset 0 0 0 1.5px #fbf6f3; }
+.st-benim { width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; filter: drop-shadow(0 2px 3px rgba(23, 42, 69, 0.3)); }
+/* Çıkartma ekranındayken uyarılar da görünsün. */
+.toast { z-index: 2100; }
+/* Nesne menüsü sayfayla ölçekleniyor ve sayfa onu kırpıyor: sığmazsa alt satıra insin. */
+.object-menu { width: max-content; flex-wrap: wrap; justify-content: center; }

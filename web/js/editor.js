@@ -12,6 +12,7 @@ import { coverBitmap, coverElement, sameCover, takeCoverOpening, openCoverFit } 
 import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
+import { openStickerMaker } from "./stickermaker.js";
 import { navigate } from "./app.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -1318,7 +1319,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     return {
             edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
             todo: object.kind === "text" ? () => toggleTodoMode(object, page) : null,
-            cut: (object.kind === "photo" || object.kind === "sticker") ? () => startCut(object, page, stack) : null,
+            cut: (object.kind === "photo" || object.kind === "sticker") ? () => cikartmaYapNesneden(object, page) : null,
             // Çerçeve: polaroid kenarlı fotoğraf ile çerçevesiz görsel arasında
             // gidip gelmek için. Saydam PNG'ler otomatik çerçevesiz geliyor ama
             // tahmin tutmazsa buradan değiştiriliyor.
@@ -1565,11 +1566,11 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     const x = Math.min(Math.max(item.rect.x + item.rect.w / 2 + dx, 150), Math.max(page.size.w - 150, 150));
     const y = Math.max(item.rect.y - 12, 60);
     const btn = (title, icon, fn, cls = "") => h("button", { type: "button", class: cls, onTap: (e) => { e.stopPropagation(); fn(); rerender(); } }, svgIcon(icon, 16), title);
-    const menu = h("div", { class: "object-menu", style: { left: x + "px", top: y + "px" } },
+    const menu = h("div", { class: "object-menu", style: { left: x + "px", top: y + "px", maxWidth: (page.size.w - 16) + "px" } },
       actions.edit && btn("Düzenle", "pen", actions.edit), actions.edit && h("div", { class: "sep" }),
       actions.todo && btn(item.todo ? "Kutuları kaldır" : "Onay kutuları", "check", actions.todo), actions.todo && h("div", { class: "sep" }),
-      actions.cut && btn("Kes", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
-      actions.cerceve && btn(item.kind === "photo" ? "Çerçeveyi kaldır" : "Çerçeve ekle", "photo", actions.cerceve), actions.cerceve && h("div", { class: "sep" }),
+      actions.cut && btn("Çıkartma yap", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
+      actions.cerceve && btn(item.kind === "photo" ? "Çerçevesiz" : "Çerçeveli", "photo", actions.cerceve), actions.cerceve && h("div", { class: "sep" }),
       actions.spread && btn("İki sayfaya yay", "books", actions.spread), actions.spread && h("div", { class: "sep" }),
       actions.font && btn("Yazı tipi", "note", actions.font), actions.font && h("div", { class: "sep" }),
       actions.translate && btn("Çevir", "share", actions.translate), actions.translate && h("div", { class: "sep" }),
@@ -1578,6 +1579,12 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       btn("Öne al", "front", actions.front), h("div", { class: "sep" }),
       btn("Sil", "trash", actions.remove, "danger"));
     menu.addEventListener("pointerdown", (e) => e.stopPropagation());
+    // Sayfa menüyü kırpıyor: ölçülüp sayfanın içine çekiliyor (iki satıra inebilir).
+    requestAnimationFrame(() => {
+      const yari = menu.offsetWidth / 2;
+      if (yari) menu.style.left = Math.min(Math.max(x, yari + 8), page.size.w - yari - 8) + "px";
+      if (menu.offsetHeight) menu.style.top = Math.max(y, menu.offsetHeight + 8) + "px";
+    });
     return menu;
   }
 
@@ -1588,121 +1595,63 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     }
   }
 
-  // ---------- makas: fotoğrafı kesip beyaz kenarlı çıkartma yapma ----------
+  // ---------- fotoğraftan çıkartma ----------
 
-  function startCut(object, page, stack) {
-    const layer = h("div", { class: "layer-cut" });
-    const svg = document.createElementNS(SVG_NS, "svg");
-    svg.setAttribute("viewBox", `0 0 ${page.size.w} ${page.size.h}`);
-    svg.setAttribute("width", page.size.w);
-    svg.setAttribute("height", page.size.h);
-    const path = document.createElementNS(SVG_NS, "path");
-    path.setAttribute("class", "cut-path");
-    svg.append(path);
-    layer.append(svg);
-    stack.append(layer);
-    banner.hidden = false;
-    banner.replaceChildren(svgIcon("scissors", 16), h("span", {}, "Kes: fotoğrafın üstünde kesmek istediğin şeklin çevresini çiz"),
-      h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.15)", color: "#fff" }, onTap: () => { layer.remove(); renderBanner(); } }, "Vazgeç"));
-    let points = null;
-    layer.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      try { layer.setPointerCapture(e.pointerId); } catch (_) { /* sentetik olay */ }
-      const p = toPageCoords(e, stack, page);
-      points = [[p.x, p.y]];
-    });
-    layer.addEventListener("pointermove", (e) => {
-      if (!points) return;
-      const p = toPageCoords(e, stack, page);
-      const last = points[points.length - 1];
-      if (Math.hypot(p.x - last[0], p.y - last[1]) < 2) return;
-      points.push([p.x, p.y]);
-      path.setAttribute("d", "M" + points.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z");
-    });
-    const end = async () => {
-      if (!points) return;
-      const pts = points;
-      points = null;
-      layer.remove();
-      renderBanner();
-      if (pts.length < 8) { toast("Kesmek için kapalı bir şekil çiz."); return; }
-      try {
-        await cutObject(object, page, pts);
-      } catch (error) {
-        toast("Kesilemedi: " + error.message);
-      }
-    };
-    layer.addEventListener("pointerup", end);
-    layer.addEventListener("pointercancel", end);
+  /** Sayfadaki fotoğraftan: çıkartma kitaplığa da giriyor, fotoğrafın üstüne biraz kayarak konuyor. */
+  async function cikartmaYapNesneden(object, page) {
+    try {
+      const url = await store.assetURL(object.asset);
+      if (!url) throw new Error("görsel bulunamadı");
+      const sonuc = await openStickerMaker(url);
+      if (!sonuc) return;
+      const asset = await store.importAsset(sonuc.blob, "cikartma.png");
+      store.addMySticker({ asset, w: sonuc.w, h: sonuc.h });
+      // Görsel nesnede "cover" ile yerleşiyor: kesilen parça sayfada aynı yerde dursun.
+      const inset = object.kind === "photo" ? 6 : 0;   // fotoğrafın beyaz çerçevesi
+      const alanW = object.rect.w - inset * 2;
+      const alanH = object.rect.h - inset * 2;
+      const olcek = Math.max(alanW / sonuc.gorselW, alanH / sonuc.gorselH);
+      const offX = inset + (alanW - sonuc.gorselW * olcek) / 2;
+      const offY = inset + (alanH - sonuc.gorselH * olcek) / 2;
+      const yerelX = offX + (sonuc.kutu.x + sonuc.kutu.w / 2) * olcek - object.rect.w / 2;
+      const yerelY = offY + (sonuc.kutu.y + sonuc.kutu.h / 2) * olcek - object.rect.h / 2;
+      const aci = (object.rotation || 0) * Math.PI / 180;
+      const cx = object.rect.x + object.rect.w / 2 + yerelX * Math.cos(aci) - yerelY * Math.sin(aci);
+      const cy = object.rect.y + object.rect.h / 2 + yerelX * Math.sin(aci) + yerelY * Math.cos(aci);
+      // Fotoğraf sayfada küçükse çıkartma da minicik kalmasın.
+      const buyut = Math.max(1, 110 / Math.max(sonuc.kutu.w * olcek, sonuc.kutu.h * olcek));
+      const w = sonuc.kutu.w * olcek * buyut;
+      const yuk = sonuc.kutu.h * olcek * buyut;
+      const sticker = { id: uid(), kind: "sticker", asset, rect: { x: cx - w / 2 + 18, y: cy - yuk / 2 + 18, w, h: yuk }, rotation: object.rotation || 0, z: maxZ(page) + 1 };
+      store.updatePage(notebookId, page.id, (p) => { p.objects.push(sticker); });
+      touchPage(page);
+      selectedObjectId = sticker.id;
+      setEditing(true);
+      toast("Çıkartma hazır, Çıkartmalar > Benim'e de eklendi");
+    } catch (error) {
+      toast("Çıkartma yapılamadı: " + error.message);
+    }
   }
 
-  /** Çizilen yol fotoğrafın yerel koordinatına çevrilir, görsel kırpılır, beyaz kenar eklenir, yeni çıkartma olur. */
-  async function cutObject(object, page, pagePoints) {
-    const url = await store.assetURL(object.asset);
-    if (!url) throw new Error("görsel bulunamadı");
-    const image = await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = () => reject(new Error("görsel yüklenemedi")); im.src = url; });
-    const cx = object.rect.x + object.rect.w / 2;
-    const cy = object.rect.y + object.rect.h / 2;
-    const rad = -(object.rotation || 0) * Math.PI / 180;
-    const cos = Math.cos(rad), sin = Math.sin(rad);
-    // Sayfa → nesne yerel (döndürülmemiş, sol üst 0,0)
-    const local = pagePoints.map(([x, y]) => {
-      const dx = x - cx, dy = y - cy;
-      return [dx * cos - dy * sin + object.rect.w / 2, dx * sin + dy * cos + object.rect.h / 2];
-    });
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const [x, y] of local) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
-    const border = 10;
-    const pad = border + 4;
-    const bw = maxX - minX + pad * 2;
-    const bh = maxY - minY + pad * 2;
-    if (bw < 12 || bh < 12) throw new Error("çok küçük");
-    // Görsel "cover" ile yerleşir: ölçek ve kayma
-    const isPhoto = object.kind === "photo";
-    const inset = isPhoto ? 6 : 0;   // fotoğrafın beyaz çerçevesi
-    const areaW = object.rect.w - inset * 2;
-    const areaH = object.rect.h - inset * 2;
-    const scale = Math.max(areaW / image.width, areaH / image.height);
-    const drawW = image.width * scale;
-    const drawH = image.height * scale;
-    const offX = inset + (areaW - drawW) / 2;
-    const offY = inset + (areaH - drawH) / 2;
-    const pixelScale = 2;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bw * pixelScale);
-    canvas.height = Math.round(bh * pixelScale);
-    const ctx = canvas.getContext("2d");
-    ctx.scale(pixelScale, pixelScale);
-    ctx.translate(-minX + pad, -minY + pad);
-    const trace = () => { ctx.beginPath(); ctx.moveTo(local[0][0], local[0][1]); for (const [x, y] of local) ctx.lineTo(x, y); ctx.closePath(); };
-    // Beyaz çıkartma kenarı
-    trace();
-    ctx.lineJoin = "round";
-    ctx.lineWidth = border * 2;
-    ctx.strokeStyle = "#ffffff";
-    ctx.stroke();
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-    // Kırpılmış görsel
-    ctx.save();
-    trace();
-    ctx.clip();
-    ctx.drawImage(image, offX, offY, drawW, drawH);
-    ctx.restore();
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-    const asset = await store.importAsset(blob, "cutout.png");
-    // Yeni nesne: yerel kutunun merkezini sayfa koordinatına geri döndür
-    const lcx = minX - pad + bw / 2 - object.rect.w / 2;
-    const lcy = minY - pad + bh / 2 - object.rect.h / 2;
-    const rad2 = (object.rotation || 0) * Math.PI / 180;
-    const pcx = cx + lcx * Math.cos(rad2) - lcy * Math.sin(rad2);
-    const pcy = cy + lcx * Math.sin(rad2) + lcy * Math.cos(rad2);
-    const sticker = { id: uid(), kind: "sticker", asset, rect: { x: pcx - bw / 2 + 18, y: pcy - bh / 2 + 18, w: bw, h: bh }, rotation: object.rotation || 0, z: maxZ(page) + 1 };
-    store.updatePage(notebookId, page.id, (p) => { p.objects.push(sticker); });
-    touchPage(page);
-    selectedObjectId = sticker.id;
-    setEditing(true);
-    toast("Çıkartma kesildi; istersen fotoğrafı silebilirsin");
+  /** Paneldeki düğmeden: Fotoğraflar'dan bir görsel seçilip çıkartma yapılıyor. */
+  async function cikartmaYapFotograftan() {
+    const file = await pickFile("file-image");
+    if (!file) return;
+    let url = null;
+    try {
+      const shrunk = await shrinkImage(file, 1600);
+      url = URL.createObjectURL(shrunk.blob);
+      const sonuc = await openStickerMaker(url);
+      if (!sonuc) return;
+      const asset = await store.importAsset(sonuc.blob, "cikartma.png");
+      store.addMySticker({ asset, w: sonuc.w, h: sonuc.h });
+      closePopover();
+      await importImage("sticker", null, asset);
+    } catch (error) {
+      toast("Çıkartma yapılamadı: " + error.message);
+    } finally {
+      if (url) URL.revokeObjectURL(url);
+    }
   }
 
   function centeredRect(page, w, hh) {
@@ -2283,7 +2232,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     addFrosted: (hex) => addFrostedPostIt(hex),
     addTape: (hex, pattern) => addTape(hex, pattern),
     addEmoji: (e) => addEmojiSticker(e),
-    importSticker: () => importImages("sticker")
+    importSticker: () => importImages("sticker"),
+    makeSticker: () => cikartmaYapFotograftan(),
+    putMySticker: (entry) => { closePopover(); importImage("sticker", null, entry.asset); }
   };
 
   function mountPanel(el, kind) {

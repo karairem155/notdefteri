@@ -125,6 +125,7 @@ const DEFAULT_SETTINGS = {
   eraser: { mode: "stroke", size: 12, onlyHighlighter: false, pressureSize: false },
   recentColors: [],          // son kullanılan renkler (Renk Seçici'de gösterilir)
   recentStickers: [],        // sık kullanılan çıkartmalar (emoji)
+  myStickers: [],            // kullanıcının yaptığı çıkartmalar: { asset, w, h }
   recentMedia: [],           // son eklenen fotoğraflar/dosyalar: { asset, name, kind }
   favDock: { side: "bottom", pos: 0.5 },   // favoriler çubuğunun yeri: bottom | left | right | top
   rulerAngle: true,          // cetvelde açı rozeti
@@ -505,6 +506,15 @@ class Store extends EventTarget {
     this.setSetting("recentMedia", [entry, ...current].slice(0, 12));
   }
 
+  addMySticker(giris) {
+    this.setSetting("myStickers", [giris, ...(this.settings.myStickers || [])].slice(0, 60));
+  }
+
+  removeMySticker(asset) {
+    this.setSetting("myStickers", (this.settings.myStickers || []).filter((g) => g.asset !== asset));
+    this.removeUnreferencedAssets();
+  }
+
   noteSticker(emoji) {
     const current = this.settings.recentStickers || [];
     this.setSetting("recentStickers", [emoji, ...current.filter((e) => e !== emoji)].slice(0, 16));
@@ -554,6 +564,7 @@ class Store extends EventTarget {
     const used = new Set();
     for (const t of this.settings.templates) used.add(t.asset);
     for (const c of this.settings.customCovers) used.add(c);
+    for (const g of this.settings.myStickers || []) used.add(g.asset);
     if (this.settings.defaultCover && this.settings.defaultCover.imageAsset) used.add(this.settings.defaultCover.imageAsset);
     for (const notebook of this.notebooks) {
       if (notebook.cover && notebook.cover.imageAsset) used.add(notebook.cover.imageAsset);
