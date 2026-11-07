@@ -126,9 +126,38 @@ export function renderPages(root, notebookId) {
     render();
   }
 
+  // ---------- önizlemeler ----------
+  //
+  // Yüzlerce sayfalık PDF'te bütün önizlemeleri aynı anda (üstelik ekran
+  // çözünürlüğünde) çizmek iPad'in belleğini bitirip uygulamayı kapatıyordu.
+  // Artık yalnızca ekrana yaklaşan sayfalar, ikişer ikişer ve küçük boyutta çiziliyor.
+
+  const AYNI_ANDA = 2;
+  const kuyruk = [];
+  let calisan = 0;
+  const gozcu = new IntersectionObserver((girdiler) => {
+    for (const g of girdiler) {
+      if (!g.isIntersecting) continue;
+      gozcu.unobserve(g.target);
+      kuyruk.push(g.target._ciz);
+    }
+    isle();
+  }, { root: body, rootMargin: "800px 0px" });
+
+  function isle() {
+    while (calisan < AYNI_ANDA && kuyruk.length) {
+      const is = kuyruk.shift();
+      calisan++;
+      is().catch(() => {}).finally(() => { calisan--; isle(); });
+    }
+  }
+
   function render() {
     const pages = store.notebook(notebookId).pages;
     if (!pages.some((p) => p.id === selectedId)) selectedId = pages[0].id;
+    // Eski ızgaranın bekleyen çizimleri artık geçersiz.
+    kuyruk.length = 0;
+    gozcu.disconnect();
     const grid = h("div", { class: "pages-grid" });
     pages.forEach((page, index) => grid.append(cell(page, index)));
     body.replaceChildren(
@@ -159,12 +188,22 @@ export function renderPages(root, notebookId) {
     // Önizleme sayfanın gerçeği: kağıt + nesneler + mürekkep aynı çizimle üretilir.
     const ink = h("img", { class: "ink", alt: "", draggable: "false" });
     if (onizlemeler.has(page.id)) ink.src = onizlemeler.get(page.id);
-    renderPageCanvas(page, Math.min(1, 460 / page.size.w), { background: true, opaque: true, spill: spillFor(store.notebook(notebookId).pages, index) })
-      .then((canvas) => { ink.src = canvas.toDataURL("image/jpeg", 0.85); onizlemeler.set(page.id, ink.src); })
-      .catch(() => {});
     thumb.append(ink);
     const el = h("div", { class: "page-cell" + (page.id === selectedId ? " selected" : ""), dataset: { index: String(index) }, role: "button", tabindex: "0", "aria-label": `${index + 1}. sayfa` },
       thumb, h("div", { class: "num" }, String(index + 1)));
+    el._ciz = async () => {
+      if (!ink.isConnected) return;
+      const pages = store.notebook(notebookId).pages;
+      const sira = pages.findIndex((p) => p.id === page.id);
+      if (sira < 0) return;
+      // PDF sayfası küçük önizleme boyunda isteniyor (300 px); büyük boy yalnız ekranda açık sayfa için.
+      const olcek = page.pdf ? Math.min(0.5, 300 / page.size.w) : Math.min(1, 460 / page.size.w);
+      const canvas = await renderPageCanvas(page, olcek, { background: true, opaque: true, spill: spillFor(pages, sira) });
+      if (!ink.isConnected) return;
+      ink.src = canvas.toDataURL("image/jpeg", 0.85);
+      onizlemeler.set(page.id, ink.src);
+    };
+    gozcu.observe(el);
 
     // Kısa dokunuş: sayfaya git. Basılı tutup sürükleme: sıralama. Basılı tutup bırakma: menü.
     let bekle = null;
@@ -208,6 +247,8 @@ export function renderPages(root, notebookId) {
   return {
     destroy() {
       document.removeEventListener("touchmove", kaydirmayiDurdur);
+      gozcu.disconnect();
+      kuyruk.length = 0;
       if (surukleme) { clearInterval(surukleme.kayma); surukleme.hayalet.remove(); surukleme = null; }
     }
   };
