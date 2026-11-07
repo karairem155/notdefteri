@@ -2,39 +2,50 @@
 import { store } from "./store.js";
 import { requestPersistentStorage } from "./db.js";
 import { renderLibrary } from "./library.js";
-import { renderEditor } from "./editor.js";
-import { renderPages } from "./pages.js";
-import { renderSplit } from "./split.js";
-import { renderSettings } from "./settings.js";
 import { toast } from "./ui.js";
 
 const app = document.getElementById("app");
 let current = null;
+
+// Defter ekranları ağır (çizim, sayfa çevirme, paneller): kütüphane açılırken
+// beklenmesin diye ilk gerektiklerinde yükleniyorlar.
+const editorYukle = () => import("./editor.js");
+const sayfalarYukle = () => import("./pages.js");
+const yanYanaYukle = () => import("./split.js");
+const ayarlarYukle = () => import("./settings.js");
+let rotaSirasi = 0;
 
 export function navigate(hash) {
   if (location.hash === hash) route();
   else location.hash = hash;
 }
 
-function route() {
+async function route() {
+  const sira = ++rotaSirasi;
   // "?p=..." gibi sorgu kısmı yol parçası değildir; ekranlar onu kendileri okur.
   const parts = (location.hash.slice(1).split("?")[0] || "/").split("/").filter(Boolean);
+  let kur;
+  if (parts[0] === "s" && parts[1] && parts[2] && store.notebook(parts[1]) && store.notebook(parts[2])) {
+    // Yan yana iki defter: #/s/<defter>/<defter>
+    const m = await yanYanaYukle();
+    kur = () => m.renderSplit(app, parts[1], parts[2]);
+  } else if (parts[0] === "n" && parts[1] && store.notebook(parts[1])) {
+    if (parts[2] === "pages") { const m = await sayfalarYukle(); kur = () => m.renderPages(app, parts[1]); }
+    else { const m = await editorYukle(); kur = () => m.renderEditor(app, parts[1], parts[2] === "p" ? parts[3] : null); }
+  } else if (parts[0] === "settings") {
+    const m = await ayarlarYukle();
+    kur = () => m.renderSettings(app);
+  } else {
+    if (parts[0] === "n" || parts[0] === "s") { location.hash = "#/"; return; }
+    kur = () => renderLibrary(app);
+  }
+  // Yükleme sürerken başka bir yere gidildiyse bu ekran artık geçersiz.
+  if (sira !== rotaSirasi) return;
   if (current && current.destroy) current.destroy();
   current = null;
   app.replaceChildren();
   window.scrollTo(0, 0);
-  if (parts[0] === "s" && parts[1] && parts[2] && store.notebook(parts[1]) && store.notebook(parts[2])) {
-    // Yan yana iki defter: #/s/<defter>/<defter>
-    current = renderSplit(app, parts[1], parts[2]);
-  } else if (parts[0] === "n" && parts[1] && store.notebook(parts[1])) {
-    if (parts[2] === "pages") current = renderPages(app, parts[1]);
-    else current = renderEditor(app, parts[1], parts[2] === "p" ? parts[3] : null);
-  } else if (parts[0] === "settings") {
-    current = renderSettings(app);
-  } else {
-    if (parts[0] === "n" || parts[0] === "s") location.hash = "#/";
-    current = renderLibrary(app);
-  }
+  current = kur();
 }
 
 window.addEventListener("hashchange", route);
@@ -86,6 +97,8 @@ store.addEventListener("settings", (e) => { if (!e.detail || e.detail.key === "m
 store.load().then(async () => {
   masaUygula();
   route();
+  // Kütüphane göründükten sonra defter ekranı arka planda hazırlansın: ilk açılış beklemesin.
+  setTimeout(() => { editorYukle().catch(() => {}); }, 1200);
   const persisted = await requestPersistentStorage();
   if (!persisted) console.info("Kalıcı depolama verilmedi; yedekleme önemli.");
   if ("serviceWorker" in navigator) {

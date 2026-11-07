@@ -14,7 +14,15 @@ import { renderStrokesToDataURL } from "./ink.js";
 export function renderLibrary(root) {
   let showingTrash = false;
   let search = "";
-  let currentFolder = null;   // null = Tüm Notlar
+  // Açık klasör oturum boyunca hatırlanıyor: defterden geri dönünce ana sayfaya
+  // değil, defterin açıldığı klasöre dönülsün.
+  const KLASOR_ANAHTARI = "notdefteri.acikKlasor";
+  let currentFolder = (() => {
+    try {
+      const ad = sessionStorage.getItem(KLASOR_ANAHTARI);
+      return ad && store.settings.folders.includes(ad) ? ad : null;
+    } catch (_) { return null; }
+  })();   // null = Tüm Notlar
   let currentIndex = 0;       // sıradaki (ortadaki) defter
   let scrollTimer = null;
 
@@ -82,6 +90,10 @@ export function renderLibrary(root) {
   // ---------- gövde ----------
 
   function render() {
+    try {
+      if (currentFolder) sessionStorage.setItem(KLASOR_ANAHTARI, currentFolder);
+      else sessionStorage.removeItem(KLASOR_ANAHTARI);
+    } catch (_) { /* gizli sekmede saklanamazsa ana sayfaya döner */ }
     renderTopbar();
     if (rafGozlemci) { rafGozlemci.disconnect(); rafGozlemci = null; }
     if (rafModu()) { rafCiz(); return; }

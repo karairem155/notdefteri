@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
   <title>Not Defteri</title>
   <meta name="description" content="Her sayfası kendi şablonunu taşıyan, Apple Pencil ile yazılan kişisel defter.">
-  <meta name="theme-color" content="#efe3e1">
+  <meta name="theme-color" content="#ece6e3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,12 +13,50 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icons/icon-180.png">
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <!-- Açılışta beyaz ekran olmasın: masa rengi, son seçilen masa ve logo, kod yüklenmeden görünüyor. -->
+  <style>
+    html, body { background: #ece6e3; margin: 0; }
+    html[data-masa="lacivert"] body, html[data-masa="gece"] body { background: #1f2a4c; }
+    html[data-masa="krem"] body { background: #e9dfcc; }
+    html[data-masa="pembe"] body { background: #efc7d3; }
+    html[data-masa="ceviz"] body { background: #4a3022; }
+    html[data-gul] body { background: #e8c6ce; }
+    .acilis { position: fixed; inset: 0; display: grid; place-items: center; }
+    .acilis img { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 12px 28px rgba(23, 42, 69, 0.18); }
+  </style>
+  <script>
+    try {
+      var m = localStorage.getItem("notdefteri.masa") || "marka", k = document.documentElement;
+      var lc = m === "marka" || m === "gul" || m === "logo";
+      k.dataset.masa = lc ? "pudra" : m;
+      if (lc) k.dataset.logo = "";
+      if (m === "gul" || m === "logo") k.dataset.gul = "";
+    } catch (e) {}
+  </script>
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-1488x2266.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2266x1488.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-1536x2048.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2048x1536.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-1620x2160.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2160x1620.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-1640x2360.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2360x1640.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-1668x2224.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2224x1668.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-1668x2388.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2388x1668.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-1668x2420.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2420x1668.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-2048x2732.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2732x2048.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="./icons/acilis/acilis-2064x2752.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="./icons/acilis/acilis-2752x2064.png">
   <link rel="stylesheet" href="./css/app.css">
   <link rel="stylesheet" href="./css/marka.css">
   <link rel="preload" href="./fonts/plus-jakarta-latin.woff2" as="font" type="font/woff2" crossorigin>
 </head>
 <body>
-  <div id="app" aria-live="polite"></div>
+  <div id="app" aria-live="polite"><div class="acilis"><img src="./icons/icon-192.png" alt=""></div></div>
   <input type="file" id="file-image" accept="image/*" hidden>
   <input type="file" id="file-pdf" accept="application/pdf,.pdf" hidden>
   <input type="file" id="file-backup" accept="application/json,.json" hidden>
