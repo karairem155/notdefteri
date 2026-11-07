@@ -16,7 +16,7 @@ const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (sayfa px, 1
 const PIXEL_BUDGET = 14e6;   // bir sayfa tuvali için en çok piksel (bellek sınırı)
 const MAX_SIDE = 4000;       // iOS'ta bir tuvalin kenarı 4096'yı aşamaz; aşarsa tuval boş kalır
 const HOLD_MS = 600;         // şekil düzeltme için sabit tutma süresi
-const HOLD_TOLERANCE = 9;    // bu kadar ilerlemeyen hareket "duruyor" sayılır (px)
+const HOLD_TOLERANCE = 14;   // kalem ucu ekranda bu kadar pikselden az kıpırdıyorsa "duruyor" sayılır
 
 export class InkCanvas {
   /**
@@ -148,7 +148,7 @@ export class InkCanvas {
     this.textLine = this.rulerLine ? null : this.textLineFor(p, tool);
     this.liveTarget = this;
     this.startExternalLive(this.strokeStyle, round(this.snap(p)));
-    this.armHold();
+    this.armHold([e.clientX, e.clientY]);
   }
 
   onMove(e) {
@@ -207,8 +207,10 @@ export class InkCanvas {
         touched.add(target);
         continue;
       }
-      if (target.addLivePoint(round([sx + offset, sy, raw[2]]))) { touched.add(target); this.rearmHoldIfMoved([sx + offset, sy]); }
+      if (target.addLivePoint(round([sx + offset, sy, raw[2]]))) touched.add(target);
     }
+    const sonOlay = events[events.length - 1];
+    this.rearmHoldIfMoved([sonOlay.clientX, sonOlay.clientY]);
     for (const t of touched) t.redrawWithLive();
   }
 
@@ -285,26 +287,40 @@ export class InkCanvas {
 
   // ---- şekil düzeltme (sabit tutunca) ----
 
-  /** Kalem gerçekten ilerlediyse sayacı sıfırlar; el titremesi şekle dönüşmeyi engellemez. */
-  rearmHoldIfMoved(point) {
-    if (!this.holdOrigin) { this.armHold(); return; }
-    if (Math.hypot(point[0] - this.holdOrigin[0], point[1] - this.holdOrigin[1]) > HOLD_TOLERANCE) this.armHold();
+  /**
+   * Kalem gerçekten ilerlediyse sayacı sıfırlar; el titremesi şekle dönüşmeyi engellemez.
+   * Ölçü kalemin ekrandaki gerçek konumu: yumuşatılmış nokta kalem durduktan sonra
+   * da bir süre kayıyordu ve sayfa küçükken sayfa birimi ekranda çok daralıyordu;
+   * ikisi birlikte sayacı sürekli sıfırlayıp düzleşmeyi engelliyordu.
+   */
+  rearmHoldIfMoved(ekran) {
+    if (!this.holdOrigin) { this.armHold(ekran); return; }
+    if (Math.hypot(ekran[0] - this.holdOrigin[0], ekran[1] - this.holdOrigin[1]) > HOLD_TOLERANCE) this.armHold(ekran);
   }
 
-  armHold() {
+  armHold(ekran) {
     this.disarmHold();
     const delay = this.options.holdDelay ? Number(this.options.holdDelay()) : HOLD_MS;
     if (!delay) return;
     if (!(this.options.shapeRecognition && this.options.shapeRecognition())) return;
     if (this.rulerLine || this.textLine) return;
     if (this.liveTarget && this.liveTarget.live && this.liveTarget.live.shape) return;
-    const livePts = this.liveTarget && this.liveTarget.live ? this.liveTarget.live.points : null;
-    this.holdOrigin = livePts && livePts.length ? [livePts[livePts.length - 1][0], livePts[livePts.length - 1][1]] : null;
+    this.holdOrigin = ekran ? [ekran[0], ekran[1]] : null;
     this.holdTimer = setTimeout(() => {
       this.holdTimer = null;
       const target = this.liveTarget;
       if (!target || !target.live || target.live.points.length < 6) return;
-      const raw = target.live.points;
+      // Kalem dururken eli titrer: uçta yığılan noktalar çizginin boyunu şişiriyor ve
+      // düz çizgi bile "düz değil" sayılıyordu. Uçtaki yığın tek noktaya (ortalamasına) iniyor.
+      const genislik = target.canvas.getBoundingClientRect().width;
+      const yaricap = HOLD_TOLERANCE * (genislik ? target.page.size.w / genislik : 1);
+      const ham = target.live.points;
+      const uc = ham[ham.length - 1];
+      let bas = ham.length - 1;
+      while (bas > 1 && Math.hypot(ham[bas - 1][0] - uc[0], ham[bas - 1][1] - uc[1]) < yaricap) bas--;
+      const yigin = ham.slice(bas);
+      const orta = [yigin.reduce((t, q) => t + q[0], 0) / yigin.length, yigin.reduce((t, q) => t + q[1], 0) / yigin.length, uc[2]];
+      const raw = ham.slice(0, bas).concat([orta]);
       const handle = raw[raw.length - 1];
       const shape = recognizeShape(raw);
       if (!shape) return;
