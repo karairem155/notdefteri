@@ -97,6 +97,28 @@ const HOLD_VALUES = [0, 350, 600, 950];
 export function penPanel(ctx) {
   const s = ctx.store.settings;
   const body = h("div");
+  /** PDF'te satıra hizalama ve fosforlunun kalınlık aralığı. */
+  const pdfAyarlari = () => {
+    const tool = ctx.tool();
+    if (tool.tool === "pencil") return [];
+    const acik = s.pdfHizala !== false;
+    const satirlar = [toggleRow("PDF'te Satıra Hizala", tool.tool === "highlighter"
+      ? "PDF metninin üstünden geçerken fosforlu satıra oturur, düz ve satır boyunda olur."
+      : "PDF metninin altından geçerken çizgi satırın altına düz oturur.", acik, (v) => { ctx.store.setSetting("pdfHizala", v); build(); })];
+    if (acik && tool.tool === "highlighter") {
+      const [en, ek] = s.fosforluAralik || [3, 18];
+      const deger = h("span", { class: "sp-value" }, `${mm(en)} – ${mm(ek)}`);
+      const yaz = (a, b) => { ctx.store.setSetting("fosforluAralik", [a, b]); deger.textContent = `${mm(a)} – ${mm(b)}`; };
+      satirlar.push(
+        h("div", { class: "sp-label-row", style: { marginTop: "12px" } }, h("span", {}, "Satırda kalınlık aralığı"), deger),
+        h("div", { class: "sp-row-sub" }, "Kalınlık yazının boyuna göre ayarlanır; bu aralığın dışına çıkmaz."),
+        h("div", { class: "aralik-satir" }, h("span", {}, "En ince"),
+          slider({ min: 2, max: 24, step: 0.5, value: en, label: "En ince", onInput: (v) => { const b = Math.max(v, (s.fosforluAralik || [3, 18])[1]); yaz(v, b); } })),
+        h("div", { class: "aralik-satir" }, h("span", {}, "En kalın"),
+          slider({ min: 2, max: 36, step: 0.5, value: ek, label: "En kalın", onInput: (v) => { const a = Math.min(v, (s.fosforluAralik || [3, 18])[0]); yaz(a, v); } })));
+    }
+    return satirlar;
+  };
   const build = () => {
     const tool = ctx.tool();
     const hl = tool.tool === "highlighter";
@@ -121,6 +143,7 @@ export function penPanel(ctx) {
       slider({ min: 10, max: 100, step: 5, value: Math.round(a * 100), label: "Opaklık",
         onInput: (v) => { ctx.setTool({ alpha: v / 100 }, true); opacityValue.textContent = "%" + v; } }),
       toggleRow("Basınç Hassasiyeti", "Kalem baskısına göre kalınlık ayarla.", !!s.pressureWidth, (v) => ctx.store.setSetting("pressureWidth", v)),
+      ...pdfAyarlari(),
       h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Şekil çizmek için basılı tutun"), h("span", { class: "sp-value" }, HOLD_NAMES[holdIndex])),
       h("div", { class: "sp-seg" }, ...HOLD_NAMES.map((name, i) => h("button", { type: "button", class: i === holdIndex ? "active" : "",
         onTap: () => { ctx.store.setSetting("shapeHoldMs", HOLD_VALUES[i]); ctx.store.setSetting("shapeRecognition", i > 0); build(); } }, name))),

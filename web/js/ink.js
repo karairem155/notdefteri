@@ -270,7 +270,13 @@ export class InkCanvas {
       if (d < line.h * 0.9 && (!best || d < best.d)) best = { d, y, line };
     }
     if (!best) return null;
-    return { y: best.y, x0: best.line.x, x1: best.line.x + best.line.w, width: tool.tool === "highlighter" ? best.line.h / 2.4 : null };
+    // Fosforlu kalınlığı satır yüksekliğinden geliyor; kullanıcının seçtiği aralığın dışına çıkmıyor.
+    let width = null;
+    if (tool.tool === "highlighter") {
+      const [en, ek] = this.options.highlightRange ? this.options.highlightRange() : [3, 18];
+      width = Math.min(Math.max(best.line.h / 5.76, Math.min(en, ek)), Math.max(en, ek));
+    }
+    return { y: best.y, x0: best.line.x, x1: best.line.x + best.line.w, width };
   }
 
   snap(p) {
@@ -348,7 +354,7 @@ export class InkCanvas {
   // ---- canlı çizgi (kendi tuvali ya da komşu sayfadan devralınan) ----
 
   startExternalLive(style, firstPoint) {
-    const width = this.textLine && this.textLine.width ? this.textLine.width / 2.4 : style.width;
+    const width = this.textLine && this.textLine.width ? this.textLine.width : style.width;
     this.live = { id: uid(), tool: style.tool, color: style.color, width, pressure: style.pressure, points: [firstPoint] };
     if (style.alpha != null && style.alpha < 1) this.live.alpha = style.alpha;
   }

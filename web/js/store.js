@@ -130,6 +130,8 @@ const DEFAULT_SETTINGS = {
   favDock: { side: "bottom", pos: 0.5 },   // favoriler çubuğunun yeri: bottom | left | right | top
   rulerAngle: true,          // cetvelde açı rozeti
   rulerSnap: true,           // cetvele ve 15° açılara yapışma
+  pdfHizala: true,           // PDF'te fosforlu ve kalem metin satırına hizalansın
+  fosforluAralik: [3, 18],   // PDF satırına hizalanan fosforlunun en ince / en kalın hâli
   flipSound: true,           // sayfa çevirme sesi   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
   shapeRecognition: true,
   shapeHoldMs: 600,          // basılı tutunca şekle dönüşme süresi (0 = kapalı)
