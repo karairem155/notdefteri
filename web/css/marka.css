@@ -393,3 +393,26 @@ html[data-logo][data-cubuk-acik] .odak-cik-dugme { background: rgba(23, 42, 69, 
 .cubuk-renk.secili { outline: 2.5px solid var(--accent, #f2649a); outline-offset: 3px; }
 .cubuk-renk.serbest { overflow: hidden; display: inline-block; }
 .cubuk-renk-girdi { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+
+/* ===== Ana sayfa: Kaldığın yerden devam et ===== */
+.devam-kutu { max-width: 1180px; margin: 4px auto 26px; display: grid; gap: 16px; }
+.devam-kart { display: flex; align-items: center; gap: 22px; padding: 16px 22px; border-radius: 22px; cursor: pointer;
+  background: var(--kagit, #fbf6f3); color: var(--murekkep, #172a45);
+  box-shadow: 0 12px 28px -14px rgba(23, 42, 69, 0.35), 0 0 0 1px rgba(23, 42, 69, 0.06); }
+.devam-kart:active { transform: scale(0.99); }
+.devam-kapak { flex: none; width: 66px; aspect-ratio: 100 / 135; }
+.devam-kapak .cover, .son-kapak .cover { filter: drop-shadow(0 6px 8px rgba(23, 42, 69, 0.22)); }
+.devam-metin { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.devam-ust { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent, #f2649a); }
+.devam-baslik { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.devam-alt { font-size: 14px; color: var(--sis, #4b566c); font-weight: 500; }
+.devam-dugme { flex: none; font-weight: 700; font-size: 15px; padding: 11px 20px; border-radius: 999px; color: var(--murekkep, #172a45);
+  background: linear-gradient(180deg, #f77fae, #f2649a 55%, #e2508a); box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.35), 0 6px 14px rgba(200, 50, 110, 0.3); }
+.son-acilanlar { display: grid; gap: 8px; }
+.son-baslik { font-size: 14px; font-weight: 800; color: var(--murekkep, #172a45); padding-left: 4px; }
+.son-satir { display: flex; gap: 18px; overflow-x: auto; padding: 4px 4px 8px; scrollbar-width: none; }
+.son-satir::-webkit-scrollbar { display: none; }
+.son-oge { flex: none; width: 76px; display: grid; gap: 6px; justify-items: center; border: 0; background: transparent; padding: 0; cursor: pointer; color: var(--murekkep, #172a45); }
+.son-kapak { width: 60px; aspect-ratio: 100 / 135; }
+.son-ad { font-size: 12.5px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) { .devam-kart { gap: 14px; padding: 12px 14px; } .devam-baslik { font-size: 17px; } .devam-dugme { display: none; } }

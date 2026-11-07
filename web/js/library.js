@@ -135,6 +135,7 @@ export function renderLibrary(root) {
     const alt = showingTrash ? (say ? `${say} silinmiş defter` : "Silinen defterler burada")
       : [klasorSay ? `${klasorSay} klasör` : null, say ? `${say} defter` : null].filter(Boolean).join(" · ") || "Henüz defter yok";
     const raflar = h("div", { class: "raflar" });
+    const devam = !currentFolder && !showingTrash && !search ? devamKarti() : null;
     body.replaceChildren(
       h("div", { class: "paper-head raf-bas" },
         currentFolder && !showingTrash
@@ -153,6 +154,7 @@ export function renderLibrary(root) {
     };
     const diz = (sutun) => {
       raflar.replaceChildren();
+      if (devam) raflar.append(devam);
       raflar.style.setProperty("--sutun", String(sutun));
       for (let i = 0; i < list.length; i += sutun) {
         const sira = list.slice(i, i + sutun);
@@ -275,6 +277,57 @@ export function renderLibrary(root) {
       store.mutate(s.notebook.id, (n) => { n.folder = ad; });
       toast(ad ? `“${s.notebook.title}” → ${ad}` : `“${s.notebook.title}” klasörden çıkarıldı`);
     }, 240);
+  }
+
+  // ---------- kaldığın yerden devam ----------
+  //
+  // En son açılan defter ana sayfanın en üstünde: tek dokunuşla kaldığın sayfaya dönülüyor.
+  // Altında birkaç son açılan defter daha, klasöre girmeden açılabiliyor.
+
+  function sonAcilanlar() {
+    try {
+      const liste = JSON.parse(localStorage.getItem("notdefteri.sonAcilanlar") || "[]");
+      return liste.map((g) => ({ ...g, notebook: store.notebook(g.id) })).filter((g) => g.notebook && !g.notebook.isTrashed);
+    } catch (_) { return []; }
+  }
+
+  function zamanYazisi(ms) {
+    const t = new Date(ms), simdi = new Date();
+    const saat = t.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const gun = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const fark = Math.round((gun(simdi) - gun(t)) / 86400000);
+    if (fark === 0) return `Bugün ${saat}`;
+    if (fark === 1) return `Dün ${saat}`;
+    return t.toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+  }
+
+  function devamKarti() {
+    const liste = sonAcilanlar();
+    if (!liste.length) return null;
+    const [ilk, ...digerleri] = liste;
+    const n = ilk.notebook;
+    const sira = Math.max(0, n.pages.findIndex((p) => p.id === ilk.sayfa));
+    const kapak = coverElement(n.cover);
+    const ac = (notebook, kapakEl) => (e) => { dokunusIsaretle(e); openNotebook(notebook, kapakEl); };
+    const kart = h("div", { class: "devam-kart", role: "button", tabindex: "0", "aria-label": `Kaldığın yerden devam et: ${n.title}, ${sira + 1}. sayfa`, onTap: ac(n, kapak) },
+      h("div", { class: "devam-kapak" }, kapak),
+      h("div", { class: "devam-metin" },
+        h("span", { class: "devam-ust" }, "Kaldığın yerden devam et"),
+        h("span", { class: "devam-baslik" }, `${n.title} · ${sira + 1}. sayfa`),
+        h("span", { class: "devam-alt" }, `${zamanYazisi(ilk.zaman)} · ${n.pages.length} sayfa`)),
+      h("span", { class: "devam-dugme" }, "Devam et"));
+    const kutu = h("div", { class: "devam-kutu" }, kart);
+    const son = digerleri.slice(0, 5);
+    if (son.length) {
+      kutu.append(h("div", { class: "son-acilanlar" },
+        h("span", { class: "son-baslik" }, "Son açılanlar"),
+        h("div", { class: "son-satir" }, ...son.map((g) => {
+          const k = coverElement(g.notebook.cover);
+          return h("button", { class: "son-oge", type: "button", "aria-label": `${g.notebook.title} defterini aç`, onTap: ac(g.notebook, k) },
+            h("div", { class: "son-kapak" }, k), h("span", { class: "son-ad" }, g.notebook.title));
+        }))));
+    }
+    return kutu;
   }
 
   /** Raftaki tek öğe: dokununca açılıyor, uzun basınca menü. */

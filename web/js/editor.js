@@ -65,7 +65,13 @@ export function openTranslateDialog(initial = "") {
  * devam etsin diye kalıcı saklanıyor.
  */
 function sonSayfaYaz(notebookId, pageId) {
-  try { localStorage.setItem("notdefteri.sonSayfa." + notebookId, pageId); } catch (_) { /* özel kip */ }
+  try {
+    localStorage.setItem("notdefteri.sonSayfa." + notebookId, pageId);
+    // Ana sayfadaki "Kaldığın yerden devam et" ve "Son açılanlar" için.
+    const liste = JSON.parse(localStorage.getItem("notdefteri.sonAcilanlar") || "[]").filter((g) => g.id !== notebookId);
+    liste.unshift({ id: notebookId, sayfa: pageId, zaman: Date.now() });
+    localStorage.setItem("notdefteri.sonAcilanlar", JSON.stringify(liste.slice(0, 8)));
+  } catch (_) { /* özel kip */ }
 }
 function sonSayfaOku(notebookId) {
   try { return localStorage.getItem("notdefteri.sonSayfa." + notebookId); } catch (_) { return null; }
