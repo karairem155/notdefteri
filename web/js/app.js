@@ -88,11 +88,28 @@ function masaYaz(masa) {
 function masaUygula() {
   const masa = store.settings.masa || "marka";
   masaYaz(masa);
+  cubukUygula();
   try { localStorage.setItem("notdefteri.masa", masa); } catch (_) {}
+}
+
+/**
+ * Çubuk rengi: hazır dört renk ya da kullanıcının seçtiği herhangi bir renk.
+ * Renkten mat-kabarık degrade üretiliyor; açık renkte yazılar ve simgeler laciverte dönüyor.
+ */
+const CUBUK_HAZIR = { lacivert: "#172a45", kagit: "#f7f1ee", grafit: "#2a2c32", gul: "#e8c6ce" };
+function cubukUygula() {
+  const kok = document.documentElement;
+  const deger = store.settings.cubukRengi || "lacivert";
+  const hex = CUBUK_HAZIR[deger] || (/^#[0-9a-f]{6}$/i.test(deger) ? deger : CUBUK_HAZIR.lacivert);
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const karis = (k, hedef) => `rgb(${[r, g, b].map((c) => Math.round(c + (hedef - c) * k)).join(",")})`;
+  const parlaklik = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  kok.style.setProperty("--kil", `linear-gradient(180deg, ${karis(0.12, 255)}, ${hex} 52%, ${karis(0.16, 0)})`);
+  if (parlaklik > 0.6) kok.dataset.cubukAcik = ""; else delete kok.dataset.cubukAcik;
 }
 // Veri yüklenene kadar yanlış renk parlamasın: son seçilen masa hemen gelsin.
 try { masaYaz(localStorage.getItem("notdefteri.masa") || "marka"); } catch (_) {}
-store.addEventListener("settings", (e) => { if (!e.detail || e.detail.key === "masa") masaUygula(); });
+store.addEventListener("settings", (e) => { if (!e.detail || e.detail.key === "masa" || e.detail.key === "cubukRengi") masaUygula(); });
 
 store.load().then(async () => {
   masaUygula();

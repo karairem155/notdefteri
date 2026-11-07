@@ -142,6 +142,7 @@ const DEFAULT_SETTINGS = {
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
   masa: "marka",             // masanın yüzeyi: "marka" (nötr zemin, lacivert çubuklar); seçenekler "gul", "pudra", "gece", "krem", "pembe", "ceviz", "lacivert"
   masaSecildi3: false,       // kullanıcı marka varsayılanından sonra masayı kendisi seçti mi
+  cubukRengi: "lacivert",    // çubuk ve düğme rengi: "lacivert", "kagit", "grafit", "gul" ya da "#rrggbb"
   libraryView: "raf",        // kütüphane: "raf" hepsi bir arada, "karusel" tek tek
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
   frosted: { blur: 6, thickness: 28, revealOnTap: true }

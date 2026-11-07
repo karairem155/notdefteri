@@ -182,6 +182,20 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   const spreadLeft = () => selectedIndex() - (selectedIndex() % 2);
   const isFrosted = () => tool.tool === "frosted";
 
+  // ---------- odak modu ----------
+  //
+  // Çubuklar ve favori renkler kayboluyor, sayfa ekranı dolduruyor; kalem ve
+  // silgi çalışmaya devam ediyor. Köşedeki küçük düğme ya da Esc geri getiriyor.
+  const odakCik = h("button", { class: "odak-cik-dugme", type: "button", "aria-label": "Odak modundan çık", onTap: () => odakModu(false) }, svgIcon("odakCik", 22));
+  editorBody.append(odakCik);
+  function odakModu(acik) {
+    closePopover();
+    screen.classList.toggle("odak", acik);
+    setTimeout(fit, 0);
+  }
+  const odakTusu = (e) => { if (e.key === "Escape" && screen.classList.contains("odak")) odakModu(false); };
+  document.addEventListener("keydown", odakTusu);
+
   // ---------- üst çubuk ----------
 
   function renderTopbar() {
@@ -204,6 +218,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         page.pdf && h("span", { class: "badge-pdf" }, "PDF")),
       h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },
+        iconButton("grid", "Sayfalar: gör, sırala, sil", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
+        iconButton("odak", "Odak modu: çubukları gizle", () => odakModu(true)),
         iconButton("export", "Dışa aktar / paylaş", openExportPanel),
         Object.assign(iconButton("undoTool", "Geri al", () => activeInk && activeInk.undo()), { disabled: !(activeInk && activeInk.canUndo) }),
         Object.assign(iconButton("redoTool", "İleri al", () => activeInk && activeInk.redo()), { disabled: !(activeInk && activeInk.canRedo) }),
@@ -2124,10 +2140,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       return;
     }
     const toolbar = h("div", { class: "toolbar" });
-    toolbar.append(tb("grid", "Sayfalar", "Sayfalar: gör, sırala, sil", false, () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }));
     if (!collapsed) {
       const penActive = isPenTool() || tool.tool === "highlighter";
-      toolbar.append(...[sep(),
+      toolbar.append(...[
         tb("penTool", "Kalem", penActive ? "Kalem ayarları" : "Kalem", penActive, () => { if (penActive) openPenPanel(); else selectTool(lastPen && lastPen.tool === "highlighter" ? "highlighter" : "pen"); }),
         tb("eraserTool", "Silgi", tool.tool === "eraser" ? "Silgi ayarları" : "Silgi", tool.tool === "eraser", () => { if (tool.tool === "eraser") openEraserPanel(); else selectTool("eraser"); }),
         tb("selectTool", "Seçim", "Seçim (kement)", tool.tool === "lasso", () => { if (tool.tool === "lasso") { if (activeInk && activeInk.selectionBounds()) { const stack = stage.querySelector(".page-stack:not(.static)"); openSelectionPanel(activeInk, stack, pages().find((p) => inks.get(p.id) === activeInk)); } else toast("Seçmek için çizginin çevresini kementle çiz"); } else selectTool("lasso"); }),
@@ -2136,9 +2151,6 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         tb("textTool", "Metin", "Metin, yapılacaklar listesi, onay kutusu", !!(popover && popover.dataset.kind === "text"), openTextPanel),
         tb("stickersTool", "Çıkartmalar", "Post-it ve çıkartmalar", popover && popover.dataset.kind === "stickers", openStickerPanel),
         (clipboard.strokes.length || clipboard.objects.length) ? tb("copy", "Yapıştır", "Yapıştır", false, pasteClipboard) : false,
-        sep(),
-        Object.assign(tb("undoTool", "Geri Al", "Geri al", false, () => activeInk && activeInk.undo()), { disabled: !(activeInk && activeInk.canUndo) }),
-        Object.assign(tb("redoTool", "Yinele", "İleri al", false, () => activeInk && activeInk.redo()), { disabled: !(activeInk && activeInk.canRedo) }),
         sep()].filter(Boolean));
     }
     toolbar.append(tb("down", "Gizle", "Araç çubuğunu gizle", false, () => { store.setSetting("benchCollapsed", true); renderBench(); }, "tb-collapse"));
@@ -2500,6 +2512,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       resizeObserver.disconnect();
       store.removeEventListener("settings", onSettings);
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", odakTusu);
       document.removeEventListener("pointerdown", onOutsidePointer, true);
       closePopover();
       if (recording) { try { recording.stop(); } catch (_) { /* yok sayılır */ } }

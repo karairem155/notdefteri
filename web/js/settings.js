@@ -40,6 +40,7 @@ export function renderSettings(root) {
         section("VARSAYILAN KALEM", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
         section("SAYFA", h("div", { class: "settings-rows" },
           row("Masa", select([["marka", "Marka (varsayılan)"], ["gul", "Gül"], ["pudra", "Pudra kâğıt"], ["gece", "Gece mavisi"], ["krem", "Krem keten"], ["pembe", "Pembe keçe"], ["ceviz", "Ceviz ahşap"], ["lacivert", "Lacivert cam (eski)"]], s.masa || "marka", (v) => { store.setSetting("masaSecildi3", true); store.setSetting("masa", v); })),
+          row("Çubuk rengi", cubukRenkSecici()),
           row("Varsayılan sayfa boyutu", select(pageSizeOptions(), s.pageSize, (v) => store.setSetting("pageSize", v))),
           row("Varsayılan görünüm", select([["single", "Tek sayfa"], ["spread", "Çift sayfa"]], s.spreadMode ? "spread" : "single", (v) => store.setSetting("spreadMode", v === "spread"))),
           row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onTap: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),
@@ -67,6 +68,20 @@ export function renderSettings(root) {
       await store.flush();
     } catch (_) { /* yine de yenile */ }
     location.reload();
+  }
+
+  /** Çubuk rengi: dört hazır renk ve sistem renk seçicisiyle serbest renk. */
+  function cubukRenkSecici() {
+    const secili = store.settings.cubukRengi || "lacivert";
+    const HAZIR = [["lacivert", "#172a45", "Lacivert"], ["kagit", "#f7f1ee", "Kâğıt"], ["grafit", "#2a2c32", "Grafit"], ["gul", "#e8c6ce", "Gül"]];
+    const sec = (v) => { store.setSetting("cubukRengi", v); render(); };
+    const serbest = /^#/.test(secili);
+    const girdi = h("input", { type: "color", class: "cubuk-renk-girdi", value: serbest ? secili : "#3a6ea5", "aria-label": "Serbest renk seç",
+      onChange: (e) => sec(e.target.value) });
+    return h("div", { class: "cubuk-renkler", role: "group", "aria-label": "Çubuk rengi" },
+      ...HAZIR.map(([v, hex, ad]) => h("button", { type: "button", class: "cubuk-renk" + (secili === v ? " secili" : ""), title: ad, "aria-label": ad,
+        "aria-pressed": String(secili === v), style: { "--c": hex }, onTap: () => sec(v) })),
+      h("label", { class: "cubuk-renk serbest" + (serbest ? " secili" : ""), title: "Serbest renk", style: { "--c": serbest ? secili : "conic-gradient(#f2649a, #e0a92e, #2f7d5b, #3f6fd1, #7b4bb8, #f2649a)" } }, girdi));
   }
 
   function row(title, control) {
