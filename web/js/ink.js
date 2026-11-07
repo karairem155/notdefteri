@@ -237,8 +237,15 @@ export class InkCanvas {
       return;
     }
     if (!this.liveTarget) return;
+    const satir = this.textLine;
+    const noktalar = this.liveTarget.live ? this.liveTarget.live.points : null;
     this.liveTarget.finishLive();
     this.liveTarget = null;
+    if (satir && this.activeTool === "highlighter" && noktalar && noktalar.length > 1 && this.options.onTextStroke) {
+      const xs = noktalar.map((q) => q[0]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs);
+      if (x1 - x0 > 8) this.options.onTextStroke({ y: satir.y, x0, x1 });
+    }
   }
 
   // ---- cetvel ve PDF satırı ----

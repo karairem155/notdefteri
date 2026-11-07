@@ -13,6 +13,7 @@ import { attachEditorGestures } from "./gestures.js";
 import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
 import { openStickerMaker } from "./stickermaker.js";
+import { ceviriGoster, ceviriKartiKapat, cevir, hedefDil, DILLER } from "./ceviri.js";
 import { navigate } from "./app.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -30,31 +31,51 @@ export const TEXT_FONTS = [
   ["Georgia, 'Times New Roman', serif", "Kitap"]
 ];
 
-const LANGS = [["tr", "Türkçe"], ["en", "İngilizce"], ["de", "Almanca"], ["fr", "Fransızca"], ["es", "İspanyolca"], ["it", "İtalyanca"], ["ar", "Arapça"], ["ru", "Rusça"], ["ja", "Japonca"], ["ko", "Korece"], ["zh-CN", "Çince"]];
-
-/** Metni Google Çeviri'de açar (internet gerekir; cihazda çevrimdışı çeviri motoru yok). */
-export function openTranslate(text, target) {
+/** Metni anında çevirip kartta gösterir (eski adıyla; nesne menüsü ve panel kullanıyor). */
+export function openTranslate(text, kutu = null) {
   const clean = (text || "").trim();
   if (!clean) { toast("Çevrilecek metin yok."); return; }
-  const tl = target || localStorage.getItem("notdefteri.translateTo") || "tr";
-  const url = `https://translate.google.com/?sl=auto&tl=${encodeURIComponent(tl)}&op=translate&text=${encodeURIComponent(clean.slice(0, 4000))}`;
-  window.open(url, "_blank", "noopener");
+  ceviriGoster(clean, kutu);
 }
 
-/** Çeviri penceresi: yaz (klavye ya da Apple Pencil ile Scribble), dili seç, çevir. */
+/** Çeviri penceresi: yaz (klavye ya da Apple Pencil ile Scribble), dili seç; yazarken çevrilir. */
 export function openTranslateDialog(initial = "") {
-  const area = h("textarea", { class: "text-input", rows: "5", placeholder: "Çevrilecek metni buraya yaz (Apple Pencil ile de yazabilirsin)", style: { fontFamily: "'Bradley Hand', 'Segoe Script', cursive", fontSize: "20px", resize: "vertical" } }, initial);
-  const select = h("select", { class: "select", "aria-label": "Hedef dil" }, ...LANGS.map(([code, name]) => h("option", { value: code }, name)));
-  select.value = localStorage.getItem("notdefteri.translateTo") || "tr";
+  const area = h("textarea", { class: "text-input", rows: "4", placeholder: "Çevrilecek metni buraya yaz (Apple Pencil ile de yazabilirsin)", style: { fontFamily: "'Bradley Hand', 'Segoe Script', cursive", fontSize: "20px", resize: "vertical" } }, initial);
+  const select = h("select", { class: "select", "aria-label": "Hedef dil" }, ...DILLER.map(([code, name]) => h("option", { value: code }, name)));
+  select.value = hedefDil();
+  const sonuc = h("div", { class: "ceviri-diyalog-sonuc" });
+  let zamanlayici = 0, no = 0;
+  const guncelle = () => {
+    clearTimeout(zamanlayici);
+    zamanlayici = setTimeout(async () => {
+      const metin = area.value.trim();
+      const benim = ++no;
+      if (!metin) { sonuc.textContent = ""; return; }
+      sonuc.classList.add("yukleniyor"); sonuc.textContent = "Çevriliyor…";
+      try {
+        const r = await cevir(metin, select.value);
+        if (benim === no) { sonuc.classList.remove("yukleniyor", "hata"); sonuc.textContent = r.metin; }
+      } catch (_) {
+        if (benim === no) { sonuc.classList.remove("yukleniyor"); sonuc.classList.add("hata"); sonuc.textContent = "Çeviri alınamadı. İnternet bağlantını kontrol et."; }
+      }
+    }, 450);
+  };
+  area.addEventListener("input", guncelle);
+  select.addEventListener("change", () => { try { localStorage.setItem("notdefteri.translateTo", select.value); } catch (_) {} guncelle(); });
   openModal(h("div", { class: "dialog", style: { width: "min(520px, 100%)" } },
     h("h3", {}, "Çeviri"),
-    h("p", {}, "Metin, Google Çeviri'de yeni sekmede açılır. Sayfadaki el yazısını çevirmek için buraya kalemle yeniden yaz; iPad onu metne çevirir."),
+    h("p", {}, "Yazdıkça çevrilir. Sayfadaki el yazısını çevirmek için buraya kalemle yeniden yaz; iPad onu metne çevirir."),
     area,
     h("div", { class: "panel-row", style: { color: "var(--muted)" } }, h("label", {}, "Hedef dil"), select),
+    sonuc,
     h("div", { class: "dialog-buttons" },
       h("button", { class: "btn", type: "button", onTap: closeModal }, "Kapat"),
-      h("button", { class: "btn primary", type: "button", onTap: () => { localStorage.setItem("notdefteri.translateTo", select.value); openTranslate(area.value, select.value); } }, "Çevir"))
+      h("button", { class: "btn primary", type: "button", onTap: () => {
+        if (!sonuc.textContent || sonuc.classList.contains("hata") || sonuc.classList.contains("yukleniyor")) return;
+        navigator.clipboard.writeText(sonuc.textContent).then(() => toast("Çeviri kopyalandı")).catch(() => toast("Kopyalanamadı"));
+      } }, "Çeviriyi kopyala"))
   ));
+  if (initial) guncelle();
   setTimeout(() => area.focus(), 50);
 }
 
@@ -598,6 +619,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       { title: "Sayfa Rengi (bu sayfa)", onSelect: openPageColorPanel },   // pageColorFromMenu
       { title: "Sayfa Boyutu", onSelect: () => openPageSizeSheet(notebookId, page, () => { invalidateSnapshot(page); renderStage(); }) },
       { title: "Tanılama (çizim netliği)", onSelect: cizimTanilama },
+      ...(page.pdf ? [{ title: textSelectMode ? "Metin Seçmeyi Bitir" : "PDF Metnini Seç (kopyala, çevir)", onSelect: () => { textSelectMode = !textSelectMode; applyModes(); renderTopbar(); } }] : []),
       { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
       { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
       { title: "Sayfayı Öne Taşı", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); renderStage(); } },
@@ -786,6 +808,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       ruler: () => (ruler && selectedPageId === page.id ? ruler : null),
       textLines: () => (store.settings.pdfHizala === false ? null : textLines.get(page.id) || null),
       highlightRange: () => store.settings.fosforluAralik || [3, 18],
+      onTextStroke: (satir) => fosforluCevir(page, stack, satir),
       onSelection: (bounds) => renderSelection(stack, page, bounds),
       onEraseEnd: () => { if (tool.tool === "eraser" && lastPen) { tool = { ...lastPen }; renderBench(); renderTopbar(); applyModes(); } },
       toPageCoords: (e) => toPageCoords(e, stack, page),
@@ -1208,8 +1231,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     } else if (textSelectMode) {
       banner.hidden = false;
       banner.replaceChildren(h("span", {}, "Basılı tutup metni seç, sonra:"),
-        h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.15)", color: "#fff" }, onTap: () => { const t = getSelectionText(); if (!t) { toast("Önce metni seç."); return; } navigator.clipboard.writeText(t).then(() => toast("Kopyalandı")).catch(() => toast("Kopyalanamadı")); } }, "Kopyala"),
-        h("button", { class: "btn small", type: "button", style: { background: "rgba(255,255,255,0.15)", color: "#fff" }, onTap: () => { const t = getSelectionText(); if (!t) { openTranslateDialog(""); return; } openTranslate(t); } }, "Çevir"),
+        h("button", { class: "btn small banner-ikincil", type: "button", onTap: () => { const t = getSelectionText(); if (!t) { toast("Önce metni seç."); return; } navigator.clipboard.writeText(t).then(() => toast("Kopyalandı")).catch(() => toast("Kopyalanamadı")); } }, "Kopyala"),
+        h("button", { class: "btn small banner-ikincil", type: "button", onTap: () => { const t = getSelectionText(); if (!t) { openTranslateDialog(""); return; } ceviriGoster(t, secimKutusu()); } }, "Çevir"),
         h("button", { class: "btn small primary", type: "button", onTap: () => { textSelectMode = false; applyModes(); renderTopbar(); } }, "Bitti"));
     } else if (isFrosted()) {
       banner.hidden = false;
@@ -1222,6 +1245,57 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   function getSelectionText() {
     const sel = window.getSelection();
     return sel ? sel.toString().trim() : "";
+  }
+
+  function secimKutusu() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    return r.width || r.height ? r : null;
+  }
+
+  // ---------- anında çeviri ----------
+  //
+  // PDF metni seçilince (ya da fosforlu bir satırın üstünden geçince) çeviri kendiliğinden
+  // yanında açılıyor. Ayarlar > Otomatik çeviri ile kapatılabiliyor.
+  const otoCeviri = () => store.settings.otoCeviri !== false;
+  let secimZamanlayici = 0;
+  const onSecimDegisti = () => {
+    if (!textSelectMode || !otoCeviri()) return;
+    clearTimeout(secimZamanlayici);
+    secimZamanlayici = setTimeout(() => {
+      const sel = window.getSelection();
+      const t = getSelectionText();
+      if (!t || t.length < 2 || !sel.anchorNode) return;
+      const kapsayan = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+      if (!kapsayan || !kapsayan.closest(".layer-text")) return;
+      ceviriGoster(t, secimKutusu());
+    }, 650);
+  };
+  document.addEventListener("selectionchange", onSecimDegisti);
+
+  /** Fosforlu bir PDF satırının üstünden geçti: o aralıktaki metni çevir (aynı dildeyse sessiz). */
+  async function fosforluCevir(page, stack, satir) {
+    if (!otoCeviri() || !page.pdf) return;
+    let ogeler;
+    try { ogeler = await pdfTextItems(page.pdf, page.size); } catch (_) { return; }
+    const secilen = ogeler.filter((o) => o.str && o.y <= satir.y && o.y + o.h >= satir.y && o.x + o.w > satir.x0 && o.x < satir.x1)
+      .sort((a, b) => a.x - b.x);
+    // Parçanın yalnız fosforun geçtiği kısmını al (karakter genişliği ortalama varsayılır).
+    const metin = secilen.map((o) => {
+      if (o.w <= 0) return o.str;
+      let bas = Math.max(0, Math.round((satir.x0 - o.x) / o.w * o.str.length));
+      let son = Math.min(o.str.length, Math.round((satir.x1 - o.x) / o.w * o.str.length));
+      // Yarım kalan kelimeleri tamamla: "cre zar" değil "Hücre zarı".
+      while (bas > 0 && !/\s/.test(o.str[bas - 1])) bas--;
+      while (son < o.str.length && !/\s/.test(o.str[son])) son++;
+      return o.str.slice(bas, son);
+    }).join(" ").replace(/\s+/g, " ").trim();
+    if (metin.length < 2) return;
+    const kutu = stack._layers.canvas.getBoundingClientRect();
+    const k = kutu.width / page.size.w;
+    const ekran = { left: kutu.left + satir.x0 * k, width: (satir.x1 - satir.x0) * k, top: kutu.top + (satir.y - 10) * k, bottom: kutu.top + (satir.y + 10) * k };
+    ceviriGoster(metin, ekran, { sessizAyniDil: true });
   }
 
   function setEditing(on) {
@@ -1358,7 +1432,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
               ? () => spreadObject(object, page)
               : null,
             font: object.kind === "text" ? () => textStyleMenu(object, page) : null,
-            translate: object.kind === "text" ? () => openTranslate(object.text) : null,
+            translate: object.kind === "text" ? () => openTranslate(object.text, stack.querySelector(`[data-id="${object.id}"]`)?.getBoundingClientRect() || null) : null,
             rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
             duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
             front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
@@ -2520,6 +2594,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       store.removeEventListener("settings", onSettings);
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("keydown", odakTusu);
+      document.removeEventListener("selectionchange", onSecimDegisti);
+      clearTimeout(secimZamanlayici);
+      ceviriKartiKapat();
       document.removeEventListener("pointerdown", onOutsidePointer, true);
       closePopover();
       if (recording) { try { recording.stop(); } catch (_) { /* yok sayılır */ } }
