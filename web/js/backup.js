@@ -41,6 +41,7 @@ export async function exportBackup() {
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: "Not Defteri yedeği" });
+      store.setSetting("sonYedek", Date.now());
       toast("Yedek paylaşıldı");
       return;
     } catch (error) {
@@ -55,6 +56,7 @@ export async function exportBackup() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
+  store.setSetting("sonYedek", Date.now());
   toast("Yedek indirildi: " + name);
 }
 

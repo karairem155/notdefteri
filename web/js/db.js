@@ -2,7 +2,7 @@
 // Her şey cihazda kalır; sunucu yok. Safari yer açmak için veriyi silebilir, o yüzden Yedekle düğmesi var.
 
 const DB_NAME = "notdefteri";
-const DB_VERSION = 1;
+const DB_VERSION = 2;   // 2: sürüm geçmişi depoları
 
 let dbPromise = null;
 
@@ -15,8 +15,15 @@ function open() {
       if (!db.objectStoreNames.contains("notebooks")) db.createObjectStore("notebooks", { keyPath: "id" });
       if (!db.objectStoreNames.contains("assets")) db.createObjectStore("assets", { keyPath: "id" });
       if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings", { keyPath: "key" });
+      if (!db.objectStoreNames.contains("surumler")) db.createObjectStore("surumler", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("surumVeri")) db.createObjectStore("surumVeri", { keyPath: "id" });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Yeni sürüm (başka sekmede) yükseltme isterse bu bağlantı yolu kesmesin.
+      db.onversionchange = () => { db.close(); dbPromise = null; };
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
   });
   return dbPromise;

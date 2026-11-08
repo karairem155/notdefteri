@@ -4,6 +4,7 @@ import { store, COVER_PRESETS, COVER_TITLES, SEKME_TURLERI } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu, dokunusIsaretle } from "./ui.js";
 import { coverElement, sameCover, markCoverOpening, openCoverFit, openImageFit } from "./covers.js";
 import { katla } from "./arama.js";
+import { surumler, surumVerisi } from "./surum.js";
 import { folderElement, folderStyle, setFolderStyle, renameFolderStyle, dropFolderStyle, FOLDER_MATERIALS, FOLDER_COLORS } from "./folders.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { shrinkImage } from "./addpage.js";
@@ -176,6 +177,8 @@ export function renderLibrary(root) {
     };
     const diz = (sutun) => {
       raflar.replaceChildren();
+      const yedek = !currentFolder && !showingTrash && !search && !etiketSuzgec ? yedekKarti() : null;
+      if (yedek) raflar.append(yedek);
       if (devam) raflar.append(devam);
       raflar.style.setProperty("--sutun", String(sutun));
       for (let i = 0; i < list.length; i += sutun) {
@@ -750,10 +753,64 @@ export function renderLibrary(root) {
       notebook.cover && notebook.cover.imageAsset && { title: "Kapağı Konumla", onSelect: () => openCoverFit(notebook.id, "cover") },
       notebook.backCover && notebook.backCover.imageAsset && { title: "Arka Kapağı Konumla", onSelect: () => openCoverFit(notebook.id, "backCover") },
       { title: "Klasöre Taşı", onSelect: () => moveToFolderMenu(notebook) },
+      { title: "Sürüm Geçmişi", onSelect: () => surumPenceresi(notebook) },
       { title: (notebook.etiketler || []).length ? `Etiketler (${notebook.etiketler.length})` : "Etiket Ekle", onSelect: () => etiketPenceresi(notebook) },
       { title: notebook.isFavourite ? "Favoriden Çıkar" : "Favorilere Ekle", onSelect: () => store.mutate(notebook.id, (n) => { n.isFavourite = !n.isFavourite; }) },
       { title: "Çöpe At", destructive: true, onSelect: () => { store.mutate(notebook.id, (n) => { n.isTrashed = true; }); toast("Çöp kutusuna taşındı"); } }
     ]);
+  }
+
+  /** Sürüm geçmişi: kopyalar listesi; kopya olarak aç ya da o hâline dön. */
+  async function surumPenceresi(notebook) {
+    const liste = await surumler(notebook.id).catch(() => []);
+    const zaman = (ms) => {
+      const t = new Date(ms), bugun = new Date();
+      const saat = t.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+      const fark = Math.round((new Date(bugun.toDateString()) - new Date(t.toDateString())) / 86400000);
+      return fark === 0 ? `Bugün ${saat}` : fark === 1 ? `Dün ${saat}` : `${t.toLocaleDateString("tr-TR", { day: "numeric", month: "long" })} ${saat}`;
+    };
+    const kisa = (ms) => new Date(ms).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const satirlar = liste.length ? liste.map((s) => h("div", { class: "surum-satir" },
+      h("div", { class: "surum-bilgi" }, h("b", {}, zaman(s.zaman)), h("span", {}, `${s.sayfa} sayfa${s.neden === "geri dönmeden önce" ? " · geri dönmeden önceki hâl" : ""}`)),
+      h("button", { class: "btn small", type: "button", onTap: async () => {
+        const veri = await surumVerisi(s.id);
+        if (!veri) { toast("Bu kopya okunamadı"); return; }
+        const id = store.surumdenKopya(veri, kisa(s.zaman));
+        closeModal();
+        toast("Kopya olarak açıldı");
+        navigate(`#/n/${id}`);
+      } }, "Kopya olarak aç"),
+      h("button", { class: "btn small primary", type: "button", onTap: () => confirmDialog("Bu hâline dönülsün mü?", `Defter ${zaman(s.zaman)} hâline döner. Şimdiki hâlin de bir kopyası alınır; istersen geri gelebilirsin.`, "Bu Hâline Dön", async () => {
+        const veri = await surumVerisi(s.id);
+        if (!veri) { toast("Bu kopya okunamadı"); return; }
+        await store.surumeDon(notebook.id, veri);
+        closeModal();
+        toast("Defter eski hâline döndü");
+        render();
+      }) }, "Bu hâline dön")))
+      : [h("p", { class: "surum-bos" }, "Henüz kopya yok. Defterde çalıştıkça her 20 dakikada bir kopya alınır; son 20 kopya saklanır.")];
+    openModal(h("div", { class: "dialog surum-pencere" },
+      h("h3", {}, "Sürüm Geçmişi"),
+      h("p", {}, `${notebook.title}: kopyalar bu iPad'de duruyor. Uygulama silinirse onlar da gider; tam güvence için ara ara Yedekle.`),
+      h("div", { class: "surum-liste" }, ...satirlar),
+      h("div", { class: "dialog-buttons" }, h("button", { class: "btn", type: "button", onTap: closeModal }, "Kapat"))));
+  }
+
+  /** Yedek hatırlatması: bir haftadır yedek yoksa ana sayfanın üstünde küçük bir kart. */
+  function yedekKarti() {
+    const s = store.settings;
+    const simdi = Date.now();
+    if (simdi < (s.yedekErtele || 0)) return null;
+    const gun = s.sonYedek ? Math.floor((simdi - s.sonYedek) / 86400000) : null;
+    if (gun !== null && gun < 7) return null;
+    const icerikVar = store.activeNotebooks.some((n) => n.pages.some((p) => (p.strokes && p.strokes.length) || (p.objects && p.objects.length)));
+    if (!icerikVar) return null;
+    return h("div", { class: "yedek-kart", role: "status" },
+      h("div", { class: "yedek-metin" },
+        h("b", {}, gun === null ? "Henüz hiç yedek almadın" : `Son yedek ${gun} gün önce`),
+        h("span", {}, "Notların yalnız bu iPad'de. Safari yer açarken ya da uygulama silinirse kaybolabilir.")),
+      h("button", { class: "btn small", type: "button", onTap: () => { store.setSetting("yedekErtele", simdi + 3 * 86400000); render(); } }, "Sonra"),
+      h("button", { class: "btn small primary", type: "button", onTap: () => import("./backup.js").then((m) => m.exportBackup()).then(() => render()) }, "Şimdi yedekle"));
   }
 
   /** Etiketler: var olanlara dokunarak tak/çıkar, yenisini yazarak ekle. */

@@ -1,6 +1,7 @@
 // Uygulama durumu ve kalıcılık. Veri modeli Swift sürümüyle aynı fikirde:
 // her sayfa kendi şablonunu, boyutunu, çizimini, nesnelerini ve örtülerini taşır.
 import { db } from "./db.js";
+import { surumAl, surumVarliklari, surumleriSil } from "./surum.js";
 
 export const A4 = { w: 595, h: 842 };
 
@@ -133,6 +134,8 @@ const DEFAULT_SETTINGS = {
   otoCeviri: true,           // PDF metni seçilince / fosforluyla çizilince yanında çeviri açılsın
   pdfHizala: true,           // PDF'te fosforlu ve kalem metin satırına hizalansın
   fosforluAralik: [3, 18],   // PDF satırına hizalanan fosforlunun en ince / en kalın hâli
+  sonYedek: 0,               // son yedeğin zamanı (ana sayfadaki hatırlatma için)
+  yedekErtele: 0,            // "Sonra" denince hatırlatma bu zamana kadar susar
   flipSound: true,           // sayfa çevirme sesi   // "stroke" dokunulan çizgiyi bütünüyle, "pixel" yalnız dokunulan parçayı siler
   shapeRecognition: true,
   shapeHoldMs: 600,          // basılı tutunca şekle dönüşme süresi (0 = kapalı)
@@ -265,6 +268,32 @@ class Store extends EventTarget {
     return notebook.id;
   }
 
+  /** Sürüm geçmişindeki kopyayı yeni bir defter olarak açar; id'si döner. */
+  surumdenKopya(veri, etiket) {
+    const kopya = structuredClone(veri);
+    kopya.id = uid();
+    kopya.title = `${veri.title} (${etiket})`;
+    kopya.isTrashed = false;
+    kopya.createdAt = kopya.updatedAt = Date.now();
+    this.notebooks.push(migrateNotebook(kopya));
+    this.persist(kopya, true);
+    this.emit("change");
+    return kopya.id;
+  }
+
+  /** Defteri kopyadaki hâline döndürür; önce şimdiki hâlin kopyası alınır. */
+  async surumeDon(notebookId, veri) {
+    const notebook = this.notebook(notebookId);
+    if (!notebook) return;
+    await this.flush();
+    await surumAl(notebook, { zorla: true, neden: "geri dönmeden önce" });
+    const temiz = migrateNotebook(structuredClone(veri));
+    for (const k of Object.keys(notebook)) delete notebook[k];
+    Object.assign(notebook, temiz, { id: notebookId, isTrashed: false, updatedAt: Date.now() });
+    this.persist(notebook, true);
+    this.emit("change", { notebookId });
+  }
+
   /** Defteri değiştirir, kaydı planlar. `change(notebook)` içinde değişiklik yapılır. */
   mutate(notebookId, change, immediate = false) {
     const notebook = this.notebook(notebookId);
@@ -280,7 +309,7 @@ class Store extends EventTarget {
     if (existing) clearTimeout(existing);
     const save = () => {
       this.saveTimers.delete(notebook.id);
-      db.put("notebooks", notebook).catch((error) => {
+      db.put("notebooks", notebook).then(() => surumAl(notebook)).catch((error) => {
         console.error("Kaydedilemedi", error);
         this.emit("error", "Defter kaydedilemedi: " + error.message);
       });
@@ -303,6 +332,7 @@ class Store extends EventTarget {
     if (!notebook) return;
     this.notebooks = this.notebooks.filter((n) => n.id !== notebookId);
     await db.delete("notebooks", notebookId);
+    await surumleriSil(notebookId).catch(() => {});
     await this.removeUnreferencedAssets();
     this.emit("change");
   }
@@ -570,8 +600,12 @@ class Store extends EventTarget {
     for (const c of this.settings.customCovers) used.add(c);
     for (const g of this.settings.myStickers || []) used.add(g.asset);
     if (this.settings.defaultCover && this.settings.defaultCover.imageAsset) used.add(this.settings.defaultCover.imageAsset);
+    // Sürüm geçmişindeki kopyaların kullandığı dosyalar da duruyor (geri dönünce fotoğraf kaybolmasın).
+    try { for (const a of await surumVarliklari()) used.add(a); } catch (_) { return; }
     for (const notebook of this.notebooks) {
       if (notebook.cover && notebook.cover.imageAsset) used.add(notebook.cover.imageAsset);
+      // Arka kapak görseli eskiden sayılmıyordu: temizlikte silinebiliyordu.
+      if (notebook.backCover && notebook.backCover.imageAsset) used.add(notebook.backCover.imageAsset);
       for (const page of notebook.pages) {
         if (page.templateAsset) used.add(page.templateAsset);
         if (page.pdf) used.add(page.pdf.asset);
