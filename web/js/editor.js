@@ -816,6 +816,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       textLines: () => (store.settings.pdfHizala === false ? null : textLines.get(page.id) || null),
       highlightRange: () => store.settings.fosforluAralik || [3, 18],
       onTextStroke: (satir) => fosforluCevir(page, stack, satir),
+      karalamaSilme: () => store.settings.karalamaSilme !== false,
+      onKaralamaSildi: (sayi) => toast(`Karalama ${sayi} çizgiyi sildi · Geri almak için ⟲`),
       strokeEtiketi: () => (recording && recording.state === "recording" ? { ses: recording._kimlik, t: Date.now() - recording._baslangic } : null),
       soluk: (stroke) => !!(oynatici.id && stroke.ses === oynatici.id && stroke.t > oynatici.audio.currentTime * 1000),
       onSelection: (bounds) => renderSelection(stack, page, bounds),

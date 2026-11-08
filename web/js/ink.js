@@ -392,6 +392,23 @@ export class InkCanvas {
     if (!this.live) return;
     const stroke = this.live;
     this.live = null;
+    // Karalayarak silme: yazının üstü zikzakla karalanınca altındaki çizgiler ve karalama silinir.
+    if (!stroke.shape && stroke.tool !== "highlighter" && this.options.karalamaSilme && this.options.karalamaSilme() && karalamaMi(stroke.points, stroke.width)) {
+      const kutu = kutuBul(stroke.points, stroke.width);
+      // Kutunun içinde kalmak yetmiyor: noktaların yarısı karalamanın çizgisine yakın olmalı.
+      // Böylece bir şeklin içini tararken şeklin kenarı silinmiyor.
+      const yakin = Math.max(8, stroke.width * 3);
+      const silinecek = this.page.strokes.filter((s) => s.tool !== "highlighter" && kapsamaOrani(s, kutu) >= 0.6 && yakinlikOrani(s, stroke.points, yakin) >= 0.5);
+      if (silinecek.length) {
+        const ids = new Set(silinecek.map((s) => s.id));
+        this.pushHistory();
+        this.page.strokes = this.page.strokes.filter((s) => !ids.has(s.id));
+        this.redraw();
+        this.commit();
+        if (this.options.onKaralamaSildi) this.options.onKaralamaSildi(ids.size);
+        return;
+      }
+    }
     // Örnekleme titremesini at: çizginin biçimi değişmez, görüntü temizlenir.
     if (!stroke.shape && stroke.points.length > 8 && stroke.points.length < 4000) {
       const eps = Math.max(0.12, 0.35 / Math.max(1, this.viewScale || 1));   // yakınken daha az sadeleştir
@@ -882,6 +899,61 @@ function cutStroke(stroke, point, radius) {
   }
   if (current.length >= 2) pieces.push(current);
   return pieces.map((points, i) => ({ ...stroke, id: i === 0 ? stroke.id : uid(), points }));
+}
+
+/**
+ * Karalama mı: aynı bölgede çok kez ileri geri gidip gelen çizgi.
+ * Ölçüt: ana eksende en az 6 yön dönüşü (her biri kutunun en az %35'i kadar gidip),
+ * toplam yol kutu köşegeninin 4,5 katından uzun. "mmm" gibi el yazısı yön değiştirse
+ * de ilerlediği için yol/köşegen oranı düşük kalıyor.
+ */
+function karalamaMi(pts, en) {
+  if (pts.length < 12) return false;
+  const k = kutuBul(pts, 0);
+  const g = k.x1 - k.x0, y = k.y1 - k.y0;
+  const kosegen = Math.hypot(g, y);
+  if (kosegen < Math.max(14, en * 4)) return false;
+  let yol = 0;
+  for (let i = 1; i < pts.length; i++) yol += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  if (yol < kosegen * 4.5) return false;
+  const eksen = g >= y ? 0 : 1;
+  const esik = Math.max(g, y) * 0.35;
+  // uc: o yöndeki en uç nokta; ondan eşik kadar geri dönünce bir dönüş sayılır.
+  let yon = 0, uc = pts[0][eksen], donus = 0;
+  for (const p of pts) {
+    const v = p[eksen];
+    if (yon === 0) {
+      if (v - uc > esik) { yon = 1; uc = v; } else if (uc - v > esik) { yon = -1; uc = v; }
+    } else if (yon === 1) {
+      if (v > uc) uc = v; else if (uc - v > esik) { yon = -1; uc = v; donus++; }
+    } else if (v < uc) uc = v;
+    else if (v - uc > esik) { yon = 1; uc = v; donus++; }
+  }
+  return donus >= 6;
+}
+
+function kutuBul(pts, pay) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of pts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+  return { x0: x0 - pay, y0: y0 - pay, x1: x1 + pay, y1: y1 + pay };
+}
+
+/** Çizginin noktalarının ne kadarı karalama yoluna `r` kadar yakın. */
+function yakinlikOrani(stroke, yol, r) {
+  let yakin = 0;
+  for (const p of stroke.points) {
+    for (let i = 1; i < yol.length; i++) {
+      if (segmentDistance(yol[i - 1], yol[i], p[0], p[1]) <= r) { yakin++; break; }
+    }
+  }
+  return stroke.points.length ? yakin / stroke.points.length : 0;
+}
+
+/** Çizginin noktalarının ne kadarı kutunun içinde. */
+function kapsamaOrani(stroke, k) {
+  let ic = 0;
+  for (const p of stroke.points) if (p[0] >= k.x0 && p[0] <= k.x1 && p[1] >= k.y0 && p[1] <= k.y1) ic++;
+  return stroke.points.length ? ic / stroke.points.length : 0;
 }
 
 function pointInPolygon(p, polygon) {

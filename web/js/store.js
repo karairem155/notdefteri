@@ -134,6 +134,7 @@ const DEFAULT_SETTINGS = {
   rulerAngle: true,          // cetvelde açı rozeti
   rulerSnap: true,           // cetvele ve 15° açılara yapışma
   otoCeviri: true,           // PDF metni seçilince / fosforluyla çizilince yanında çeviri açılsın
+  karalamaSilme: true,       // yazının üstünü karalayınca silinsin
   pdfHizala: true,           // PDF'te fosforlu ve kalem metin satırına hizalansın
   fosforluAralik: [3, 18],   // PDF satırına hizalanan fosforlunun en ince / en kalın hâli
   sonYedek: 0,               // son yedeğin zamanı (ana sayfadaki hatırlatma için)

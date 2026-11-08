@@ -194,6 +194,7 @@ export function eraserPanel(ctx) {
       })),
       h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "Yalnız mürekkep: altını çizdiğin fosforluyu bozmadan yazıyı siler."),
       toggleRow("Basınca göre boyut", "Kalem baskısına göre silgi boyutunu ayarla.", !!e.pressureSize, (v) => { e.pressureSize = v; save(); }),
+      toggleRow("Karalayarak sil", "Kalemle yazının üstünü zikzakla karalayınca silinir; silgiye geçmen gerekmez.", ctx.store.settings.karalamaSilme !== false, (v) => ctx.store.setSetting("karalamaSilme", v)),
       h("div", { class: "sp-sep" }),
       h("button", { class: "sp-outline-btn danger", type: "button", onTap: () => ctx.clearPage() }, svgIcon("trash", 18), "Sayfadaki her şeyi sil")
     );
