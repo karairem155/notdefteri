@@ -3,6 +3,7 @@
 import { store, COVER_PRESETS, COVER_TITLES, SEKME_TURLERI } from "./store.js";
 import { h, svgIcon, iconButton, pressable, actionSheet, confirmDialog, promptDialog, openModal, closeModal, toast, pickFile, popoverMenu, dokunusIsaretle } from "./ui.js";
 import { coverElement, sameCover, markCoverOpening, openCoverFit, openImageFit } from "./covers.js";
+import { katla } from "./arama.js";
 import { folderElement, folderStyle, setFolderStyle, renameFolderStyle, dropFolderStyle, FOLDER_MATERIALS, FOLDER_COLORS } from "./folders.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { shrinkImage } from "./addpage.js";
@@ -14,6 +15,7 @@ import { renderStrokesToDataURL } from "./ink.js";
 export function renderLibrary(root) {
   let showingTrash = false;
   let search = "";
+  let etiketSuzgec = null;   // seçili etiket: o etiketli defterler (klasörlerden bağımsız)
   // Açık klasör oturum boyunca hatırlanıyor: defterden geri dönünce ana sayfaya
   // değil, defterin açıldığı klasöre dönülsün.
   const KLASOR_ANAHTARI = "notdefteri.acikKlasor";
@@ -36,16 +38,31 @@ export function renderLibrary(root) {
     let source = showingTrash ? store.trashedNotebooks : store.activeNotebooks;
     if (currentFolder && !showingTrash) source = source.filter((n) => n.folder === currentFolder);
     // Kökte klasördeki defterler rafta durmuyor: onlar klasörün içinde.
-    else if (!showingTrash && !search) source = source.filter((n) => !n.folder || !store.settings.folders.includes(n.folder));
+    else if (!showingTrash && !search && !etiketSuzgec) source = source.filter((n) => !n.folder || !store.settings.folders.includes(n.folder));
+    if (etiketSuzgec && !showingTrash) source = source.filter((n) => (n.etiketler || []).includes(etiketSuzgec));
     if (!search) return source;
-    const needle = search.toLocaleLowerCase("tr");
-    return source.filter((n) => n.title.toLocaleLowerCase("tr").includes(needle));
+    // Ad, etiket, klasör adı ve sayfalardaki yazı kutuları; Türkçe harf farkı yok sayılır.
+    const needle = katla(search.trim());
+    return source.filter((n) => katla([n.title, n.folder || "", ...(n.etiketler || []), defterYazisi(n)].join("\n")).includes(needle));
+  }
+
+  function defterYazisi(n) {
+    const parcalar = [];
+    for (const p of n.pages) for (const o of p.objects || []) if (typeof o.text === "string" && o.text) parcalar.push(o.text);
+    return parcalar.join("\n");
+  }
+
+  /** Bütün defterlerdeki etiketler, en çok kullanılandan aza. */
+  function tumEtiketler() {
+    const say = new Map();
+    for (const n of store.activeNotebooks) for (const e of n.etiketler || []) say.set(e, (say.get(e) || 0) + 1);
+    return [...say.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "tr")).map(([e]) => e);
   }
 
   /** Raftaki sıra: kökte önce klasörler, sonra klasörsüz defterler. */
   function hucreler() {
     const defterler = visible().map((notebook) => ({ tur: "defter", notebook }));
-    if (showingTrash || search || currentFolder) return defterler;
+    if (showingTrash || search || currentFolder || etiketSuzgec) return defterler;
     const klasorler = store.settings.folders.map((ad) => ({
       tur: "klasor", ad,
       sayi: store.activeNotebooks.filter((n) => n.folder === ad).length
@@ -84,7 +101,7 @@ export function renderLibrary(root) {
   }
 
   function openSearch() {
-    promptDialog("Defterlerde ara", "Defter adı", search, (value) => { search = value; currentIndex = 0; render(); });
+    promptDialog("Defterlerde ara", "Defter adı, etiket ya da yazı", search, (value) => { search = value; currentIndex = 0; render(); });
   }
 
   // ---------- gövde ----------
@@ -135,14 +152,19 @@ export function renderLibrary(root) {
     const alt = showingTrash ? (say ? `${say} silinmiş defter` : "Silinen defterler burada")
       : [klasorSay ? `${klasorSay} klasör` : null, say ? `${say} defter` : null].filter(Boolean).join(" · ") || "Henüz defter yok";
     const raflar = h("div", { class: "raflar" });
-    const devam = !currentFolder && !showingTrash && !search ? devamKarti() : null;
+    const devam = !currentFolder && !showingTrash && !search && !etiketSuzgec ? devamKarti() : null;
+    const etiketler = !showingTrash && !currentFolder && !search ? tumEtiketler() : [];
+    const etiketSatiri = etiketler.length ? h("div", { class: "etiket-satiri", role: "group", "aria-label": "Etikete göre süz" },
+      h("button", { type: "button", class: "etiket-cip" + (etiketSuzgec ? "" : " secili"), onTap: () => { etiketSuzgec = null; currentIndex = 0; render(); } }, "Tümü"),
+      ...etiketler.map((e) => h("button", { type: "button", class: "etiket-cip" + (etiketSuzgec === e ? " secili" : ""), onTap: () => { etiketSuzgec = etiketSuzgec === e ? null : e; currentIndex = 0; render(); } }, "#" + e))) : null;
     body.replaceChildren(
       h("div", { class: "paper-head raf-bas" },
         currentFolder && !showingTrash
           ? h("button", { class: "geri-klasor", type: "button", dataset: { klasor: "" }, onTap: () => { currentFolder = null; render(); } }, svgIcon("back", 16), "Tüm defterler")
           : null,
-        h("h1", {}, showingTrash ? "Çöp Kutusu" : (currentFolder || (search ? `"${search}"` : "Defterlerim"))),
-        h("div", { class: "sub" }, alt)),
+        h("h1", {}, showingTrash ? "Çöp Kutusu" : (currentFolder || (search ? `"${search}"` : (etiketSuzgec ? "#" + etiketSuzgec : "Defterlerim")))),
+        h("div", { class: "sub" }, alt),
+        etiketSatiri),
       list.length ? raflar : emptyState(),
       actionBar(null)
     );
@@ -728,9 +750,46 @@ export function renderLibrary(root) {
       notebook.cover && notebook.cover.imageAsset && { title: "Kapağı Konumla", onSelect: () => openCoverFit(notebook.id, "cover") },
       notebook.backCover && notebook.backCover.imageAsset && { title: "Arka Kapağı Konumla", onSelect: () => openCoverFit(notebook.id, "backCover") },
       { title: "Klasöre Taşı", onSelect: () => moveToFolderMenu(notebook) },
+      { title: (notebook.etiketler || []).length ? `Etiketler (${notebook.etiketler.length})` : "Etiket Ekle", onSelect: () => etiketPenceresi(notebook) },
       { title: notebook.isFavourite ? "Favoriden Çıkar" : "Favorilere Ekle", onSelect: () => store.mutate(notebook.id, (n) => { n.isFavourite = !n.isFavourite; }) },
       { title: "Çöpe At", destructive: true, onSelect: () => { store.mutate(notebook.id, (n) => { n.isTrashed = true; }); toast("Çöp kutusuna taşındı"); } }
     ]);
+  }
+
+  /** Etiketler: var olanlara dokunarak tak/çıkar, yenisini yazarak ekle. */
+  function etiketPenceresi(notebook) {
+    const secili = new Set(notebook.etiketler || []);
+    const hepsi = [...new Set([...tumEtiketler(), ...secili])];
+    const cipler = h("div", { class: "etiket-cipler" });
+    const ciz = () => cipler.replaceChildren(...(hepsi.length ? hepsi.map((e) => h("button", { type: "button", class: "etiket-cip" + (secili.has(e) ? " secili" : ""),
+      "aria-pressed": String(secili.has(e)), onTap: () => { if (secili.has(e)) secili.delete(e); else secili.add(e); ciz(); } }, "#" + e))
+      : [h("span", { class: "etiket-bos" }, "Henüz etiket yok. Aşağıya yazıp ekle: biyoloji, ödev, günlük…")]));
+    const giris = h("input", { type: "text", class: "text-input", placeholder: "Yeni etiket", maxlength: "24", enterkeyhint: "done", "aria-label": "Yeni etiket" });
+    const ekle = () => {
+      const e = giris.value.trim().replace(/^#+/, "").replace(/\s+/g, " ").toLocaleLowerCase("tr");
+      if (!e) return;
+      if (!hepsi.includes(e)) hepsi.unshift(e);
+      secili.add(e);
+      giris.value = "";
+      ciz();
+    };
+    giris.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); ekle(); } });
+    ciz();
+    openModal(h("div", { class: "dialog", style: { width: "min(440px, 100%)" } },
+      h("h3", {}, "Etiketler"),
+      h("p", {}, "Etiketli defterler ana sayfada etikete dokununca, klasörlerden bağımsız olarak bir arada görünür."),
+      cipler,
+      h("div", { class: "etiket-ekle" }, giris, h("button", { class: "btn", type: "button", onTap: ekle }, "Ekle")),
+      h("div", { class: "dialog-buttons" },
+        h("button", { class: "btn", type: "button", onTap: closeModal }, "Vazgeç"),
+        h("button", { class: "btn primary", type: "button", onTap: () => {
+          if (giris.value.trim()) ekle();
+          store.mutate(notebook.id, (n) => { n.etiketler = [...secili]; });
+          if (etiketSuzgec && !secili.has(etiketSuzgec) && !tumEtiketler().includes(etiketSuzgec)) etiketSuzgec = null;
+          closeModal();
+          render();
+        } }, "Kaydet"))));
+    setTimeout(() => giris.focus(), 60);
   }
 
   function trashMenu(notebook) {

@@ -463,3 +463,15 @@ html[data-masa="pudra"] .mode-banner .banner-ikincil { background: rgba(23, 42, 
 .ara-parca mark { background: rgba(242, 100, 154, 0.28); color: inherit; border-radius: 3px; padding: 0 1px; font-weight: 700; }
 .ara-alt { font-size: 12px; font-weight: 600; color: var(--sis, #4b566c); }
 .ara-bos { padding: 18px 12px; font-size: 14px; color: var(--sis, #4b566c); line-height: 1.45; }
+
+/* ===== Etiketler ===== */
+.etiket-satiri { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+.etiket-cipler { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 12px; }
+.etiket-cip { border: 1.5px solid rgba(23, 42, 69, 0.14); background: var(--kagit, #fbf6f3); color: var(--murekkep, #172a45); font: inherit; font-size: 13.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.etiket-cip.secili { background: var(--murekkep, #172a45); color: var(--kagit, #fbf6f3); border-color: var(--murekkep, #172a45); }
+.etiket-bos { font-size: 13.5px; color: var(--sis, #4b566c); }
+.etiket-ekle { display: flex; gap: 8px; align-items: center; }
+.etiket-ekle .text-input { flex: 1; min-width: 0; margin: 0; }
+
+/* ===== Okuma modu: araç çubukları gizli, kalem yazmaz ===== */
+.screen.okuma .toolbar, .screen.okuma .fav-dock { opacity: 0; pointer-events: none; transform: translateY(16px); transition: opacity 0.2s, transform 0.2s; }

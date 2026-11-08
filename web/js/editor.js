@@ -169,6 +169,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   const pageVersions = new Map();
   const textLines = new Map();   // pageId -> PDF metin satırları
   let ruler = null;              // { x, y, angle, length, edgeOffset } sayfa koordinatında; null = kapalı
+  let okumaModu = false;         // yazı kapalı: kalem sayfayı çevirir/kaydırır, yanlışlıkla iz kalmaz
   let textSelectMode = false;    // PDF metnini seçme (kopyala / çevir) kipi
   let editingTextId = null;      // klavye/Scribble ile düzenlenen yazı nesnesi
 
@@ -621,6 +622,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       { title: "Sayfa Rengi (bu sayfa)", onSelect: openPageColorPanel },   // pageColorFromMenu
       { title: "Sayfa Boyutu", onSelect: () => openPageSizeSheet(notebookId, page, () => { invalidateSnapshot(page); renderStage(); }) },
       { title: "Tanılama (çizim netliği)", onSelect: cizimTanilama },
+      { title: okumaModu ? "Okuma Modunu Kapat" : "Okuma Modu (yazı kapalı)", onSelect: () => okumaModunuAyarla(!okumaModu) },
       ...(page.pdf ? [{ title: textSelectMode ? "Metin Seçmeyi Bitir" : "PDF Metnini Seç (kopyala, çevir)", onSelect: () => { textSelectMode = !textSelectMode; applyModes(); renderTopbar(); } }] : []),
       { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
       { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
@@ -1217,15 +1219,28 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     for (const stack of stage.querySelectorAll(".page-stack")) {
       const { objectsLayer, coversLayer, canvas } = stack._layers;
       objectsLayer.classList.toggle("editing", editingObjects);
-      canvas.classList.toggle("disabled", editingObjects || isFrosted() || textSelectMode);
+      canvas.classList.toggle("disabled", editingObjects || isFrosted() || textSelectMode || okumaModu);
       coversLayer.classList.toggle("capture", isFrosted() && !editingObjects);
       if (stack._layers.textLayer) stack._layers.textLayer.classList.toggle("active", textSelectMode);
     }
+    screen.classList.toggle("okuma", okumaModu);
     renderBanner();
   }
 
+  function okumaModunuAyarla(acik) {
+    okumaModu = acik;
+    if (acik) { textSelectMode = false; if (editingObjects) setEditing(false); }
+    closePopover();
+    applyModes();
+    renderTopbar();
+  }
+
   function renderBanner() {
-    if (editingObjects) {
+    if (okumaModu) {
+      banner.hidden = false;
+      banner.replaceChildren(svgIcon("books", 16), h("span", {}, "Okuma modu: yazı kapalı"),
+        h("button", { class: "btn small primary", type: "button", onTap: () => okumaModunuAyarla(false) }, "Yazmaya dön"));
+    } else if (editingObjects) {
       banner.hidden = false;
       banner.replaceChildren(
         h("span", {}, selectedObjectId ? "Sürükle, köşeden büyüt, üstten döndür" : "Nesne düzenleme: bir nesneye dokun"),

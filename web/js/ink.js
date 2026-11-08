@@ -418,7 +418,9 @@ export class InkCanvas {
     if (starting) this.eraseSession = { removed: false, snapshot: this.snapshot() };
     const prefs = this.options.eraser ? this.options.eraser() : { mode: "stroke", size: 12 };
     const radius = (prefs.size || 12) * (prefs.pressureSize ? 0.4 + (point[2] || 0.5) * 1.2 : 1);
-    const skip = (stroke) => prefs.onlyHighlighter && stroke.tool !== "highlighter";
+    // Ne silinsin: hepsi, yalnız mürekkep (fosforluya dokunmaz) ya da yalnız fosforlu.
+    const hedef = prefs.hedef || (prefs.onlyHighlighter ? "fosforlu" : "hepsi");
+    const skip = (stroke) => (hedef === "fosforlu" && stroke.tool !== "highlighter") || (hedef === "murekkep" && stroke.tool === "highlighter");
     const before = this.page.strokes;
     let after;
     if (prefs.mode === "pixel") {

@@ -186,7 +186,12 @@ export function eraserPanel(ctx) {
       slider({ min: 4, max: 80, step: 1, value: e.size, label: "Silgi boyutu", onInput: (v) => { e.size = v; sizeValue.textContent = v + " px"; save(); } }),
       presetRow([6, 12, 20, 28, 48, 80], e.size, (v) => { e.size = v; save(); build(); }, (v) => String(v)),
       h("div", { class: "sp-sep" }),
-      toggleRow("Yalnız fosforluyu sil", "Sadece fosforlu kalem izlerini siler.", !!e.onlyHighlighter, (v) => { e.onlyHighlighter = v; save(); }),
+      h("div", { class: "sp-label-row", style: { marginTop: "4px" } }, h("span", {}, "Ne silinsin")),
+      h("div", { class: "sp-seg" }, ...[["hepsi", "Hepsi"], ["murekkep", "Yalnız mürekkep"], ["fosforlu", "Yalnız fosforlu"]].map(([k, ad]) => {
+        const aktif = (e.hedef || (e.onlyHighlighter ? "fosforlu" : "hepsi")) === k;
+        return h("button", { type: "button", class: aktif ? "active" : "", onTap: () => { e.hedef = k; e.onlyHighlighter = k === "fosforlu"; save(); build(); } }, ad);
+      })),
+      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "Yalnız mürekkep: altını çizdiğin fosforluyu bozmadan yazıyı siler."),
       toggleRow("Basınca göre boyut", "Kalem baskısına göre silgi boyutunu ayarla.", !!e.pressureSize, (v) => { e.pressureSize = v; save(); }),
       h("div", { class: "sp-sep" }),
       h("button", { class: "sp-outline-btn danger", type: "button", onTap: () => ctx.clearPage() }, svgIcon("trash", 18), "Sayfadaki her şeyi sil")
