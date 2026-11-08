@@ -14,6 +14,7 @@ import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, col
 import { exportPanel } from "./export.js";
 import { openStickerMaker } from "./stickermaker.js";
 import { ceviriGoster, ceviriKartiKapat, cevir, hedefDil, DILLER } from "./ceviri.js";
+import { openNotebookSearch } from "./arama.js";
 import { navigate } from "./app.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -245,6 +246,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         page.pdf && h("span", { class: "badge-pdf" }, "PDF")),
       h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },
+        iconButton("search", "Defterde ara, sekmeler ve içindekiler", aramaAc),
         iconButton("grid", "Sayfalar: gör, sırala, sil", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
         iconButton("odak", "Odak modu: çubukları gizle", () => odakModu(true)),
         iconButton("export", "Dışa aktar / paylaş", openExportPanel),
@@ -2570,10 +2572,25 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   });
   const onSettings = (e) => { if (e.detail && ["pens", "palette", "defaultPenId", "benchCollapsed", "favDock"].includes(e.detail.key)) renderBenchKeepPopover(); };
   store.addEventListener("settings", onSettings);
+  function aramaAc() {
+    flushInk();
+    closePopover();
+    openNotebookSearch({ notebook: nb(), sekmeTurleri: sekmeTurleri(), mevcutSayfa: selectedPageId, onJump: (id) => { if (id !== selectedPageId) selectPage(id); } });
+  }
+
+  // Klavye kısayolları (iPad klavyesi ya da Magic Keyboard ile):
+  // ⌘Z / ⇧⌘Z geri-ileri al, ⌘F defterde ara, ← → sayfa çevir, ⌘. odak modu.
   const onKey = (e) => {
     // Yan yanada klavye yalnız son dokunulan bölmeye gidiyor.
     if (bolme && !screen.parentElement?.classList.contains("aktif")) return;
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) activeInk && activeInk.redo(); else activeInk && activeInk.undo(); }
+    const yaziyor = e.target && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName));
+    const komut = e.metaKey || e.ctrlKey;
+    if (komut && e.key.toLowerCase() === "z" && !yaziyor) { e.preventDefault(); if (e.shiftKey) activeInk && activeInk.redo(); else activeInk && activeInk.undo(); return; }
+    if (komut && e.key.toLowerCase() === "f") { e.preventDefault(); aramaAc(); return; }
+    if (komut && e.key === ".") { e.preventDefault(); odakModu(!screen.classList.contains("odak")); return; }
+    if (yaziyor || komut || e.altKey || document.querySelector(".modal-backdrop")) return;
+    if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); movePage(1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); movePage(-1); }
   };
   window.addEventListener("keydown", onKey);
 

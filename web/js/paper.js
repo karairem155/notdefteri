@@ -347,3 +347,45 @@ export async function pdfTextItems(reference, pageSize) {
   pdfItemsCache.set(key, items);
   return items;
 }
+
+// ---------- defter içi arama ve içindekiler ----------
+
+const pdfSayfaMetni = new Map();   // "asset#index" -> düz metin
+
+/** PDF sayfasının düz metni (önbellekli). */
+export async function pdfSayfaMetniAl(reference) {
+  const key = `${reference.asset}#${reference.index}`;
+  if (pdfSayfaMetni.has(key)) return pdfSayfaMetni.get(key);
+  const doc = await pdfDocument(reference.asset);
+  if (!doc) return "";
+  const page = await doc.getPage(reference.index + 1);
+  const content = await page.getTextContent();
+  const metin = content.items.map((it) => (it.str || "") + (it.hasEOL ? "\n" : " ")).join("").replace(/[ \t]+/g, " ");
+  pdfSayfaMetni.set(key, metin);
+  return metin;
+}
+
+/**
+ * PDF'in içindekiler (yer imi) ağacı, düzleştirilmiş: [{ baslik, derinlik, index }].
+ * index: PDF sayfa sırası (0'dan); çözülemeyen hedefler atlanıyor.
+ */
+export async function pdfIcindekiler(assetId) {
+  const doc = await pdfDocument(assetId);
+  if (!doc) return [];
+  const agac = await doc.getOutline().catch(() => null);
+  if (!agac || !agac.length) return [];
+  const liste = [];
+  const gez = async (dugumler, derinlik) => {
+    for (const d of dugumler) {
+      let index = null;
+      try {
+        const hedef = typeof d.dest === "string" ? await doc.getDestination(d.dest) : d.dest;
+        if (hedef && hedef[0]) index = typeof hedef[0] === "number" ? hedef[0] : await doc.getPageIndex(hedef[0]);
+      } catch (_) { /* çözülemeyen hedef */ }
+      if (index != null && d.title) liste.push({ baslik: d.title.trim(), derinlik, index });
+      if (d.items && d.items.length && derinlik < 3) await gez(d.items, derinlik + 1);
+    }
+  };
+  await gez(agac, 0);
+  return liste;
+}
