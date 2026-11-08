@@ -5,7 +5,7 @@ import { renderPageCanvas as renderPageCanvasShared, spillFor } from "./pagerend
 import { store, TOOLS, uid, COVER_PRESETS, SEKME_TURLERI } from "./store.js";
 import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, pickFiles, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
-import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing } from "./ink.js";
+import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing, strokeHits } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
 import { createCurlFlip, createCoverAnim } from "./curl.js";
 import { coverBitmap, coverElement, sameCover, takeCoverOpening, openCoverFit } from "./covers.js";
@@ -159,6 +159,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   let activeInk = null;
   let liveBand = null;
   const inks = new Map();
+  // Sesle eşli not oynatıcısı (aşağıda "sesle eşli not" bölümü); mürekkep çizimi erken eriştiği için burada.
+  const oynatici = { audio: new Audio(), id: null, zamanlayici: 0, cubuk: null };
+  oynatici.audio.preload = "auto";
   let popover = null;
   let lastPen = { ...tool };     // silgiden sonra dönülecek kalem
   let fitScale = 1;
@@ -813,6 +816,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       textLines: () => (store.settings.pdfHizala === false ? null : textLines.get(page.id) || null),
       highlightRange: () => store.settings.fosforluAralik || [3, 18],
       onTextStroke: (satir) => fosforluCevir(page, stack, satir),
+      strokeEtiketi: () => (recording && recording.state === "recording" ? { ses: recording._kimlik, t: Date.now() - recording._baslangic } : null),
+      soluk: (stroke) => !!(oynatici.id && stroke.ses === oynatici.id && stroke.t > oynatici.audio.currentTime * 1000),
       onSelection: (bounds) => renderSelection(stack, page, bounds),
       onEraseEnd: () => { if (tool.tool === "eraser" && lastPen) { tool = { ...lastPen }; renderBench(); renderTopbar(); applyModes(); } },
       toPageCoords: (e) => toPageCoords(e, stack, page),
@@ -1398,11 +1403,14 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         if (!editingObjects) box.addEventListener("pointerdown", (e) => e.stopPropagation());
         el.append(box);
       } else if (object.kind === "audio") {
-        const audio = h("audio", { preload: "metadata" });
-        store.assetURL(object.asset).then((url) => { if (url) audio.src = url; });
-        const play = h("button", { class: "audio-play", type: "button", "aria-label": "Sesli notu çal / durdur", onTap: (e) => { e.stopPropagation(); if (audio.paused) { audio.play().catch(() => toast("Ses çalınamadı")); el.classList.add("playing"); } else { audio.pause(); el.classList.remove("playing"); } } }, svgIcon("play", 16));
-        audio.addEventListener("ended", () => el.classList.remove("playing"));
-        el.append(play, h("div", { class: "audio-wave" }, ...Array.from({ length: 16 }, () => h("i"))), h("span", { class: "audio-time" }, formatDuration(object.duration || 0)), audio);
+        if (oynatici.id === object.id && !oynatici.audio.paused) el.classList.add("playing");
+        el.dataset.ses = object.id;
+        const play = h("button", { class: "audio-play", type: "button", "aria-label": "Sesli notu çal / durdur", onTap: (e) => {
+          e.stopPropagation();
+          if (oynatici.id === object.id && !oynatici.audio.paused) oynatici.audio.pause();
+          else sesiCal(object.id, oynatici.id === object.id ? oynatici.audio.currentTime : 0);
+        } }, svgIcon("play", 16));
+        el.append(play, h("div", { class: "audio-wave" }, ...Array.from({ length: 16 }, () => h("i"))), h("span", { class: "audio-time" }, formatDuration(object.duration || 0)));
       } else if (object.kind !== "postit" && object.kind !== "tape") {
         const image = h("img", { alt: "", draggable: "false" });
         store.assetURL(object.asset).then((url) => { if (url) image.src = url; });
@@ -2275,6 +2283,98 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }
 
+  // ---------- sesle eşli not ----------
+  //
+  // Kayıt sürerken yazılan çizgiler kaydın o anına bağlı (stroke.ses, stroke.t).
+  // Çalarken kaydın henüz gelmediği yerlerde yazılanlar soluk görünüyor, ses
+  // ilerledikçe koyulaşıyor; böylece "o sırada ne yazmışım" görülüyor. Kayıt
+  // sırasında yazılmış bir çizgiye parmakla dokununca ses o andan çalıyor.
+
+  function sesNesnesi(id) {
+    for (const p of nb().pages) { const o = (p.objects || []).find((x) => x.id === id && x.kind === "audio"); if (o) return o; }
+    return null;
+  }
+
+  function inkleriCiz() { for (const ink of inks.values()) ink.redraw(); }
+
+  async function sesiCal(id, saniye = 0) {
+    const nesne = sesNesnesi(id);
+    if (!nesne) { toast("Bu çizginin ses kaydı silinmiş"); return; }
+    if (oynatici.id !== id) {
+      const url = await store.assetURL(nesne.asset);
+      if (!url) { toast("Ses dosyası bulunamadı"); return; }
+      oynatici.audio.src = url;
+      oynatici.id = id;
+    }
+    const baslat = () => {
+      try { oynatici.audio.currentTime = Math.max(0, saniye); } catch (_) { /* meta gelmediyse baştan */ }
+      oynatici.audio.play().catch(() => toast("Ses çalınamadı"));
+    };
+    if (oynatici.audio.readyState >= 1) baslat(); else oynatici.audio.addEventListener("loadedmetadata", baslat, { once: true });
+    oynaticiCubugu();
+  }
+
+  function sesiKapat() {
+    oynatici.audio.pause();
+    oynatici.id = null;
+    clearInterval(oynatici.zamanlayici);
+    if (oynatici.cubuk) { oynatici.cubuk.remove(); oynatici.cubuk = null; }
+    stage.querySelectorAll(".placed.audio.playing").forEach((el) => el.classList.remove("playing"));
+    inkleriCiz();
+  }
+
+  function oynaticiCubugu() {
+    const a = oynatici.audio;
+    if (!oynatici.cubuk) {
+      const dugme = h("button", { class: "ses-cal", type: "button", "aria-label": "Çal / durdur", onTap: () => { if (a.paused) a.play().catch(() => {}); else a.pause(); } }, svgIcon("play", 18));
+      const sure = h("span", { class: "ses-sure" }, "0:00");
+      const cizgi = h("input", { type: "range", class: "ses-cizgi", min: "0", max: "1000", value: "0", "aria-label": "Kayıtta ilerle" });
+      cizgi.addEventListener("input", () => { if (a.duration && isFinite(a.duration)) a.currentTime = (cizgi.value / 1000) * a.duration; inkleriCiz(); });
+      const kapat = h("button", { class: "ses-kapat", type: "button", "aria-label": "Oynatıcıyı kapat", onTap: sesiKapat }, svgIcon("close", 16));
+      oynatici.cubuk = h("div", { class: "ses-cubuk", role: "group", "aria-label": "Sesli not oynatıcısı" }, dugme, cizgi, sure, kapat);
+      oynatici.cubuk._ogeler = { dugme, sure, cizgi };
+      editorBody.append(oynatici.cubuk);
+    }
+    clearInterval(oynatici.zamanlayici);
+    const guncelle = () => {
+      if (!oynatici.cubuk) return;
+      const { dugme, sure, cizgi } = oynatici.cubuk._ogeler;
+      const toplam = isFinite(a.duration) ? a.duration : ((sesNesnesi(oynatici.id) || {}).duration || 0);
+      sure.textContent = `${formatDuration(Math.floor(a.currentTime))} / ${formatDuration(Math.round(toplam))}`;
+      if (toplam && document.activeElement !== cizgi) cizgi.value = String(Math.round((a.currentTime / toplam) * 1000));
+      dugme.classList.toggle("caliyor", !a.paused);
+      stage.querySelectorAll(".placed[data-ses]").forEach((el) => el.classList.toggle("playing", el.dataset.ses === oynatici.id && !a.paused));
+      inkleriCiz();
+    };
+    guncelle();
+    oynatici.zamanlayici = setInterval(guncelle, 200);
+  }
+  oynatici.audio.addEventListener("ended", () => { stage.querySelectorAll(".placed.audio.playing").forEach((el) => el.classList.remove("playing")); inkleriCiz(); });
+
+  // Parmakla kısa dokunuş: kayıt sırasında yazılmış çizgiye denk gelirse ses o andan çalar.
+  let sesDokunus = null;
+  const sesDokunusBasla = (e) => {
+    if (e.pointerType === "pen" || !e.isPrimary) { sesDokunus = null; return; }
+    sesDokunus = { x: e.clientX, y: e.clientY, t: Date.now() };
+  };
+  const sesDokunusBit = (e) => {
+    const d = sesDokunus;
+    sesDokunus = null;
+    if (!d || e.pointerType === "pen" || Date.now() - d.t > 350 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) return;
+    if (editingObjects || textSelectMode || flip.active) return;
+    const stackEl = e.target && e.target.closest && e.target.closest(".page-stack");
+    if (!stackEl) return;
+    const page = pages().find((p) => p.id === stackEl.dataset.pageId);
+    if (!page || !(page.strokes || []).some((st) => st.ses)) return;
+    const n = toPageCoords(e, stackEl, page);
+    const yaricap = 14 * page.size.w / Math.max(1, stackEl.getBoundingClientRect().width) + 4;
+    const vurulan = page.strokes.filter((st) => st.ses && strokeHits(st, [n.x, n.y], yaricap + st.width / 2)).sort((a, b) => a.t - b.t)[0];
+    if (!vurulan) return;
+    sesiCal(vurulan.ses, vurulan.t / 1000 - 1.5);
+  };
+  stage.addEventListener("pointerdown", sesDokunusBasla, true);
+  stage.addEventListener("pointerup", sesDokunusBit, true);
+
   /** Sesli not: mikrofona dokun → kayıt; tekrar dokun → sayfaya oynatılabilir bir not düşer. */
   async function toggleAudioNote() {
     if (recording) { recording.stop(); return; }
@@ -2284,6 +2384,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       const rec = new MediaRecorder(stream);
       const chunks = [];
       const startedAt = Date.now();
+      // Kayıt sürerken yazılan her çizgi bu kimlik ve kaydın o anki saniyesiyle işaretleniyor.
+      rec._kimlik = uid();
+      rec._baslangic = startedAt;
       rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
       rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
@@ -2293,11 +2396,12 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         if (!blob.size) { toast("Kayıt boş kaldı"); return; }
         const asset = await store.importAsset(blob, "sesli-not." + (blob.type.includes("mp4") ? "m4a" : "webm"));
         const page = selectedPage();
-        const object = { id: uid(), kind: "audio", asset, rect: centeredRect(page, 190, 48), rotation: 0, z: maxZ(page) + 1, duration: Math.round((Date.now() - startedAt) / 1000) };
+        const object = { id: rec._kimlik, kind: "audio", asset, rect: centeredRect(page, 190, 48), rotation: 0, z: maxZ(page) + 1, duration: Math.round((Date.now() - startedAt) / 1000) };
         store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
         touchPage(page);
         renderStage();
-        toast("Sesli not sayfaya eklendi");
+        const esli = nb().pages.some((p) => (p.strokes || []).some((st) => st.ses === object.id));
+        toast(esli ? "Sesli not eklendi: kayıt sırasında yazdığın bir çizgiye parmakla dokun, o an çalsın" : "Sesli not sayfaya eklendi");
       };
       rec.start();
       recording = rec;
@@ -2627,6 +2731,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("keydown", odakTusu);
       document.removeEventListener("selectionchange", onSecimDegisti);
+      clearInterval(oynatici.zamanlayici);
+      oynatici.audio.pause();
       clearTimeout(secimZamanlayici);
       ceviriKartiKapat();
       document.removeEventListener("pointerdown", onOutsidePointer, true);

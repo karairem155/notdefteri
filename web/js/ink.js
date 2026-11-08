@@ -406,6 +406,8 @@ export class InkCanvas {
       const [x, y, p] = stroke.points[0];
       stroke.points.push([x + 0.4, y + 0.4, p]);
     }
+    // Ses kaydı sürüyorsa çizgi kaydın o anına bağlanır (sesle eşli not).
+    if (this.options.strokeEtiketi) { const etiket = this.options.strokeEtiketi(); if (etiket) Object.assign(stroke, etiket); }
     this.pushHistory();
     this.page.strokes.push(stroke);
     this.redraw();
@@ -640,9 +642,12 @@ export class InkCanvas {
     ctx.clearRect(0, 0, this.page.size.w, this.page.size.h);
     const selected = this.selection ? this.selection.ids : null;
     // Fosforlu çizgiler yazının altında kalsın diye önce çizilir.
+    // Sesli tekrar: kaydın henüz gelmediği anlarda yazılan çizgiler soluk çiziliyor.
+    const soluk = this.options.soluk || null;
     for (const stroke of orderForDrawing(this.page.strokes)) {
       if (selected && selected.has(stroke.id)) drawHighlight(ctx, stroke);
-      drawStroke(ctx, stroke);
+      if (soluk && stroke.ses && soluk(stroke)) drawStroke(ctx, { ...stroke, alpha: (stroke.alpha == null ? 1 : stroke.alpha) * 0.16 });
+      else drawStroke(ctx, stroke);
     }
   }
 
@@ -811,7 +816,7 @@ export function orderForDrawing(strokes) {
 
 // ---- geometri yardımcıları ----
 
-function strokeHits(stroke, point, radius) {
+export function strokeHits(stroke, point, radius) {
   const [x, y] = point;
   const pts = stroke.points;
   for (let i = 0; i < pts.length; i++) {
