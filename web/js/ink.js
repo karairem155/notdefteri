@@ -11,12 +11,15 @@
 import { uid, store } from "./store.js";
 
 const HISTORY_LIMIT = 60;
-const SMOOTH_LEVELS = [0, 0.35, 0.55, 0.78];   // Kapalı, Az, Orta, Çok
+// Yumuşatma zaman sabiti (ms): Kapalı, Yumuşak, İpek, Akıcı. Eskiden her noktada sabit bir
+// oran uygulanıyordu; Apple Pencil saniyede 240 nokta verdiği için etki birkaç milisaniyede
+// sönüyor, dört seviye de aynı hissettiriyordu. Şimdi noktalar arasındaki süreye göre.
+const SMOOTH_TAU = [0, 14, 26, 55];
 const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (sayfa px, 1x görünümde)
 const PIXEL_BUDGET = 14e6;   // bir sayfa tuvali için en çok piksel (bellek sınırı)
 const MAX_SIDE = 4000;       // iOS'ta bir tuvalin kenarı 4096'yı aşamaz; aşarsa tuval boş kalır
 const HOLD_MS = 600;         // şekil düzeltme için sabit tutma süresi
-const HOLD_TOLERANCE = 14;   // kalem ucu ekranda bu kadar pikselden az kıpırdıyorsa "duruyor" sayılır
+const HOLD_TOLERANCE = 10;   // kalem ucu ekranda bu kadar pikselden az kıpırdıyorsa "duruyor" sayılır
 
 export class InkCanvas {
   /**
@@ -143,7 +146,8 @@ export class InkCanvas {
     const usePressure = this.options.pressureWidth ? this.options.pressureWidth() : false;
     this.strokeStyle = { tool: tool.tool, color: tool.color, width: tool.width, pressure: usePressure, alpha: tool.alpha == null ? 1 : tool.alpha };
     this.smooth = [p[0], p[1]];
-    this.smoothing = SMOOTH_LEVELS[Math.min(3, Math.max(0, this.options.smoothing ? Number(this.options.smoothing()) : 2))] || 0;
+    this.smoothTau = SMOOTH_TAU[Math.min(3, Math.max(0, this.options.smoothing ? Number(this.options.smoothing()) : 2))] || 0;
+    this.sonZaman = e.timeStamp || performance.now();
     this.rulerLine = this.rulerFor(p);
     this.textLine = this.rulerLine ? null : this.textLineFor(p, tool);
     this.liveTarget = this;
@@ -187,9 +191,13 @@ export class InkCanvas {
     const touched = new Set();
     for (const ev of events) {
       const raw = this.rawPoint(ev);
-      // Üstel yumuşatma: el titremesi ve sensör gürültüsü azalır.
-      this.smooth[0] += (raw[0] - this.smooth[0]) * (1 - this.smoothing);
-      this.smooth[1] += (raw[1] - this.smooth[1]) * (1 - this.smoothing);
+      // Üstel yumuşatma (zamana göre): el titremesi ve sensör gürültüsü azalır.
+      const zaman = ev.timeStamp || performance.now();
+      const dt = Math.min(50, Math.max(1, zaman - (this.sonZaman || zaman)));
+      this.sonZaman = zaman;
+      const oran = this.smoothTau ? 1 - Math.exp(-dt / this.smoothTau) : 1;
+      this.smooth[0] += (raw[0] - this.smooth[0]) * oran;
+      this.smooth[1] += (raw[1] - this.smooth[1]) * oran;
       const snapped = this.snap([this.smooth[0], this.smooth[1], raw[2]]);
       const sx = snapped[0];
       const sy = snapped[1];
@@ -237,6 +245,13 @@ export class InkCanvas {
       return;
     }
     if (!this.liveTarget) return;
+    if (this.smoothTau && this.liveTarget === this && this.live && !this.live.shape && this.smooth) {
+      const son = this.rawPoint(e);
+      const uc = this.snap([son[0], son[1], son[2]]);
+      for (const t of [0.5, 1]) {
+        this.addLivePoint(round([this.smooth[0] + (uc[0] - this.smooth[0]) * t, this.smooth[1] + (uc[1] - this.smooth[1]) * t, son[2]]));
+      }
+    }
     const satir = this.textLine;
     const noktalar = this.liveTarget.live ? this.liveTarget.live.points : null;
     this.liveTarget.finishLive();
@@ -323,6 +338,12 @@ export class InkCanvas {
       this.holdTimer = null;
       const target = this.liveTarget;
       if (!target || !target.live || target.live.points.length < 6) return;
+      // El yazısı harfi şekil sanılmasın: çizgi ekranda en az ~70 px boyunda olmalı.
+      // (Yavaş yazarken kalem bir harfte yarım saniye durunca harf düzeltiliyordu.)
+      const ekranGen = target.canvas.getBoundingClientRect().width || 1;
+      const kutu = bounds(target.live.points);
+      const ekranBoy = Math.hypot(kutu.maxX - kutu.minX, kutu.maxY - kutu.minY) * ekranGen / target.page.size.w;
+      if (ekranBoy < 70) return;
       // Kalem dururken eli titrer: uçta yığılan noktalar çizginin boyunu şişiriyor ve
       // düz çizgi bile "düz değil" sayılıyordu. Uçtaki yığın tek noktaya (ortalamasına) iniyor.
       const genislik = target.canvas.getBoundingClientRect().width;
