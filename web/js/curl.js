@@ -776,6 +776,14 @@ function astarBitmap() {
  * kapalı defterden yerine getiren kısım editörde, çünkü kayma sahnenin
  * dönüşümünde.
  */
+/** 0→1: önce yerçekimi gibi hızlanır, son %15'te yumuşakça oturur. */
+function kapanisEgrisi(t) {
+  const k = 0.85;
+  if (t < k) return 0.93 * Math.pow(t / k, 2);
+  const u = (t - k) / (1 - k);
+  return 0.93 + 0.07 * (1 - Math.pow(1 - u, 2));
+}
+
 export function createCoverAnim(spreadEl, options = {}) {
   let live = null;
   const viewScale = () => (options.viewScale ? Math.max(0.05, options.viewScale()) : 1);
@@ -804,7 +812,7 @@ export function createCoverAnim(spreadEl, options = {}) {
       drawCoverFrame({ ctx: view.ctx, w: frames.spreadW, h: frames.spreadH, padX: view.padX, padR: view.padR, padY: view.padY, olcek: view.olcek }, frames, e);
       if (options.onFrame) options.onFrame(e);
     };
-    const duration = dir > 0 ? 820 : 560;
+    const duration = dir > 0 ? 820 : 640;
     if (options.sound && options.sound()) playCoverSound();
     const t0 = performance.now();
     draw(dir > 0 ? 0 : 1);
@@ -821,6 +829,10 @@ export function createCoverAnim(spreadEl, options = {}) {
         // açık sayfalar bir kare görünür, defter kapanıp geri açılmış gibi
         // olur. Temizliği çağıran yapıyor (ekrandan çıkarken cancel).
         if (dir > 0) stop();
+        else {
+          // Kapak oturunca küçük bir "tık": defter bir an hafifçe basılıp geri geliyor.
+          current.canvas.classList.add("oturdu");
+        }
         resolve(true);
       };
       const step = (now) => {
@@ -828,7 +840,8 @@ export function createCoverAnim(spreadEl, options = {}) {
         const t = Math.min(1, (now - t0) / duration);
         // Açılırken kapak devrilir gibi hızlanıp yumuşak oturuyor, kapanırken
         // ağırlığıyla düşüyor.
-        const eased = dir > 0 ? 1 - Math.pow(1 - t, 2.6) : 1 - Math.pow(t, 2);
+        // Kapanış: ağırlığıyla hızlanıyor, son anda yavaşlayıp oturuyor (birden durmuyor).
+        const eased = dir > 0 ? 1 - Math.pow(1 - t, 2.6) : 1 - kapanisEgrisi(t);
         draw(eased);
         if (t < 1) { current.raf = requestAnimationFrame(step); return; }
         finish();

@@ -29,7 +29,9 @@ export function renderLibrary(root) {
   let currentIndex = 0;       // sıradaki (ortadaki) defter
   let scrollTimer = null;
 
-  const screen = h("div", { class: "screen screen-paper" });
+  let girisAnimi = false;
+  try { girisAnimi = sessionStorage.getItem("notdefteri.kutuphaneGiris") === "1"; sessionStorage.removeItem("notdefteri.kutuphaneGiris"); } catch (_) { /* özel kip */ }
+  const screen = h("div", { class: "screen screen-paper" + (girisAnimi ? " defterden-donus" : "") });
   const body = h("div", { class: "paper-body" });
   const topbar = h("div", { class: "paper-topbar" });
   screen.append(topbar, body);
@@ -326,33 +328,32 @@ export function renderLibrary(root) {
     return t.toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
   }
 
+  // İnce şerit: küçük kapak, defter adı ve sayfa, Devam et, ✕. Kapatılınca yeni bir
+  // defter (ya da aynı defter yeniden) açılana kadar görünmüyor.
+  const DEVAM_KAPALI = "notdefteri.devamKapali";
   function devamKarti() {
     const liste = sonAcilanlar();
     if (!liste.length) return null;
-    const [ilk, ...digerleri] = liste;
+    const ilk = liste[0];
+    try { if (localStorage.getItem(DEVAM_KAPALI) === `${ilk.id}:${ilk.zaman}`) return null; } catch (_) { /* özel kip */ }
     const n = ilk.notebook;
     const sira = Math.max(0, n.pages.findIndex((p) => p.id === ilk.sayfa));
     const kapak = coverElement(n.cover);
-    const ac = (notebook, kapakEl) => (e) => { dokunusIsaretle(e); openNotebook(notebook, kapakEl); };
-    const kart = h("div", { class: "devam-kart", role: "button", tabindex: "0", "aria-label": `Kaldığın yerden devam et: ${n.title}, ${sira + 1}. sayfa`, onTap: ac(n, kapak) },
+    const serit = h("div", { class: "devam-serit", role: "button", tabindex: "0", "aria-label": `Kaldığın yerden devam et: ${n.title}, ${sira + 1}. sayfa`,
+      onTap: (e) => { dokunusIsaretle(e); openNotebook(n, kapak); } },
       h("div", { class: "devam-kapak" }, kapak),
       h("div", { class: "devam-metin" },
-        h("span", { class: "devam-ust" }, "Kaldığın yerden devam et"),
-        h("span", { class: "devam-baslik" }, `${n.title} · ${sira + 1}. sayfa`),
-        h("span", { class: "devam-alt" }, `${zamanYazisi(ilk.zaman)} · ${n.pages.length} sayfa`)),
-      h("span", { class: "devam-dugme" }, "Devam et"));
-    const kutu = h("div", { class: "devam-kutu" }, kart);
-    const son = digerleri.slice(0, 5);
-    if (son.length) {
-      kutu.append(h("div", { class: "son-acilanlar" },
-        h("span", { class: "son-baslik" }, "Son açılanlar"),
-        h("div", { class: "son-satir" }, ...son.map((g) => {
-          const k = coverElement(g.notebook.cover);
-          return h("button", { class: "son-oge", type: "button", "aria-label": `${g.notebook.title} defterini aç`, onTap: ac(g.notebook, k) },
-            h("div", { class: "son-kapak" }, k), h("span", { class: "son-ad" }, g.notebook.title));
-        }))));
-    }
-    return kutu;
+        h("span", { class: "devam-baslik" }, n.title),
+        h("span", { class: "devam-alt" }, `${sira + 1}. sayfa · ${zamanYazisi(ilk.zaman)}`)),
+      h("span", { class: "devam-dugme" }, "Devam et", svgIcon("forward", 14)),
+      h("button", { class: "serit-kapat", type: "button", "aria-label": "Gizle", onTap: (e) => {
+        e.stopPropagation();
+        try { localStorage.setItem(DEVAM_KAPALI, `${ilk.id}:${ilk.zaman}`); } catch (_) { /* özel kip */ }
+        serit.remove();
+      } }, svgIcon("close", 14)));
+    // Kapatma düğmesine basınca şerit açılmasın
+    serit.querySelector(".serit-kapat").addEventListener("pointerdown", (e) => e.stopPropagation());
+    return serit;
   }
 
   /** Raftaki tek öğe: dokununca açılıyor, uzun basınca menü. */
@@ -805,12 +806,11 @@ export function renderLibrary(root) {
     if (gun !== null && gun < 7) return null;
     const icerikVar = store.activeNotebooks.some((n) => n.pages.some((p) => (p.strokes && p.strokes.length) || (p.objects && p.objects.length)));
     if (!icerikVar) return null;
-    return h("div", { class: "yedek-kart", role: "status" },
-      h("div", { class: "yedek-metin" },
-        h("b", {}, gun === null ? "Henüz hiç yedek almadın" : `Son yedek ${gun} gün önce`),
-        h("span", {}, "Notların yalnız bu iPad'de. Safari yer açarken ya da uygulama silinirse kaybolabilir.")),
-      h("button", { class: "btn small", type: "button", onTap: () => { store.setSetting("yedekErtele", simdi + 3 * 86400000); render(); } }, "Sonra"),
-      h("button", { class: "btn small primary", type: "button", onTap: () => import("./backup.js").then((m) => m.exportBackup()).then(() => render()) }, "Şimdi yedekle"));
+    return h("div", { class: "yedek-serit", role: "status" },
+      svgIcon("export", 16),
+      h("span", { class: "yedek-metin" }, gun === null ? "Henüz yedek yok" : `Son yedek ${gun} gün önce`),
+      h("button", { class: "yedek-dugme", type: "button", onTap: () => import("./backup.js").then((m) => m.exportBackup()).then(() => render()) }, "Yedekle"),
+      h("button", { class: "serit-kapat", type: "button", "aria-label": "3 gün gösterme", onTap: () => { store.setSetting("yedekErtele", simdi + 3 * 86400000); render(); } }, svgIcon("close", 14)));
   }
 
   /** Etiketler: var olanlara dokunarak tak/çıkar, yenisini yazarak ekle. */

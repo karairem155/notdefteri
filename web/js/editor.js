@@ -1052,7 +1052,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
           flipBitmap(main),
           pair ? flipBitmap(leftPage) : null
         ]),
-        new Promise((resolve) => setTimeout(() => resolve([null, null, null]), 1500))
+        // Kapanışta daha az beklenir: dokunuştan sonra uzun boşluk "takıldı" hissi veriyordu.
+        new Promise((resolve) => setTimeout(() => resolve([null, null, null]), dir < 0 ? 600 : 1500))
       ]);
       return await coverAnim.play({
         spreadW, spreadH,
@@ -1078,8 +1079,21 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     if (cikiliyor) return;
     cikiliyor = true;
     flushInk();
-    const don = () => navigate("#/");
-    playCover(-1).then(don, don);
+    closePopover();
+    sesiKapat();
+    // Dokunur dokunmaz çubuklar çekiliyor: kapak dokuları hazırlanırken de bir şey oluyor.
+    screen.classList.add("kapaniyor");
+    // Kapak oturduktan sonra kapalı defter hafifçe uzaklaşıp sönüyor, kütüphane yumuşakça geliyor.
+    // Eskiden kapak en hızlı anında duruyor ve ekran birden kütüphaneye kesiyordu.
+    let gitti = false;
+    const don = () => {
+      if (gitti) return;
+      gitti = true;
+      screen.classList.add("ayriliyor");
+      try { sessionStorage.setItem("notdefteri.kutuphaneGiris", "1"); } catch (_) { /* özel kip */ }
+      setTimeout(() => navigate("#/"), 240);
+    };
+    playCover(-1).then((oldu) => setTimeout(don, oldu ? 150 : 0), don);
   }
 
   /**
