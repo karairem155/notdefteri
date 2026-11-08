@@ -2186,8 +2186,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     return pen.tool === tool.tool && pen.color.toUpperCase() === tool.color.toUpperCase() && Math.abs(pen.width - tool.width) < 0.01;
   }
 
+  const YAZAN_UCLAR = new Set(["pen", "pencil", "fineliner", "dolma", "firca"]);
   function isInking() {
-    return tool.tool === "pen" || tool.tool === "pencil" || tool.tool === "highlighter" || tool.tool === "fineliner";
+    return YAZAN_UCLAR.has(tool.tool) || tool.tool === "highlighter";
   }
 
   function usesColor() {
@@ -2195,7 +2196,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   }
 
   function isPenTool() {
-    return tool.tool === "pen" || tool.tool === "pencil" || tool.tool === "fineliner";
+    return YAZAN_UCLAR.has(tool.tool);
   }
 
   function groupOf(name) {

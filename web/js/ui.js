@@ -67,6 +67,8 @@ export function svgIcon(name, size = 20) {
     tipGel: "M12 3v4M9.5 7h5l-1 9h-3zM10.5 16h3v4h-3z",
     tipFine: "M12 2v6M10.5 8h3v9h-3zM11.5 17h1v5h-1z",
     tipPencil: "M9 3h6v11l-3 7-3-7zM9 6h6",
+    tipDolma: "M12 2l4 8-4 12-4-12zM12 10v5M9.5 7h5",
+    tipFirca: "M13 2h4v8l-2 3h0l-2-3zM15 13c0 4-2 7-6 9 0-4 1-7 4-9",
     wave: "M3 14c3-7 6-7 9 0s6 7 9 0",
     lassoRect: "M4 4h4M10 4h4M16 4h4M4 20h4M10 20h4M16 20h4M4 4v4M4 10v4M4 16v4M20 4v4M20 10v4M20 16v4",
     shapeLine: "M4 20L20 4",

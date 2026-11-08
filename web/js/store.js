@@ -61,6 +61,8 @@ export const TOOLS = {
   pencil: { title: "Kurşun Kalem" },
   highlighter: { title: "Fosforlu" },
   fineliner: { title: "Fineliner" },
+  dolma: { title: "Dolma Kalem" },
+  firca: { title: "Fırça Kalem" },
   shape: { title: "Şekil" },
   eraser: { title: "Silgi" },
   lasso: { title: "Kement" },

@@ -266,7 +266,7 @@ export class InkCanvas {
 
   /** PDF sayfasında fosforlu: satırın ortasına, kalem: satırın altına hizalanır. */
   textLineFor(p, tool) {
-    if (!this.options.textLines || (tool.tool !== "highlighter" && tool.tool !== "pen" && tool.tool !== "fineliner")) return null;
+    if (!this.options.textLines || !["highlighter", "pen", "fineliner", "dolma"].includes(tool.tool)) return null;
     const lines = this.options.textLines();
     if (!lines || !lines.length) return null;
     let best = null;
@@ -719,19 +719,52 @@ function tracePath(ctx, pts) {
 }
 
 /** Basınçlı çizgi: dilim dilim değil, tek parça dolgu. Kalınlık yumuşak değişir, uçlar incelir. */
+/** Değişken kalınlıklı uçlar: basınçlı jel, dolma (eğik uç) ve fırça. */
+const DEGISKEN_UC = new Set(["dolma", "firca"]);
+const DOLMA_ACI = (40 * Math.PI) / 180;   // uç açısı: sağa yatık italik uç
+
 function drawPressureStroke(ctx, stroke) {
   const pts = stroke.points;
   const n = pts.length;
   const rad = new Array(n);
+  const ort = (i, k0) => {
+    let sum = 0, count = 0;
+    for (let k = Math.max(0, i - k0); k <= Math.min(n - 1, i + k0); k++) { sum += pts[k][2] == null ? 0.5 : pts[k][2]; count++; }
+    return sum / count;
+  };
+  const yon = (i, k0) => {
+    const a = pts[Math.max(0, i - k0)], b = pts[Math.min(n - 1, i + k0)];
+    return Math.atan2(b[1] - a[1], b[0] - a[0]);
+  };
+  const w = baseWidth(stroke);
+  const basincVar = pts.some((p) => p[2] != null && Math.abs(p[2] - 0.5) > 0.02);
   for (let i = 0; i < n; i++) {
-    let sum = 0;
-    let count = 0;
-    for (let k = Math.max(0, i - 3); k <= Math.min(n - 1, i + 3); k++) { sum += pts[k][2] == null ? 0.5 : pts[k][2]; count++; }
-    rad[i] = widthAt(stroke, sum / count) / 2;
+    if (stroke.tool === "dolma") {
+      // Eğik uç: çizgi uca dik gidince kalın, uç yönünde gidince ince (hat sanatı gibi).
+      const dik = Math.abs(Math.sin(yon(i, 2) - DOLMA_ACI));
+      rad[i] = (w * (0.2 + 0.8 * dik) * (basincVar ? 0.8 + ort(i, 2) * 0.45 : 1)) / 2;
+    } else if (stroke.tool === "firca") {
+      // Fırça: bastıkça belirgin genişler; basınç yoksa hızlı çizgi incelir.
+      let k = basincVar ? 0.25 + ort(i, 2) * 1.15 : 0.85;
+      if (!basincVar && i > 0) {
+        const adim = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        k *= Math.min(1.25, Math.max(0.45, 1.35 - adim / (w * 1.6)));
+      }
+      rad[i] = (w * k) / 2;
+    } else {
+      rad[i] = widthAt(stroke, ort(i, 3)) / 2;
+    }
   }
-  const taper = Math.min(5, Math.floor(n / 4));
+  if (stroke.tool === "firca" && n > 2) {
+    // Fırçada kalınlık yumuşak değişsin (titreşen kenar olmasın).
+    const yumusak = rad.slice();
+    for (let i = 1; i < n - 1; i++) yumusak[i] = (rad[i - 1] + rad[i] * 2 + rad[i + 1]) / 4;
+    for (let i = 0; i < n; i++) rad[i] = yumusak[i];
+  }
+  const firca = stroke.tool === "firca";
+  const taper = firca ? Math.min(12, Math.floor(n / 3)) : Math.min(5, Math.floor(n / 4));
   for (let i = 0; i < taper; i++) {
-    const f = 0.5 + 0.5 * (i / taper);
+    const f = firca ? 0.12 + 0.88 * Math.sin((i / taper) * Math.PI / 2) : 0.5 + 0.5 * (i / taper);
     rad[i] *= f;
     rad[n - 1 - i] *= f;
   }
@@ -767,7 +800,7 @@ export function drawStroke(ctx, stroke) {
   const pts = stroke.points;
   if (pts.length < 2) return;
   styleFor(ctx, stroke);
-  if (!stroke.pressure || stroke.tool === "highlighter") {
+  if ((!stroke.pressure && !DEGISKEN_UC.has(stroke.tool)) || stroke.tool === "highlighter") {
     ctx.lineWidth = baseWidth(stroke);
     tracePath(ctx, pts);
     ctx.stroke();

@@ -71,7 +71,8 @@ function previewCard(label, color, width, alpha) {
 }
 
 function optionCards(options, current, onPick) {
-  return h("div", { class: "sp-cards", style: { gridTemplateColumns: `repeat(${options.length}, 1fr)` } }, ...options.map((o) =>
+  // Altıdan fazla seçenek tek sıraya sığmıyor: üçerli iki sıra.
+  return h("div", { class: "sp-cards", style: { gridTemplateColumns: `repeat(${options.length > 4 ? 3 : options.length}, 1fr)` } }, ...options.map((o) =>
     h("button", { type: "button", class: "sp-option" + (o.key === current ? " active" : ""), onTap: () => onPick(o.key) },
       h("div", { class: "sp-option-icon" }, svgIcon(o.icon, 30)),
       h("div", { class: "sp-option-title" }, o.title),
@@ -133,7 +134,7 @@ export function penPanel(ctx) {
     body.replaceChildren(...[
       preview,
       section("Uç Tipi"),
-      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }],
+      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "dolma", title: "Dolma", icon: "tipDolma" }, { key: "firca", title: "Fırça", icon: "tipFirca" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }],
         tool.tool, (k) => { ctx.setTool({ tool: k }); build(); }),
       h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Kalınlık"), widthValue),
       slider({ min: hl ? 4 : 0.8, max: hl ? 24 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
