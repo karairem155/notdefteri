@@ -180,8 +180,8 @@ export function renderLibrary(root) {
     const diz = (sutun) => {
       raflar.replaceChildren();
       const yedek = !currentFolder && !showingTrash && !search && !etiketSuzgec ? yedekKarti() : null;
-      if (yedek) raflar.append(yedek);
-      if (devam) raflar.append(devam);
+      // Şeritler bir kutuda: raflar altında nefes alacak kadar aşağıda başlıyor.
+      if (yedek || devam) raflar.append(h("div", { class: "serit-kutusu" }, yedek, devam));
       raflar.style.setProperty("--sutun", String(sutun));
       for (let i = 0; i < list.length; i += sutun) {
         const sira = list.slice(i, i + sutun);

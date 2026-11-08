@@ -51,6 +51,8 @@ export function svgIcon(name, size = 20) {
     share: "M12 3v12M8 7l4-4 4 4M5 13v7h14v-7",
     download: "M12 3v12M8 11l4 4 4-4M5 21h14",
     search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
+    palette: "M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.5 0-.9-.8-1.4-.8-2.2 0-.8.7-1.5 1.5-1.5H16a5 5 0 0 0 5-5c0-4.3-4-7.8-9-7.8zM7.5 12.5h.01M9.5 8h.01M14.5 8h.01M17 11.5h.01",
+    yerIsareti: "M7 3h10v18l-5-4-5 4z",
     heart: "M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z",
     pen: "M4 20l4-1 11-11-3-3L5 16zM14 6l3 3",
     close: "M6 6l12 12M18 6L6 18",
@@ -374,8 +376,10 @@ export function popoverMenu(anchor, actions, { title = null } = {}) {
   const backdrop = h("div", { class: "pop-backdrop" });
   const menu = h("div", { class: "pop-menu", role: "menu" },
     title ? h("div", { class: "pop-title" }, title) : null,
-    ...actions.filter(Boolean).map((a) => h("button", { class: "pop-item" + (a.destructive ? " destructive" : ""), type: "button", role: "menuitem", disabled: a.disabled || null,
-      onTap: () => { close(); a.onSelect(); } }, a.icon ? svgIcon(a.icon, 20) : null, h("span", {}, a.title))));
+    ...actions.filter(Boolean).map((a) => a.bolum
+      ? h("div", { class: "pop-bolum" }, a.bolum)
+      : h("button", { class: "pop-item" + (a.destructive ? " destructive" : ""), type: "button", role: "menuitem", disabled: a.disabled || null,
+        onTap: () => { close(); a.onSelect(); } }, a.icon ? svgIcon(a.icon, 20) : null, h("span", {}, a.title))));
   const close = () => {
     menu.classList.remove("in");
     if (anchor.classList) anchor.classList.remove("pop-open");

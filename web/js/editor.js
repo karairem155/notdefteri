@@ -5,7 +5,7 @@ import { renderPageCanvas as renderPageCanvasShared, spillFor } from "./pagerend
 import { store, TOOLS, uid, COVER_PRESETS, SEKME_TURLERI } from "./store.js";
 import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, pickFiles, formatPt, pressable } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
-import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing, strokeHits } from "./ink.js";
+import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing, strokeHits, desenYenilemeBagla } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
 import { createCurlFlip, createCoverAnim } from "./curl.js";
 import { coverBitmap, coverElement, sameCover, takeCoverOpening, openCoverFit } from "./covers.js";
@@ -250,7 +250,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         page.pdf && h("span", { class: "badge-pdf" }, "PDF")),
       h("div", { class: "topbar-title" }),
       h("div", { class: "topbar-side right" },
-        iconButton("search", "Defterde ara, sekmeler ve içindekiler", aramaAc),
+        iconButton("search", "Defterde ara, yer işaretleri ve içindekiler", aramaAc),
+        Object.assign(iconButton("yerIsareti", page.sekme ? "Yer işaretini düzenle" : "Yer işareti tak", sekmeMenu), { className: "icon-btn yi-dugme" + (page.sekme ? " takili" : ""), style: page.sekme ? `--yi:${(sekmeTurleri()[page.sekme.tur | 0] || {}).renk || "#f2649a"}` : "" }),
+        page.pdf && Object.assign(iconButton("translate", textSelectMode ? "Metin seçmeyi bitir" : "PDF metnini seç ve çevir", () => { textSelectMode = !textSelectMode; if (textSelectMode) toast("Metni basılı tutup seç: çevirisi yanında açılır"); applyModes(); renderTopbar(); }), { className: "icon-btn" + (textSelectMode ? " aktif-kip" : "") }),
         iconButton("grid", "Sayfalar: gör, sırala, sil", () => { flushInk(); navigate(`#/n/${notebookId}/pages?p=${selectedPageId}`); }),
         iconButton("odak", "Odak modu: çubukları gizle", () => odakModu(true)),
         iconButton("export", "Dışa aktar / paylaş", openExportPanel),
@@ -515,7 +517,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
           left: solda ? -dis + "px" : (genis - SEKME_IC) + "px",
           zIndex: String(solda ? 10 + i : 10 + list.length - i)
         }
-      }, h("div", { class: "sekme-dil", role: "button", tabindex: "0", "aria-label": `${turler[tur].ad} sekmesi, ${i + 1}. sayfa` }));
+      }, h("div", { class: "sekme-dil", role: "button", tabindex: "0", "aria-label": `Yer işareti${turler[tur] && turler[tur].ad ? " " + turler[tur].ad : ""}, ${i + 1}. sayfa` }));
       sekmeSuruklenebilir(el, page, yuksek);
       kenar.append(el);
     });
@@ -564,52 +566,59 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     dil.addEventListener("pointercancel", (e) => { if (bas && e.pointerId === bas.id) { bas = null; el.classList.remove("tasiniyor"); renderStage(); } });
   }
 
-  /** Bu sayfanın sekmesi: tür seç, kaldır, türlerin adlarını değiştir. */
+  /**
+   * Yer işareti (eski adı sayfa sekmesi): renge dokun, takılsın. Ad isteğe bağlı ve bu
+   * sayfaya özel; arama penceresindeki listede görünür. Renkler değiştirilebilir.
+   */
   function sekmeMenu() {
     const page = selectedPage();
     const turler = sekmeTurleri().map((t) => ({ ...t }));
-    const govde = h("div", { class: "sekme-secici" });
-    const ciz = (duzenleniyor) => {
+    const govde = h("div", { class: "yi-renkler" });
+    const adGirisi = h("input", { type: "text", class: "text-input", maxlength: "40", placeholder: "Ad (isteğe bağlı): ör. Bölüm 3", value: (page.sekme && page.sekme.ad) || "", "aria-label": "Yer işaretinin adı" });
+    let renkDuzen = false;
+    const tak = (i) => {
+      const ad = adGirisi.value.trim();
+      store.updatePage(notebookId, page.id, (p) => { p.sekme = { ...(p.sekme || {}), tur: i, ad }; if (!ad) delete p.sekme.ad; });
+      closeModal();
+      renderStage();
+      renderTopbar();
+    };
+    const ciz = () => {
       govde.replaceChildren(...turler.map((t, i) => {
-        if (duzenleniyor) {
-          const giris = h("input", { type: "text", value: t.ad, class: "sekme-ad-girisi", "aria-label": "Sekme adı" });
-          giris.addEventListener("input", () => { t.ad = giris.value.trim() || t.ad; });
-          return h("div", { class: "sekme-satir" }, h("span", { class: "sekme-ornek", style: { "--renk": t.renk } }), giris);
-        }
         const secili = page.sekme && (page.sekme.tur | 0) === i;
-        return h("button", { class: "sekme-satir" + (secili ? " secili" : ""), type: "button", onTap: () => {
-          store.updatePage(notebookId, page.id, (p) => { p.sekme = { ...(p.sekme || {}), tur: i }; });
-          closeModal();
-          renderStage();
-        } }, h("span", { class: "sekme-ornek", style: { "--renk": t.renk } }), h("span", {}, t.ad));
+        if (renkDuzen) {
+          const girdi = h("input", { type: "color", value: t.renk, "aria-label": `${i + 1}. rengi değiştir`,
+            onInput: (e) => { t.renk = e.target.value; sw.style.setProperty("--renk", t.renk); } });
+          const sw = h("label", { class: "yi-renk duzen", style: { "--renk": t.renk } }, girdi);
+          return sw;
+        }
+        return h("button", { type: "button", class: "yi-renk" + (secili ? " secili" : ""), style: { "--renk": t.renk }, "aria-label": `${i + 1}. renk`, onTap: () => tak(i) });
       }));
     };
-    ciz(false);
-    let duzenleme = false;
-    const duzenleBtn = h("button", { class: "btn", type: "button", onTap: () => {
-      if (duzenleme) {
-        // Adlar bu deftere kaydediliyor (varsayılanlar değişmiyor).
-        store.mutate(notebookId, (n) => { n.sekmeTurleri = turler.map((t) => ({ renk: t.renk, ad: t.ad })); });
-        duzenleme = false;
-        duzenleBtn.textContent = "Adları Düzenle";
-      } else {
-        duzenleme = true;
-        duzenleBtn.textContent = "Kaydet";
+    ciz();
+    const renkBtn = h("button", { class: "btn", type: "button", onTap: () => {
+      if (renkDuzen) {
+        store.mutate(notebookId, (n) => { n.sekmeTurleri = turler.map((t) => ({ renk: t.renk, ad: t.ad || "" })); });
+        renderStage();
       }
-      ciz(duzenleme);
-    } }, "Adları Düzenle");
-    openModal(h("div", { class: "dialog", style: { width: "min(380px, 100%)" } },
-      h("h3", {}, "Sayfa Sekmesi"),
-      h("p", {}, "Sekme defterin kenarından taşar; dokununca bu sayfaya gelirsin. Yerini değiştirmek için kenarda yukarı aşağı sürükle."),
+      renkDuzen = !renkDuzen;
+      renkBtn.textContent = renkDuzen ? "Renkleri Kaydet" : "Renkleri Değiştir";
+      ciz();
+    } }, "Renkleri Değiştir");
+    openModal(h("div", { class: "dialog", style: { width: "min(400px, 100%)" } },
+      h("h3", {}, page.sekme ? "Yer İşareti" : "Yer İşareti Tak"),
+      h("p", {}, "Bir renge dokun: yer işareti defterin kenarından taşar, dokununca bu sayfaya gelirsin. Arama penceresinde de listelenir."),
+      adGirisi,
       govde,
       h("div", { class: "dialog-actions" },
         page.sekme && h("button", { class: "btn danger", type: "button", onTap: () => {
           store.updatePage(notebookId, page.id, (p) => { delete p.sekme; });
           closeModal();
           renderStage();
+          renderTopbar();
         } }, "Kaldır"),
-        duzenleBtn,
-        h("button", { class: "btn primary", type: "button", onTap: closeModal }, "Kapat"))));
+        renkBtn,
+        page.sekme && h("button", { class: "btn primary", type: "button", onTap: () => tak(page.sekme.tur | 0) }, "Tamam"))));
   }
 
   function pageActionsMenu() {
@@ -617,28 +626,36 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     const index = selectedIndex();
     const count = pages().length;
     actionSheet(`${index + 1}. sayfa`, [
-      { title: page.sekme ? "Sekmeyi Değiştir" : "Sekme Tak", onSelect: sekmeMenu },
-      { title: "Açık Defterler", onSelect: openNotebooksMenu },
-      { title: "Yedekle", onSelect: () => import("./backup.js").then((m) => m.exportBackup()) },
-      { title: "Ayarlar", onSelect: () => { flushInk(); navigate("#/settings"); } },
-      { title: "Şablonu Değiştir", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t) => { store.setTemplate(notebookId, page.id, t); renderStage(); })) },
-      { title: "Sayfa Rengi (bu sayfa)", onSelect: openPageColorPanel },   // pageColorFromMenu
-      { title: "Sayfa Boyutu", onSelect: () => openPageSizeSheet(notebookId, page, () => { invalidateSnapshot(page); renderStage(); }) },
-      { title: "Tanılama (çizim netliği)", onSelect: cizimTanilama },
-      { title: okumaModu ? "Okuma Modunu Kapat" : "Okuma Modu (yazı kapalı)", onSelect: () => okumaModunuAyarla(!okumaModu) },
-      ...(page.pdf ? [{ title: textSelectMode ? "Metin Seçmeyi Bitir" : "PDF Metnini Seç (kopyala, çevir)", onSelect: () => { textSelectMode = !textSelectMode; applyModes(); renderTopbar(); } }] : []),
-      { title: "Çeviri", onSelect: () => openTranslateDialog(getSelectionText()) },
-      { title: "Sayfayı Çoğalt", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
-      { title: "Sayfayı Öne Taşı", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); renderStage(); } },
-      { title: "Sayfayı Arkaya Taşı", disabled: index >= count - 1, onSelect: () => { store.movePage(notebookId, page.id, index + 1); renderStage(); } },
-      { title: "Defteri Yeniden Adlandır", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", nb().title, (title) => { store.mutate(notebookId, (n) => { n.title = title; }); renderTopbar(); }) },
-      { title: "Sayfayı Sil", destructive: true, disabled: count <= 1, onSelect: () => confirmDialog("Bu sayfa silinsin mi?", "Sayfa ve üzerindeki yazılar silinir. Defterde en az bir sayfa kalmalı.", "Sayfayı Sil", () => {
+      { bolum: "Sayfa" },
+      { title: page.sekme ? "Yer İşaretini Düzenle" : "Yer İşareti Tak", icon: "yerIsareti", onSelect: sekmeMenu },
+      { title: "Şablonu Değiştir", icon: "grid", onSelect: () => import("./addpage.js").then((m) => m.openTemplatePicker((t, tum) => {
+        if (tum) { for (const p of pages()) if (!p.pdf) store.setTemplate(notebookId, p.id, t); toast("Şablon bütün sayfalara uygulandı"); }
+        else store.setTemplate(notebookId, page.id, t);
+        renderStage();
+      }, null, { kapsam: pages().length > 1 })) },
+      { title: "Sayfa Rengi", icon: "palette", onSelect: openPageColorPanel },
+      { title: "Sayfa Boyutu", icon: "lassoRect", onSelect: () => openPageSizeSheet(notebookId, page, () => { invalidateSnapshot(page); renderStage(); }) },
+      { title: "Sayfayı Çoğalt", icon: "duplicate", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
+      { title: "Sayfayı Öne Taşı", icon: "back", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); renderStage(); } },
+      { title: "Sayfayı Arkaya Taşı", icon: "forward", disabled: index >= count - 1, onSelect: () => { store.movePage(notebookId, page.id, index + 1); renderStage(); } },
+      { title: "Sayfayı Sil", icon: "trash", destructive: true, disabled: count <= 1, onSelect: () => confirmDialog("Bu sayfa silinsin mi?", "Sayfa ve üzerindeki yazılar silinir. Defterde en az bir sayfa kalmalı.", "Sayfayı Sil", () => {
         const oldIndex = index;
         if (store.deletePage(notebookId, page.id)) {
           const remaining = pages();
           selectPage(remaining[Math.min(oldIndex, remaining.length - 1)].id);
         }
-      }) }
+      }) },
+      { bolum: "Görünüm ve metin" },
+      ...(page.pdf ? [{ title: textSelectMode ? "Metin Seçmeyi Bitir" : "PDF Metnini Seç ve Çevir", icon: "translate", onSelect: () => { textSelectMode = !textSelectMode; applyModes(); renderTopbar(); } }] : []),
+      { title: "Çeviri Penceresi", icon: "translate", onSelect: () => openTranslateDialog(getSelectionText()) },
+      { title: okumaModu ? "Okuma Modunu Kapat" : "Okuma Modu", icon: "books", onSelect: () => okumaModunuAyarla(!okumaModu) },
+      { title: spreadMode() ? "Tek Sayfa Görünümü" : "Çift Sayfa Görünümü", icon: "duplicate", onSelect: () => { store.setSetting("spreadMode", !spreadMode()); renderStage(); renderTopbar(); } },
+      { bolum: "Defter" },
+      { title: "Açık Defterler", icon: "books", onSelect: openNotebooksMenu },
+      { title: "Defteri Yeniden Adlandır", icon: "textTool", onSelect: () => promptDialog("Defteri Yeniden Adlandır", "Defter adı", nb().title, (title) => { store.mutate(notebookId, (n) => { n.title = title; }); renderTopbar(); }) },
+      { title: "Yedekle", icon: "export", onSelect: () => import("./backup.js").then((m) => m.exportBackup()) },
+      { title: "Ayarlar", icon: "gear", onSelect: () => { flushInk(); navigate("#/settings"); } },
+      { title: "Tanılama (çizim netliği)", icon: "search", onSelect: cizimTanilama }
     ]);
   }
 
@@ -1257,7 +1274,11 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   }
 
   function renderBanner() {
-    if (okumaModu) {
+    if (typeof dinleyici !== "undefined" && dinleyici) {
+      banner.hidden = false;
+      banner.replaceChildren(svgIcon("audio", 16), h("span", {}, "Dinliyorum… konuş, yazıya dönüşsün"),
+        h("button", { class: "btn small primary", type: "button", onTap: () => dinleyici && dinleyici.stop() }, "Bitti"));
+    } else if (okumaModu) {
       banner.hidden = false;
       banner.replaceChildren(svgIcon("books", 16), h("span", {}, "Okuma modu: yazı kapalı"),
         h("button", { class: "btn small primary", type: "button", onTap: () => okumaModunuAyarla(false) }, "Yazmaya dön"));
@@ -1709,7 +1730,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       actions.todo && btn(item.todo ? "Kutuları kaldır" : "Onay kutuları", "check", actions.todo), actions.todo && h("div", { class: "sep" }),
       actions.cut && btn("Çıkartma yap", "scissors", actions.cut), actions.cut && h("div", { class: "sep" }),
       actions.cerceve && btn(item.kind === "photo" ? "Çerçevesiz" : "Çerçeveli", "photo", actions.cerceve), actions.cerceve && h("div", { class: "sep" }),
-      actions.spread && btn("İki sayfaya yay", "books", actions.spread), actions.spread && h("div", { class: "sep" }),
+      actions.spread && btn("İki sayfayı kapla", "books", actions.spread), actions.spread && h("div", { class: "sep" }),
       actions.font && btn("Yazı tipi", "note", actions.font), actions.font && h("div", { class: "sep" }),
       actions.translate && btn("Çevir", "share", actions.translate), actions.translate && h("div", { class: "sep" }),
       btn("Döndür", "rotate", actions.rotate), h("div", { class: "sep" }),
@@ -1940,6 +1961,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     mountPanel(textPanel({
       close: () => closePopover(),
       addText: (todo) => { closePopover(); addText(todo); },
+      sesleYaz: () => { closePopover(); sesleYaz(); },
       addCheckBox: () => { closePopover(); addCheckBox(); },
       openTranslate: () => { closePopover(); openTranslateDialog(getSelectionText()); }
     }), "text");
@@ -1962,6 +1984,59 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     selectedObjectId = object.id;
     setEditing(true);
     toast("Kutuyu yazının yanına sürükle, sonra Bitti");
+  }
+
+  /**
+   * Sesle yaz: konuştukça yeni bir yazı kutusuna yazılıyor (Safari'nin konuşma tanıması, Türkçe).
+   * Desteklenmiyorsa klavyedeki mikrofon düğmesine yönlendiriyor.
+   */
+  let dinleyici = null;
+  function sesleYaz() {
+    const Tanima = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (dinleyici) { dinleyici.stop(); return; }
+    if (!Tanima) {
+      toast("Bu cihazda doğrudan dikte yok: yazı kutusu açtım, klavyedeki mikrofon düğmesiyle konuşabilirsin");
+      addText(false);
+      return;
+    }
+    const page = selectedPage();
+    const object = { id: uid(), kind: "text", todo: false, text: "", font: TEXT_FONTS[1][0], size: 24, color: isInking() ? tool.color : "#1C1C1E", rect: centeredRect(page, 320, 120), rotation: 0, z: maxZ(page) + 1 };
+    store.updatePage(notebookId, page.id, (p) => { p.objects.push(object); });
+    renderStage();
+    const tanima = new Tanima();
+    tanima.lang = "tr-TR";
+    tanima.continuous = true;
+    tanima.interimResults = true;
+    let kesin = "";
+    const yaz = (metin) => {
+      store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.text = metin; });
+      object.text = metin;
+      touchPage(page);
+      renderStage();
+    };
+    tanima.onresult = (e) => {
+      let gecici = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const parca = e.results[i][0].transcript;
+        if (e.results[i].isFinal) kesin += (kesin && !kesin.endsWith(" ") ? " " : "") + parca.trim();
+        else gecici += parca;
+      }
+      yaz((kesin + (gecici ? " " + gecici : "")).trim());
+    };
+    const bitir = () => {
+      dinleyici = null;
+      renderBanner();
+      if (!object.text.trim()) {
+        store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); });
+        renderStage();
+        toast("Ses duyulmadı");
+      }
+    };
+    tanima.onend = bitir;
+    tanima.onerror = (e) => { toast(e.error === "not-allowed" ? "Mikrofon izni verilmedi" : "Dikte durdu: " + e.error); };
+    try { tanima.start(); } catch (e) { toast("Dikte başlatılamadı"); return; }
+    dinleyici = tanima;
+    renderBanner();
   }
 
   function addText(todo = false) {
@@ -2202,7 +2277,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     return pen.tool === tool.tool && pen.color.toUpperCase() === tool.color.toUpperCase() && Math.abs(pen.width - tool.width) < 0.01;
   }
 
-  const YAZAN_UCLAR = new Set(["pen", "pencil", "fineliner", "dolma", "firca"]);
+  const YAZAN_UCLAR = new Set(["pen", "pencil", "fineliner", "dolma", "firca", "desen"]);
   function isInking() {
     return YAZAN_UCLAR.has(tool.tool) || tool.tool === "highlighter";
   }
@@ -2313,6 +2388,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   }
 
   function inkleriCiz() { for (const ink of inks.values()) ink.redraw(); }
+  desenYenilemeBagla(inkleriCiz);
 
   async function sesiCal(id, saniye = 0) {
     const nesne = sesNesnesi(id);
@@ -2434,8 +2510,36 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   const panelCtx = {
     store,
     tool: () => tool,
+    buzlu: () => { closePopover(); selectTool("frosted"); openFrostedPanel(); },
+    desenOrnek: (g, ad, renk) => {
+      // 64×64 önizleme: kısa yatay çizgi boyunca desen
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, 64, 64);
+      drawStroke(g, { tool: "desen", desen: ad, color: renk || "#172a45", width: ad === "yaprak" ? 22 : 19, points: [[32, 32, 0.5], [32.2, 32, 0.5]] });
+    },
+    fircaIceAktar: async () => {
+      const file = await pickFile("file-image");
+      if (!file) return;
+      try {
+        const { shrinkImage } = await import("./addpage.js");
+        const { blob, saydam } = await shrinkImage(file, 256, 0.92);
+        const asset = await store.importAsset(blob, "firca.png");
+        store.setSetting("ozelFircalar", [...(store.settings.ozelFircalar || []), { asset, ad: "Fırçam " + ((store.settings.ozelFircalar || []).length + 1) }]);
+        panelCtx.setTool({ tool: "desen", desen: "ozel:" + asset });
+        toast(saydam ? "Fırça eklendi" : "Fırça eklendi. İpucu: saydam arka planlı PNG daha güzel durur");
+      } catch (e) { toast("Fırça eklenemedi: " + e.message); }
+    },
+    sesleYaz: () => { closePopover(); sesleYaz(); },
     setTool: (patch) => {
-      if (patch.tool && patch.tool !== tool.tool) { const name = patch.tool; delete patch.tool; selectTool(name); }
+      if (patch.tool && patch.tool !== tool.tool) {
+        const name = patch.tool;
+        const oncekiDesen = tool.tool === "desen";
+        delete patch.tool;
+        selectTool(name);
+        // Kalem grubunun hafızası son ucu (dolma, desen…) geri getiriyordu: seçilen uç neyse o olsun.
+        if (tool.tool !== name && name !== "frosted") tool.tool = name;
+        if (oncekiDesen && name !== "desen" && !("width" in patch) && tool.width > 12) tool.width = 3;
+      }
       Object.assign(tool, patch);
       if (isInking()) { lastPen = { ...tool }; toolMemory[groupOf(tool.tool)] = { ...tool }; }
       renderBench();

@@ -505,3 +505,39 @@ html[data-cubuk-acik] .ses-kapat { background: rgba(23, 42, 69, 0.1); }
 @media (prefers-reduced-motion: reduce) {
   .screen.ayriliyor .editor-body, .screen-paper.defterden-donus, .curl-layer.oturdu { transition: none; animation: none; }
 }
+
+/* ===== Desen kalemi ===== */
+.desen-izgara { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.desen-hucre { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border-radius: 12px; border: 1.5px solid transparent; background: rgba(23, 42, 69, 0.05); cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 600; color: inherit; }
+.desen-hucre canvas, .desen-hucre img { width: 40px; height: 40px; object-fit: contain; }
+.desen-hucre.secili { border-color: var(--accent, #f2649a); background: rgba(242, 100, 154, 0.08); }
+.desen-hucre.ekle { color: var(--sis, #4b566c); align-content: center; min-height: 64px; }
+
+/* PDF'te "seç ve çevir" kipi açıkken düğme vurgulu */
+.icon-btn.aktif-kip { background: rgba(242, 100, 154, 0.22); color: #f7a8c6; }
+
+/* Raflar devam şeridinin hemen altına yapışmasın */
+.serit-kutusu { margin-bottom: 40px; }
+.serit-kutusu:empty { display: none; }
+
+/* ===== Menü bölümleri ===== */
+.pop-menu { max-height: calc(100vh - 24px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.pop-bolum { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.55; padding: 10px 14px 4px; }
+.pop-bolum:not(:nth-child(2)) { border-top: 1px solid rgba(23, 42, 69, 0.08); margin-top: 4px; }
+
+/* ===== Yer işareti ===== */
+.yi-renkler { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 14px 0 6px; }
+.yi-renk { position: relative; height: 54px; border: 0; border-radius: 6px 6px 14px 14px; background: var(--renk); cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 3px 8px -3px rgba(23, 42, 69, 0.35); }
+.yi-renk.secili { outline: 2.5px solid var(--murekkep, #172a45); outline-offset: 3px; }
+.yi-renk.duzen { display: block; }
+.yi-renk.duzen::after { content: "✎"; position: absolute; inset: auto 0 6px; text-align: center; font-size: 14px; color: rgba(255, 255, 255, 0.92); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.yi-renk input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.icon-btn.yi-dugme.takili svg { fill: var(--yi); stroke: var(--yi); }
+
+/* Dikey iPad: üst çubuk tek satırda kalsın. Tek/Çift seçimi menüde (Görünüm ve metin). */
+@media (max-width: 900px) {
+  .screen-dark .topbar .segmented { display: none; }
+  .screen-dark .topbar .badge-pdf { display: none; }
+  .screen-dark .topbar .topbar-side.right { flex-wrap: nowrap; }
+}

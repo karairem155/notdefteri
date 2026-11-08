@@ -1,6 +1,7 @@
 // Sol kenar panelleri (tasarım ekranları): Kalem Ayarları, Silgi Ayarları, Şekiller ve Cetvel,
 // Seçim, Favoriler, Renk Seçici. Editör bir `ctx` verir; paneller durumu oradan okur/yazar.
 import { h, svgIcon, toast, promptDialog, actionSheet, pressable } from "./ui.js";
+import { DESENLER } from "./ink.js";
 
 export const WIDTH_PRESETS = [1.2, 2, 3.2, 4.8, 8];          // mm karşılığı: 0.3 0.5 0.8 1.2 2.0
 export const HL_PRESETS = [6, 8, 10, 14, 20];
@@ -98,10 +99,37 @@ const HOLD_VALUES = [0, 350, 600, 950];
 export function penPanel(ctx) {
   const s = ctx.store.settings;
   const body = h("div");
+  /** Desen kalemi: hazır şekiller, içe aktarılan fırçalar ve "Fırça içe aktar". */
+  const desenSecici = () => {
+    const tool = ctx.tool();
+    if (tool.tool !== "desen") return [];
+    const secili = tool.desen || "kalp";
+    const hucre = (deger, ad, ic) => h("button", { type: "button", class: "desen-hucre" + (secili === deger ? " secili" : ""), "aria-label": ad,
+      onTap: () => { ctx.setTool({ desen: deger }); build(); } }, ic, h("span", {}, ad));
+    const ornek = (ad) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d");
+      ctx.desenOrnek(g, ad, tool.color);
+      return c;
+    };
+    const ozeller = (s.ozelFircalar || []).map((f) => {
+      const img = h("img", { alt: "", draggable: "false" });
+      ctx.store.assetURL(f.asset).then((u) => { if (u) img.src = u; });
+      return hucre("ozel:" + f.asset, f.ad || "Fırçam", img);
+    });
+    return [
+      section("Desen"),
+      h("div", { class: "desen-izgara" }, ...DESENLER.map(([k, ad]) => hucre(k, ad, ornek(k))), ...ozeller,
+        h("button", { type: "button", class: "desen-hucre ekle", onTap: async () => { await ctx.fircaIceAktar(); build(); } }, svgIcon("plus", 22), h("span", {}, "Fırça ekle"))),
+      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "Kendi fırçanı ekle: saydam arka planlı bir PNG (damla, yıldız, el çizimi bir şekil) seç; çizgi boyunca basılır.")
+    ];
+  };
+
   /** PDF'te satıra hizalama ve fosforlunun kalınlık aralığı. */
   const pdfAyarlari = () => {
     const tool = ctx.tool();
-    if (tool.tool === "pencil") return [];
+    if (["pencil", "desen", "firca"].includes(tool.tool)) return [];
     const acik = s.pdfHizala !== false;
     const satirlar = [toggleRow("PDF'te Satıra Hizala", tool.tool === "highlighter"
       ? "PDF metninin üstünden geçerken fosforlu satıra oturur, düz ve satır boyunda olur."
@@ -134,10 +162,11 @@ export function penPanel(ctx) {
     body.replaceChildren(...[
       preview,
       section("Uç Tipi"),
-      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "dolma", title: "Dolma", icon: "tipDolma" }, { key: "firca", title: "Fırça", icon: "tipFirca" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }],
-        tool.tool, (k) => { ctx.setTool({ tool: k }); build(); }),
+      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "dolma", title: "Dolma", icon: "tipDolma" }, { key: "firca", title: "Fırça", icon: "tipFirca" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }, { key: "desen", title: "Desen", icon: "heart" }, { key: "frosted", title: "Buzlu", icon: "frost" }],
+        tool.tool, (k) => { if (k === "frosted") { ctx.buzlu(); return; } ctx.setTool(k === "desen" ? { tool: k, desen: tool.desen || "kalp", width: Math.max(6, Math.min(30, tool.width * 3)) } : { tool: k }); build(); }),
+      ...desenSecici(),
       h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Kalınlık"), widthValue),
-      slider({ min: hl ? 4 : 0.8, max: hl ? 24 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
+      slider({ min: hl ? 4 : tool.tool === "desen" ? 3 : 0.8, max: hl ? 24 : tool.tool === "desen" ? 40 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
         onInput: (v) => { ctx.setTool({ width: v }, true); widthValue.textContent = mm(v); preview.replaceWith(previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? v * 1.4 : v, hl ? 0.42 * a : a)); build(); } }),
       presetRow(hl ? HL_PRESETS : WIDTH_PRESETS, tool.width, (v) => { ctx.setTool({ width: v }); build(); }, mm),
       h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Opaklık"), opacityValue),
@@ -591,6 +620,7 @@ export function textPanel(ctx) {
       navRow("textTool", "Yazı Kutusu", () => ctx.addText(false), "Klavye ya da Apple Pencil ile yaz"),
       navRow("check", "Yapılacaklar Listesi", () => ctx.addText(true), "Onay kutulu maddeler"),
       navRow("lassoRect", "Onay Kutusu", () => ctx.addCheckBox(), "El yazısının yanına"),
+      navRow("audio", "Sesle Yaz", () => ctx.sesleYaz(), "Konuş, yazı kutusuna yazılsın"),
       navRow("translate", "Çeviri", () => ctx.openTranslate(), "Yaz ya da seç, çevir")));
 }
 
@@ -619,11 +649,14 @@ export function pageColorPanel(ctx) {
       onChange: (e) => { ctx.setPageColor(e.target.value, all); build(); } });
     const ozel = h("label", { class: "pc-cell pc-wheel" + (PRESETS.every(([hex]) => hex.toUpperCase() !== current) ? " active" : ""), "aria-label": "Renk seç" },
       h("span", { class: "pc-chip pc-chip-wheel" }), h("span", { class: "pc-name" }, "Renk seç"), ozelDeger);
+    const kapsam = h("div", { class: "sp-seg", style: { marginBottom: "10px" } },
+      h("button", { type: "button", class: all ? "" : "active", onTap: () => { all = false; build(); } }, "Bu sayfa"),
+      h("button", { type: "button", class: all ? "active" : "", onTap: () => { all = true; build(); } }, "Tüm sayfalar"));
     body.replaceChildren(
-      h("p", { class: "sp-desc" }, "Sayfanın kağıt rengini seç. Çizgi ve kareler renge göre uyum sağlar."),
+      kapsam,
+      h("p", { class: "sp-desc" }, all ? "Seçtiğin renk defterdeki bütün sayfalara uygulanır." : "Sayfanın kağıt rengini seç. Çizgi ve kareler renge göre uyum sağlar."),
       h("div", { class: "sp-section" }, "Hazır tonlar"),
       h("div", { class: "pc-grid" }, ...PRESETS.map(([hex, name]) => cell(hex, name)), ozel),
-      h("div", { class: "sp-toggle-row" }, h("div", { class: "sp-row-text" }, h("div", { class: "sp-row-title" }, "Bütün sayfalara uygula"), h("div", { class: "sp-row-sub" }, "Defterdeki her sayfa bu renge geçer")), toggle),
       h("button", { class: "sp-outline-btn", type: "button", onTap: () => { ctx.setPageColor(null, all); build(); } }, svgIcon("undoTool", 18), "Varsayılana dön")
     );
   };

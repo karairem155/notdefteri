@@ -63,6 +63,7 @@ export const TOOLS = {
   fineliner: { title: "Fineliner" },
   dolma: { title: "Dolma Kalem" },
   firca: { title: "Fırça Kalem" },
+  desen: { title: "Desen Kalemi" },
   shape: { title: "Şekil" },
   eraser: { title: "Silgi" },
   lasso: { title: "Kement" },
@@ -75,12 +76,13 @@ export const TOOLS = {
  * Renkler fotoğraftaki yarı saydam bayraklardan.
  */
 export const SEKME_TURLERI = [
-  { renk: "#7FC4F0", ad: "Önemli" },
-  { renk: "#F2B8C6", ad: "Komik" },
-  { renk: "#2F6FD6", ad: "Fikir" },
-  { renk: "#BFE0F5", ad: "Alıntı" },
-  { renk: "#8FA9C9", ad: "Soru" },
-  { renk: "#6F6FB8", ad: "Tekrar" }
+  // Adsız gelir: kullanıcı isterse adlandırır (eskiden "Önemli", "Komik"… hazır geliyordu).
+  { renk: "#F2649A", ad: "" },
+  { renk: "#F6B73C", ad: "" },
+  { renk: "#7FC4F0", ad: "" },
+  { renk: "#2F6FD6", ad: "" },
+  { renk: "#7DC59A", ad: "" },
+  { renk: "#6F6FB8", ad: "" }
 ];
 
 export const COVER_PRESETS = [
@@ -134,6 +136,7 @@ const DEFAULT_SETTINGS = {
   rulerAngle: true,          // cetvelde açı rozeti
   rulerSnap: true,           // cetvele ve 15° açılara yapışma
   otoCeviri: true,           // PDF metni seçilince / fosforluyla çizilince yanında çeviri açılsın
+  ozelFircalar: [],          // içe aktarılan desen fırçaları: [{ asset, ad }]
   karalamaSilme: true,       // yazının üstünü karalayınca silinsin
   pdfHizala: true,           // PDF'te fosforlu ve kalem metin satırına hizalansın
   fosforluAralik: [3, 18],   // PDF satırına hizalanan fosforlunun en ince / en kalın hâli
@@ -602,6 +605,7 @@ class Store extends EventTarget {
     for (const t of this.settings.templates) used.add(t.asset);
     for (const c of this.settings.customCovers) used.add(c);
     for (const g of this.settings.myStickers || []) used.add(g.asset);
+    for (const f of this.settings.ozelFircalar || []) used.add(f.asset);
     if (this.settings.defaultCover && this.settings.defaultCover.imageAsset) used.add(this.settings.defaultCover.imageAsset);
     // Sürüm geçmişindeki kopyaların kullandığı dosyalar da duruyor (geri dönünce fotoğraf kaybolmasın).
     try { for (const a of await surumVarliklari()) used.add(a); } catch (_) { return; }

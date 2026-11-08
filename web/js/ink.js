@@ -8,7 +8,7 @@
 // - Şekil düzeltme: çizgiyi bitirmeden parmağı/kalemi kısa süre sabit tutunca çizgi/daire/dikdörtgen olur.
 // - PDF metni: fosforlu ya da altı çizme, PDF'teki satıra hizalanır (options.textLines).
 // - Geri al / ileri al sayfa başına tutulur.
-import { uid } from "./store.js";
+import { uid, store } from "./store.js";
 
 const HISTORY_LIMIT = 60;
 const SMOOTH_LEVELS = [0, 0.35, 0.55, 0.78];   // Kapalı, Az, Orta, Çok
@@ -397,8 +397,8 @@ export class InkCanvas {
       const kutu = kutuBul(stroke.points, stroke.width);
       // Kutunun içinde kalmak yetmiyor: noktaların yarısı karalamanın çizgisine yakın olmalı.
       // Böylece bir şeklin içini tararken şeklin kenarı silinmiyor.
-      const yakin = Math.max(8, stroke.width * 3);
-      const silinecek = this.page.strokes.filter((s) => s.tool !== "highlighter" && kapsamaOrani(s, kutu) >= 0.6 && yakinlikOrani(s, stroke.points, yakin) >= 0.5);
+      const yakin = Math.max(14, stroke.width * 4);
+      const silinecek = this.page.strokes.filter((s) => s.tool !== "highlighter" && kapsamaOrani(s, kutu) >= 0.55 && yakinlikOrani(s, stroke.points, yakin) >= 0.4);
       if (silinecek.length) {
         const ids = new Set(silinecek.map((s) => s.id));
         this.pushHistory();
@@ -736,6 +736,90 @@ function tracePath(ctx, pts) {
 }
 
 /** Basınçlı çizgi: dilim dilim değil, tek parça dolgu. Kalınlık yumuşak değişir, uçlar incelir. */
+// ---------- desen kalemi ----------
+//
+// Çizginin boyunca aynı şekil (kalp, yıldız, damla…) aralıklarla basılıyor.
+// "ozel:<dosya>" ise kullanıcının içe aktardığı görsel fırça olarak basılıyor.
+export const DESENLER = [["kalp", "Kalp"], ["yildiz", "Yıldız"], ["damla", "Damla"], ["nokta", "Nokta"], ["cicek", "Çiçek"], ["yaprak", "Yaprak"]];
+
+function desenYolu(ad) {
+  const p = new Path2D();
+  if (ad === "kalp") { p.moveTo(0, 0.35); p.bezierCurveTo(-0.9, -0.25, -0.45, -0.95, 0, -0.45); p.bezierCurveTo(0.45, -0.95, 0.9, -0.25, 0, 0.35); }
+  else if (ad === "yildiz") { for (let i = 0; i < 10; i++) { const r = i % 2 ? 0.42 : 1, a = -Math.PI / 2 + (i * Math.PI) / 5; i ? p.lineTo(Math.cos(a) * r, Math.sin(a) * r) : p.moveTo(Math.cos(a) * r, Math.sin(a) * r); } p.closePath(); }
+  else if (ad === "damla") { p.moveTo(0, -1); p.bezierCurveTo(0.35, -0.45, 0.7, 0, 0.7, 0.3); p.arc(0, 0.3, 0.7, 0, Math.PI); p.bezierCurveTo(-0.7, 0, -0.35, -0.45, 0, -1); }
+  else if (ad === "cicek") { for (let i = 0; i < 5; i++) { const a = (i * 2 * Math.PI) / 5; p.moveTo(Math.cos(a) * 0.5 + 0.42, Math.sin(a) * 0.5); p.arc(Math.cos(a) * 0.5, Math.sin(a) * 0.5, 0.42, 0, Math.PI * 2); } }
+  else if (ad === "yaprak") { p.moveTo(-1, 0); p.quadraticCurveTo(0, -0.62, 1, 0); p.quadraticCurveTo(0, 0.62, -1, 0); }
+  else p.arc(0, 0, 0.6, 0, Math.PI * 2);
+  return p;
+}
+const desenYollari = new Map();
+const ozelFircalar = new Map();   // dosya kimliği -> HTMLImageElement | "yukleniyor"
+let desenYuklendi = null;
+/** Özel fırça görseli yüklenince çizimleri yenilemek için (editör bağlar). */
+export function desenYenilemeBagla(fn) { desenYuklendi = fn; }
+
+function ozelFirca(id) {
+  const kayit = ozelFircalar.get(id);
+  if (kayit && kayit !== "yukleniyor") return kayit;
+  if (!kayit) {
+    ozelFircalar.set(id, "yukleniyor");
+    store.assetURL(id).then((url) => {
+      if (!url) return;
+      const img = new Image();
+      img.onload = () => { ozelFircalar.set(id, img); if (desenYuklendi) desenYuklendi(); };
+      img.src = url;
+    }).catch(() => {});
+  }
+  return null;
+}
+
+function desenCiz(ctx, stroke) {
+  const pts = stroke.points;
+  if (!pts.length) return;
+  const boy = Math.max(3, stroke.width);           // şeklin yarıçapı (sayfa birimi)
+  const aralik = boy * (stroke.desen === "nokta" ? 1.9 : 2.3);
+  const ad = stroke.desen || "kalp";
+  const ozel = ad.startsWith("ozel:") ? ozelFirca(ad.slice(5)) : null;
+  if (ad.startsWith("ozel:") && !ozel) return;
+  if (!ozel && !desenYollari.has(ad)) desenYollari.set(ad, desenYolu(ad));
+  const yol = ozel ? null : desenYollari.get(ad);
+  const donsun = ad === "damla" || ad === "yaprak";
+  ctx.save();
+  ctx.globalAlpha = stroke.alpha != null ? stroke.alpha : 1;
+  ctx.fillStyle = stroke.color;
+  const bas = (x, y, aci, sira) => {
+    ctx.save();
+    ctx.translate(x, y);
+    if (donsun) ctx.rotate(aci + (ad === "damla" ? Math.PI / 2 : 0));
+    else if (ad === "yildiz" || ad === "cicek") ctx.rotate(sira * 0.5);
+    if (ozel) {
+      const k = (boy * 2) / Math.max(ozel.width, ozel.height);
+      ctx.drawImage(ozel, (-ozel.width * k) / 2, (-ozel.height * k) / 2, ozel.width * k, ozel.height * k);
+    } else {
+      ctx.scale(boy, boy);
+      ctx.fill(yol);
+    }
+    ctx.restore();
+  };
+  // Yol boyunca eşit aralıklarla bas
+  let kalan = 0, sira = 0;
+  bas(pts[0][0], pts[0][1], 0, sira++);
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    const uz = Math.hypot(x1 - x0, y1 - y0);
+    if (!uz) continue;
+    const aci = Math.atan2(y1 - y0, x1 - x0);
+    let d = aralik - kalan;
+    while (d <= uz) {
+      const t = d / uz;
+      bas(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, aci, sira++);
+      d += aralik;
+    }
+    kalan = uz - (d - aralik);
+  }
+  ctx.restore();
+}
+
 /** Değişken kalınlıklı uçlar: basınçlı jel, dolma (eğik uç) ve fırça. */
 const DEGISKEN_UC = new Set(["dolma", "firca"]);
 const DOLMA_ACI = (40 * Math.PI) / 180;   // uç açısı: sağa yatık italik uç
@@ -816,6 +900,7 @@ function drawPressureStroke(ctx, stroke) {
 export function drawStroke(ctx, stroke) {
   const pts = stroke.points;
   if (pts.length < 2) return;
+  if (stroke.tool === "desen") { desenCiz(ctx, stroke); return; }
   styleFor(ctx, stroke);
   if ((!stroke.pressure && !DEGISKEN_UC.has(stroke.tool)) || stroke.tool === "highlighter") {
     ctx.lineWidth = baseWidth(stroke);
@@ -915,21 +1000,27 @@ function karalamaMi(pts, en) {
   if (kosegen < Math.max(14, en * 4)) return false;
   let yol = 0;
   for (let i = 1; i < pts.length; i++) yol += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-  if (yol < kosegen * 4.5) return false;
-  const eksen = g >= y ? 0 : 1;
-  const esik = Math.max(g, y) * 0.35;
-  // uc: o yöndeki en uç nokta; ondan eşik kadar geri dönünce bir dönüş sayılır.
-  let yon = 0, uc = pts[0][eksen], donus = 0;
-  for (const p of pts) {
-    const v = p[eksen];
-    if (yon === 0) {
-      if (v - uc > esik) { yon = 1; uc = v; } else if (uc - v > esik) { yon = -1; uc = v; }
-    } else if (yon === 1) {
-      if (v > uc) uc = v; else if (uc - v > esik) { yon = -1; uc = v; donus++; }
-    } else if (v < uc) uc = v;
-    else if (v - uc > esik) { yon = 1; uc = v; donus++; }
-  }
-  return donus >= 6;
+  if (yol < kosegen * 3) return false;
+  // Dönüş sayısı: o yöndeki en uç noktadan eşik kadar geri gelince bir dönüş.
+  const donusSay = (eksen, esik) => {
+    let yon = 0, uc = pts[0][eksen], donus = 0;
+    for (const p of pts) {
+      const v = p[eksen];
+      if (yon === 0) {
+        if (v - uc > esik) { yon = 1; uc = v; } else if (uc - v > esik) { yon = -1; uc = v; }
+      } else if (yon === 1) {
+        if (v > uc) uc = v; else if (uc - v > esik) { yon = -1; uc = v; donus++; }
+      } else if (v < uc) uc = v;
+      else if (v - uc > esik) { yon = 1; uc = v; donus++; }
+    }
+    return donus;
+  };
+  const ana = g >= y ? 0 : 1;
+  const donus = donusSay(ana, Math.max(g, y) * 0.3);
+  if (donus < 4) return false;
+  // Spiral ve halkalar iki eksende de dönüyor; karalama tek eksende gidip geliyor.
+  const yan = donusSay(1 - ana, Math.max(g, y) * 0.3);
+  return yan < donus * 0.6;
 }
 
 function kutuBul(pts, pay) {

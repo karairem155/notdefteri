@@ -34,7 +34,7 @@ function parcaGoster(metin, katli, igne) {
  */
 export function openNotebookSearch({ notebook, sekmeTurleri, mevcutSayfa, onJump }) {
   const sayfalar = notebook.pages;
-  const giris = h("input", { type: "search", class: "ara-giris", placeholder: "Bu defterde ara: yazı, PDF metni, sekme", "aria-label": "Defterde ara", enterkeyhint: "search" });
+  const giris = h("input", { type: "search", class: "ara-giris", placeholder: "Bu defterde ara: yazı, PDF metni, yer işareti", "aria-label": "Defterde ara", enterkeyhint: "search" });
   const liste = h("div", { class: "ara-liste" });
   const durum = h("div", { class: "ara-durum" });
   let iptal = { yapildi: false };
@@ -53,9 +53,9 @@ export function openNotebookSearch({ notebook, sekmeTurleri, mevcutSayfa, onJump
     const parcalar = [];
     const sekmeli = sayfalar.filter((p) => p.sekme);
     if (sekmeli.length) {
-      parcalar.push(bolum("Sekmeler", ...sekmeli.map((p) => {
+      parcalar.push(bolum("Yer işaretleri", ...sekmeli.map((p) => {
         const t = sekmeTurleri[(p.sekme.tur | 0)] || sekmeTurleri[0];
-        return satir(p.id, t.ad, `${sayfalar.indexOf(p) + 1}. sayfa`, t.renk);
+        return satir(p.id, p.sekme.ad || t.ad || `${sayfalar.indexOf(p) + 1}. sayfa`, p.sekme.ad || t.ad ? `${sayfalar.indexOf(p) + 1}. sayfa` : null, t.renk);
       })));
     }
     liste.replaceChildren(...parcalar);
@@ -74,7 +74,7 @@ export function openNotebookSearch({ notebook, sekmeTurleri, mevcutSayfa, onJump
       if (satirlar.length) liste.append(bolum("İçindekiler", ...satirlar));
     }
     if (!liste.children.length) {
-      liste.replaceChildren(h("div", { class: "ara-bos" }, "Yazı kutularında, yapılacaklarda ve PDF metninde arayabilirsin. Sayfaya sekme takınca burada da listelenir."));
+      liste.replaceChildren(h("div", { class: "ara-bos" }, "Yazı kutularında, yapılacaklarda ve PDF metninde arayabilirsin. Sayfaya yer işareti takınca burada da listelenir."));
     }
     durum.textContent = "";
   }
@@ -96,7 +96,7 @@ export function openNotebookSearch({ notebook, sekmeTurleri, mevcutSayfa, onJump
     };
     // 1) Sekme adları ve yazılı nesneler: anında
     for (const p of sayfalar) {
-      if (p.sekme) { const t = sekmeTurleri[(p.sekme.tur | 0)]; if (t) ekle(p, t.ad, "Sekme"); }
+      if (p.sekme) { const t = sekmeTurleri[(p.sekme.tur | 0)]; const ad = p.sekme.ad || (t && t.ad); if (ad) ekle(p, ad, "Yer işareti"); }
       const nm = nesneMetni(p);
       if (nm) ekle(p, nm, "Yazı");
     }

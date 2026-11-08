@@ -273,8 +273,14 @@ export function openAddPageSheet(notebookId, currentIndex, onAdded) {
 }
 
 /** Yalnızca şablon seçimi: Sayfalar ekranı ve Ayarlar için. */
-export function openTemplatePicker(onSelect, initial = null) {
-  const state = { selection: initial };
+export function openTemplatePicker(onSelect, initial = null, { kapsam = false } = {}) {
+  const state = { selection: initial, tum: false };
+  // kapsam: "Bu sayfa / Tüm sayfalar" seçimi gösterilsin (defter içinden şablon değiştirirken)
+  const kapsamSec = kapsam ? h("div", { class: "segmented" }) : null;
+  const kapsamCiz = () => kapsamSec && kapsamSec.replaceChildren(
+    h("button", { type: "button", class: state.tum ? "" : "active", onTap: () => { state.tum = false; kapsamCiz(); } }, "Bu sayfa"),
+    h("button", { type: "button", class: state.tum ? "active" : "", onTap: () => { state.tum = true; kapsamCiz(); } }, "Tüm sayfalar"));
+  kapsamCiz();
   let tab = store.settings.templates.length ? "mine" : "patterns";
   const gridHost = h("div");
   const tabs = h("div", { class: "segmented" });
@@ -290,7 +296,7 @@ export function openTemplatePicker(onSelect, initial = null) {
     h("div", { class: "sheet-head" },
       h("button", { class: "btn ghost", type: "button", onTap: closeModal }, "İptal"),
       h("span", {}, "Şablon Seç"),
-      h("button", { class: "btn ghost", type: "button", onTap: () => { if (state.selection) { closeModal(); onSelect(state.selection); } } }, "Seç")),
-    h("div", { class: "sheet-body" }, h("div", { class: "sheet-toolbar" }, tabs), gridHost)
+      h("button", { class: "btn ghost", type: "button", onTap: () => { if (state.selection) { closeModal(); onSelect(state.selection, state.tum); } } }, "Seç")),
+    h("div", { class: "sheet-body" }, h("div", { class: "sheet-toolbar" }, tabs, kapsamSec), gridHost)
   ), { wide: true });
 }
