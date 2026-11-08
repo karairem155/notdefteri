@@ -541,3 +541,6 @@ html[data-cubuk-acik] .ses-kapat { background: rgba(23, 42, 69, 0.1); }
   .screen-dark .topbar .badge-pdf { display: none; }
   .screen-dark .topbar .topbar-side.right { flex-wrap: nowrap; }
 }
+
+/* Nesne sürüklerken Safari'nin bıraktığı gölge izleri: her nesne kendi katmanında çizilsin */
+.layer-objects.editing .placed { will-change: transform, left, top; -webkit-backface-visibility: hidden; backface-visibility: hidden; }

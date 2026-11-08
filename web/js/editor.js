@@ -3,7 +3,7 @@
 // Kipler: çizim / buzlu kalem (örtü katmanı çizgiyi buzlu şerit yapar) / nesne düzenleme.
 import { renderPageCanvas as renderPageCanvasShared, spillFor } from "./pagerender.js";
 import { store, TOOLS, uid, COVER_PRESETS, SEKME_TURLERI } from "./store.js";
-import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, pickFiles, formatPt, pressable } from "./ui.js";
+import { h, svgIcon, iconButton, openModal, closeModal, actionSheet, promptDialog, confirmDialog, toast, pickFile, pickFiles, formatPt, pressable, popoverMenu } from "./ui.js";
 import { renderBackground, paintPaper, drawImageURL, pdfPageImage, pdfTextLines, pdfTextItems, PAPER_COLOR } from "./paper.js";
 import { InkCanvas, drawStroke, renderStrokesToDataURL, orderForDrawing, strokeHits, desenYenilemeBagla } from "./ink.js";
 import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
@@ -916,7 +916,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
 
   function selectionActions(ink) {
     return {
-      copy: () => { clipboard.strokes = ink.selectedStrokes().map((s) => structuredClone(s)); clipboard.objects = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
+      copy: () => { clipboard.strokes = ink.selectedStrokes().map((s) => structuredClone(s)); clipboard.objects = []; toast("Kopyalandı: sayfada parmağını basılı tut, Yapıştır çıkar"); renderBench(); },
       duplicate: () => ink.duplicateSelection(),
       cut: () => { clipboard.strokes = ink.selectedStrokes().map((s) => structuredClone(s)); clipboard.objects = []; ink.deleteSelection(); toast("Kesildi; Yapıştır ile başka yere koy"); renderBench(); },
       recolor: (hex) => ink.recolorSelection(hex),
@@ -1496,7 +1496,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
             font: object.kind === "text" ? () => textStyleMenu(object, page) : null,
             translate: object.kind === "text" ? () => openTranslate(object.text, stack.querySelector(`[data-id="${object.id}"]`)?.getBoundingClientRect() || null) : null,
             rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
-            duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Panoya kopyalandı; Yapıştır ile başka sayfaya koy"); renderBench(); },
+            duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Kopyalandı: sayfada parmağını basılı tut, Yapıştır çıkar"); renderBench(); },
             front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
             remove: () => { store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); }); selectedObjectId = null; store.removeUnreferencedAssets(); }
     };
@@ -2075,15 +2075,16 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   }
 
   /** Panodaki çizgileri/nesneleri seçili sayfanın ortasına yapıştırır. */
-  function pasteClipboard() {
-    const page = selectedPage();
+  /** konum: { page, x, y } verilirse kopya o noktaya ortalanır (basılı tutup Yapıştır). */
+  function pasteClipboard(konum = null) {
+    const page = konum ? konum.page : selectedPage();
     if (clipboard.strokes.length) {
       const ink = inks.get(page.id);
       if (!ink) return;
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const s of clipboard.strokes) for (const p of s.points) { minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); }
-      const dx = page.size.w / 2 - (minX + maxX) / 2;
-      const dy = page.size.h / 2 - (minY + maxY) / 2;
+      const dx = (konum ? konum.x : page.size.w / 2) - (minX + maxX) / 2;
+      const dy = (konum ? konum.y : page.size.h / 2) - (minY + maxY) / 2;
       ink.pushHistory();
       const copies = clipboard.strokes.map((s) => ({ ...s, id: uid(), points: s.points.map(([x, y, p]) => [Math.round((x + dx) * 10) / 10, Math.round((y + dy) * 10) / 10, p]) }));
       page.strokes.push(...copies);
@@ -2094,7 +2095,11 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       renderBench();
       renderSelection(stage.querySelector(`.page-stack[data-page="${page.id}"]`) || [...stage.querySelectorAll(".page-stack")].find((st) => st._pageId === page.id), page, ink.selectionBounds());
     } else if (clipboard.objects.length) {
-      const copies = clipboard.objects.map((o) => { const c = structuredClone(o); c.id = uid(); c.rect = centeredRect(page, o.rect.w, o.rect.h); c.z = maxZ(page) + 1; return c; });
+      const copies = clipboard.objects.map((o) => {
+        const c = structuredClone(o); c.id = uid();
+        c.rect = konum ? { x: konum.x - o.rect.w / 2, y: konum.y - o.rect.h / 2, w: o.rect.w, h: o.rect.h } : centeredRect(page, o.rect.w, o.rect.h);
+        c.z = maxZ(page) + 1; return c;
+      });
       store.updatePage(notebookId, page.id, (p) => { p.objects.push(...copies); });
       touchPage(page);
       selectedObjectId = copies[copies.length - 1].id;
@@ -2466,6 +2471,32 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     sesiCal(vurulan.ses, vurulan.t / 1000 - 1.5);
   };
   stage.addEventListener("pointerdown", sesDokunusBasla, true);
+
+  // Basılı tutunca Yapıştır: panoda bir şey varsa parmağı sayfada 0,55 sn tutmak menüyü açar,
+  // kopya tam o noktaya konur (iPad'in kendi metin menüsü gibi).
+  let yapistirZamanlayici = 0, yapistirBasi = null;
+  const yapistirIptal = () => { clearTimeout(yapistirZamanlayici); yapistirBasi = null; };
+  stage.addEventListener("pointerdown", (e) => {
+    yapistirIptal();
+    if (e.pointerType === "pen" || !e.isPrimary || editingObjects || textSelectMode) return;
+    if (!clipboard.strokes.length && !clipboard.objects.length) return;
+    const stackEl = e.target && e.target.closest && e.target.closest(".page-stack");
+    if (!stackEl) return;
+    yapistirBasi = { x: e.clientX, y: e.clientY, stackEl };
+    yapistirZamanlayici = setTimeout(() => {
+      const bas = yapistirBasi;
+      yapistirBasi = null;
+      if (!bas) return;
+      const page = pages().find((p) => p.id === bas.stackEl.dataset.pageId);
+      if (!page) return;
+      const n = toPageCoords({ clientX: bas.x, clientY: bas.y }, bas.stackEl, page);
+      popoverMenu({ left: bas.x - 1, top: bas.y - 1, right: bas.x + 1, bottom: bas.y + 1, width: 2, height: 2 },
+        [{ title: "Yapıştır", icon: "copy", onSelect: () => { if (page.id !== selectedPageId) selectedPageId = page.id; pasteClipboard({ page, x: n.x, y: n.y }); } }]);
+    }, 550);
+  }, true);
+  stage.addEventListener("pointermove", (e) => { if (yapistirBasi && Math.hypot(e.clientX - yapistirBasi.x, e.clientY - yapistirBasi.y) > 10) yapistirIptal(); }, true);
+  stage.addEventListener("pointerup", yapistirIptal, true);
+  stage.addEventListener("pointercancel", yapistirIptal, true);
   stage.addEventListener("pointerup", sesDokunusBit, true);
 
   /** Sesli not: mikrofona dokun → kayıt; tekrar dokun → sayfaya oynatılabilir bir not düşer. */

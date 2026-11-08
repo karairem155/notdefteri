@@ -512,6 +512,9 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
     }
     state.P = P;
     state.progress = clamp01((C[0] - P[0]) / 2);
+    // Ses kâğıt kalkarken çalsın: eskiden parmak bırakılınca çalıyordu, çevirmeden sonra geliyormuş gibiydi.
+    const ilerleme = geri ? 1 - state.progress : state.progress;
+    if (!state.sesCaldi && ilerleme > 0.12 && options.sound && options.sound()) { state.sesCaldi = true; playPaperSound(); }
     paint();
     return geri ? 1 - state.progress : state.progress;
   }
@@ -519,7 +522,7 @@ export function createCurlFlip(spreadEl, buildFrames, options = {}) {
   function finish(commit, onDone) {
     if (!state) return;
     const current = state;
-    if (commit && options.sound && options.sound()) playPaperSound();
+    if (commit && !current.sesCaldi && options.sound && options.sound()) { current.sesCaldi = true; playPaperSound(); }
     const rev = !!current.frames.reverse;
     const PH = current.frames.leafH / current.frames.leafW;
     const target = commit ? (rev ? 0 : 1) : (rev ? 1 : 0);
@@ -872,8 +875,38 @@ function playCoverSound() {
   playPaperSound(0.42);
 }
 
+// Web Audio: iPad'de <audio> ilk çalışta gecikiyordu; çözülmüş ses tamponu anında çalıyor.
+let sesBaglam = null, sesTampon = null, sesYukleniyor = false;
+function sesBaglamiHazirla() {
+  try {
+    const Baglam = window.AudioContext || window.webkitAudioContext;
+    if (!Baglam) return;
+    if (!sesBaglam) sesBaglam = new Baglam();
+    if (sesBaglam.state === "suspended") sesBaglam.resume().catch(() => {});
+    if (!sesTampon && !sesYukleniyor) {
+      sesYukleniyor = true;
+      fetch(new URL("../sounds/sayfa-cevir.mp3", import.meta.url).href).then((r) => r.arrayBuffer())
+        .then((b) => new Promise((ok, hata) => sesBaglam.decodeAudioData(b, ok, hata)))
+        .then((t) => { sesTampon = t; }).catch(() => { sesYukleniyor = false; });
+    }
+  } catch (_) { /* Web Audio yoksa <audio> kullanılır */ }
+}
+// İlk dokunuşta ses altyapısı açılıyor (iOS izin vermeden ses çalmıyor).
+document.addEventListener("pointerdown", sesBaglamiHazirla, { capture: true, passive: true });
+
 let sesOge = null;
 function playPaperSound(ses = 0.6) {
+  if (sesBaglam && sesTampon && sesBaglam.state === "running") {
+    try {
+      const kaynak = sesBaglam.createBufferSource();
+      kaynak.buffer = sesTampon;
+      const kazanc = sesBaglam.createGain();
+      kazanc.gain.value = ses;
+      kaynak.connect(kazanc).connect(sesBaglam.destination);
+      kaynak.start();
+      return;
+    } catch (_) { /* aşağıdaki yedeğe düş */ }
+  }
   try {
     if (!sesOge) {
       sesOge = new Audio(new URL("../sounds/sayfa-cevir.mp3", import.meta.url).href);
