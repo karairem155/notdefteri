@@ -2,9 +2,24 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "../tools/serve.py"
+      ],
+      "port": 8766,
+      "autoPort": true
+    },
+    {
       "name": "notdefteri",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "60716", "--directory", "web"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "60716",
+        "--directory",
+        "web"
+      ],
       "port": 60716
     }
   ]
