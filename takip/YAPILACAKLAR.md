@@ -40,7 +40,7 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 Kaynak: https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY (150 madde; "eksik değil fazla olmalıyız")
 - [ ] Sayfa ve defter arası bağlantılar
 - [ ] Dikey sürekli kaydırma modu
-- [ ] Defter kilidi (web'de yalnız gizlilik kapağı; gerçek Face ID kilidi native'de)
+- [ ] Defter kilidi — web: yalnız gizlilik kapağı (gerçek şifreleme değil). Face ID kilidi aşağıda native bölümünde
 - [ ] Daire çizerek seçme: kalem aracındayken seçim aracına geçmeden, çevresini çizerek seçmek (Goodnotes'taki gibi). Ayrı kement aracı zaten var (editor.js, ink.js finishLasso); o yeniden yazılmayacak. Kalemi basılı tutmak şekil düzeltmeyi tetikliyor; seçme hareketi bununla çakışmamalı
 - [ ] Lazer işaretçi
 - [ ] Kesik ve noktalı çizgi
@@ -68,7 +68,7 @@ Kaynak: https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY (150 madde; "eksik de�
 - [ ] Rafa entegrasyon ve performans (300 defterde de akıcı)
 
 ### App Store hazırlığı (en son)
-- [ ] Kabuk/native kararı (kullanıcı)
+- ~~Kabuk/native kararı (kullanıcı)~~ (birleştirildi: yukarıdaki [?] "App Store yolu" ile aynı iş, 13 Kas)
 - [ ] Satın alma (abonelik + ömür boyu), Small Business Program
 - [ ] Gizlilik etiketleri (çeviri metni internete gidiyor — beyan edilmeli)
 - [ ] Mağaza görselleri ve metni
@@ -76,6 +76,8 @@ Kaynak: https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY (150 madde; "eksik de�
 ---
 
 ## Bitti (özet)
+
+`[i]` olanlar canlıda ama iPad denemesi bekliyor (yukarıdaki bölüm).
 
 Takip v86'dan (41ef65b, 29 Eki) başlar; öncesi (raf görünümü, sekmeler, maskot, masa denemeleri) git geçmişinde.
 
@@ -94,12 +96,12 @@ Takip v86'dan (41ef65b, 29 Eki) başlar; öncesi (raf görünümü, sekmeler, ma
 - [x] Defterde ara (⌘F), PDF içindekiler, klavye kısayolları — v98
 - [x] Etiketler, kütüphanede içerik araması, okuma modu, seçici silgi — v99
 - [x] Sürüm geçmişi, yedek hatırlatması; arka kapak görseli temizlikte silinmiyor — v100
-- [x] Sesle eşli not — v101
-- [x] Dolma ve fırça kalem — v102
-- [x] Karalayarak silme — v103, v105
-- [x] Defterden çıkış animasyonu — v104
-- [x] Desen kalemi + fırça içe aktarma, sesle yaz, yer işareti (adsız, renk değişir), bölümlü menü, Tüm sayfalara uygula (şablon/renk), "İki sayfayı kapla", buzlu kalem kalem panelinde — v105
-- [x] Sayfa sesi kâğıt kalkarken, basılı tut Yapıştır — v106
-- [x] Stabilizatör zamana bağlı, harfler şekle dönmüyor — v107
+- [i] Sesle eşli not — v101
+- [i] Dolma ve fırça kalem — v102
+- [i] Karalayarak silme — v103, v105
+- [i] Defterden çıkış animasyonu — v104
+- [i] Desen kalemi + fırça içe aktarma, sesle yaz, yer işareti (adsız, renk değişir), bölümlü menü, Tüm sayfalara uygula (şablon/renk), "İki sayfayı kapla", buzlu kalem kalem panelinde — v105
+- [i] Sayfa sesi kâğıt kalkarken, basılı tut Yapıştır — v106
+- [i] Stabilizatör zamana bağlı, harfler şekle dönmüyor — v107
 - [x] Pinterest sayfa tasarımları sorusu cevaplandı (kişisel kullanım: Şablonlarım; dağıtım: kendi/AI tasarımı)
 - [x] Pazar araştırması ve rakip açığı listesi (150 madde) — https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY
