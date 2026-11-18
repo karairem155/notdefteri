@@ -10,7 +10,7 @@ import { openAddPageSheet, openPageSizeSheet, shrinkImage } from "./addpage.js";
 import { createCurlFlip, createCoverAnim } from "./curl.js";
 import { coverBitmap, coverElement, sameCover, takeCoverOpening, openCoverFit } from "./covers.js";
 import { attachEditorGestures } from "./gestures.js";
-import { penPanel, eraserPanel, shapesPanel, selectionPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
+import { penPanel, eraserPanel, shapesPanel, selectionPanel, yaziPanel, favoritesPanel, colorPanel, stickerPanel, mediaPanel, textPanel, pageColorPanel } from "./panels.js";
 import { exportPanel } from "./export.js";
 import { openStickerMaker } from "./stickermaker.js";
 import { ceviriGoster, ceviriKartiKapat, cevir, hedefDil, DILLER } from "./ceviri.js";
@@ -461,6 +461,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   }
 
   function selectPage(id) {
+    // Seçim ve yazı düzenleme paneli seçili sayfanın mürekkebine bağlı: sayfa değişince kapanmalı,
+    // yoksa "Uygula" değişikliği görünmeden önceki sayfaya yazıyordu (ok tuşuyla çevirince).
+    if (popover && (popover.dataset.kind === "yazi" || popover.dataset.kind === "selection")) closePopover();
     flushInk();
     selectedPageId = id;
     selectedObjectId = null;
@@ -905,10 +908,11 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   function selectionBar(ink, stack, page, bounds) {
     const acts = selectionActions(ink);
     const item = (icon, label, fn, cls = "") => h("button", { type: "button", class: "sel-item" + (cls ? " " + cls : ""), "aria-label": label, onTap: (e) => { e.stopPropagation(); fn(); } }, svgIcon(icon, 18), h("span", {}, label));
-    const bar = h("div", { class: "sel-bar", style: { left: Math.min(Math.max(bounds.x + bounds.w / 2, 200), Math.max(page.size.w - 200, 200)) + "px", top: Math.max(bounds.y - 14, 70) + "px" } },
+    const bar = h("div", { class: "sel-bar", style: { left: Math.min(Math.max(bounds.x + bounds.w / 2, 215), Math.max(page.size.w - 215, 215)) + "px", top: Math.max(bounds.y - 14, 70) + "px" } },
       item("copy", "Kopyala", acts.copy), item("duplicate", "Çoğalt", acts.duplicate), item("scissors", "Kes", acts.cut),
       item("pen", "Renk", () => openColorPanel({ onPick: acts.recolor, title: "Seçim Rengi" })),
       item("layerUp", "Öne", acts.front), item("layerDown", "Arkaya", acts.back),
+      item("text", "Düzenle", acts.duzenle),
       item("trash", "Sil", acts.remove, "danger"));
     bar.addEventListener("pointerdown", (e) => e.stopPropagation());
     return bar;
@@ -922,8 +926,76 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       recolor: (hex) => ink.recolorSelection(hex),
       front: () => { ink.bringSelectionFront(); toast("Öne alındı"); },
       back: () => { ink.sendSelectionBack(); toast("Arkaya gönderildi"); },
+      duzenle: () => openYaziPanel(ink),
       remove: () => ink.deleteSelection()
     };
+  }
+
+  /**
+   * Yazıyı düzenle: seçilen el yazısını aynı boya, düz satıra, eşit aralığa getirir (duzenle.js).
+   * Panel açıkken sayfada canlı önizlenir (veriye yazılmadan); Uygula tek geri-al adımı, Vazgeç/kapatma
+   * önizlemeyi bırakır. Panel, yazıyı örtmeyecek köşede açılır (panel dışına dokunmak Vazgeç sayılıyor,
+   * yazı panelin altında kalırsa kullanıcı sonucu göremiyordu).
+   */
+  function openYaziPanel(ink, ertelendi = false) {
+    // Büyük seçimde çözümleme iPad'de belirgin sürebilir (1200 çizgi masaüstünde ~0.2 sn): önce haber ver.
+    if (!ertelendi && ink.selectedStrokes().length > 400) { toast("Yazı hazırlanıyor…"); setTimeout(() => openYaziPanel(ink, true), 30); return; }
+    const stack = ink.canvas.closest(".page-stack");
+    const page = ink.page;
+    const cozum = ink.yaziDuzenleBaslat();
+    if (!cozum) { toast("Seçimde düzenlenecek el yazısı yok"); return; }
+    // Seçim kutusu eski yerini gösterir: önizleme sırasında gizle, bitince yeniden kur.
+    if (stack && stack._layers) stack._layers.selectLayer.replaceChildren();
+    let bitti = false;
+    const el = yaziPanel({
+      close: () => closePopover(),
+      varsayilan: cozum.varsayilan,
+      satirSayisi: cozum.satirlar.length,
+      cizgi: sayfaCizgisi(page),
+      onizle: (ayar) => ink.yaziDuzenleOnizle(ayar),
+      uygula: () => { bitti = true; ink.yaziDuzenleUygula(); closePopover(); }
+    });
+    // Kapanış işi panel takılmadan önce bağlanıyor: arada bir hata olsa da önizleme ekranda kalmasın.
+    el._onClose = () => {
+      if (!bitti) { bitti = true; ink.yaziDuzenleVazgec(); }
+      if (stack && stack._layers) renderSelection(stack, page, ink.selectionBounds());
+    };
+    // Ekran dönünce / boyut değişince yeniden yerleşsin (yoksa panel ekran dışında kalabiliyordu).
+    el._yerlestir = () => yaziPaneliniYerlestir(el, ink, stack, page);
+    mountPanel(el, "yazi");
+    el._yerlestir();
+  }
+
+  /** Paneli dört köşeden yazıyla (önce + önizleme) en az örtüşenine koyar; eşitlikte her zamanki sol alt. */
+  function yaziPaneliniYerlestir(el, ink, stack, page) {
+    if (!stack) return;
+    const a = ink.selectionBounds(), b = ink.yaziOnizlemeKutusu();
+    const kutular = [a, b].filter(Boolean);
+    if (!kutular.length) return;
+    const r = stack.getBoundingClientRect();
+    const k = r.width / page.size.w;
+    const x0 = r.left + Math.min(...kutular.map((q) => q.x)) * k, x1 = r.left + Math.max(...kutular.map((q) => q.x + q.w)) * k;
+    const y0 = r.top + Math.min(...kutular.map((q) => q.y)) * k, y1 = r.top + Math.max(...kutular.map((q) => q.y + q.h)) * k;
+    const pr = el.getBoundingClientRect();
+    const ust = Math.max(0, ...[...document.querySelectorAll(".topbar")].map((t) => t.getBoundingClientRect().bottom)) + 12;
+    const altlar = [...document.querySelectorAll(".bench, .fav-dock")].map((t) => t.getBoundingClientRect()).filter((q) => q.height > 0 && q.top > innerHeight / 2).map((q) => q.top);
+    const alt = (altlar.length ? Math.min(...altlar) : innerHeight - 100) - 12;
+    const solX = 34, sagX = Math.max(solX, innerWidth - 34 - pr.width);
+    const ustY = ust, altY = Math.max(ust, alt - pr.height);
+    const adaylar = [[solX, altY], [sagX, altY], [solX, ustY], [sagX, ustY]];
+    const ortusme = ([x, y]) => Math.max(0, Math.min(x + pr.width, x1) - Math.max(x, x0)) * Math.max(0, Math.min(y + pr.height, y1) - Math.max(y, y0));
+    let en = adaylar[0], enO = ortusme(en);
+    for (const c of adaylar.slice(1)) { const o = ortusme(c); if (o < enO - 1) { en = c; enO = o; } }
+    Object.assign(el.style, { left: en[0] + "px", top: en[1] + "px", right: "auto", bottom: "auto" });
+    el.dataset.ortusme = String(Math.round(enO));
+  }
+
+  /** Yerleşik çizgili/kareli kâğıdın yatay çizgileri (paper.js: çizgi y = aralık·n − 0.5). Şablon/PDF: yok. */
+  function sayfaCizgisi(page) {
+    if (page.pdf || page.templateAsset) return null;
+    if (page.paper === "ruled") return { aralik: 32, ofset: -0.5 };
+    if (page.paper === "grid") return { aralik: 24, ofset: -0.5 };
+    return null;
   }
 
   // ---------- cetvel ----------
@@ -2740,7 +2812,14 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   // ---------- kalem paneli (07-KalemPaneli.png) ----------
 
   function closePopover() {
-    if (popover) { const kind = popover.dataset.kind; popover.remove(); popover = null; if (kind === "stickers" || kind === "media" || kind === "text") renderBench(); }
+    if (popover) {
+      const el = popover;
+      const kind = el.dataset.kind;
+      el.remove();
+      popover = null;
+      if (el._onClose) el._onClose();
+      if (kind === "stickers" || kind === "media" || kind === "text") renderBench();
+    }
   }
 
   // Panel açıkken başka bir yere dokununca kapanır (Kapat'a basmak gerekmez).
@@ -2818,7 +2897,10 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   const resizeObserver = new ResizeObserver(() => fit());
   resizeObserver.observe(editorBody);
   let fitTimer = 0;
-  const onWindowResize = () => { clearTimeout(fitTimer); fitTimer = setTimeout(fit, 80); };
+  const onWindowResize = () => {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(() => { fit(); if (popover && popover._yerlestir) requestAnimationFrame(() => popover && popover._yerlestir && popover._yerlestir()); }, 80);
+  };
   window.addEventListener("resize", onWindowResize);
   window.addEventListener("orientationchange", onWindowResize);
   attachEditorGestures(editorBody, {
@@ -2856,6 +2938,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     if (bolme && !screen.parentElement?.classList.contains("aktif")) return;
     const yaziyor = e.target && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName));
     const komut = e.metaKey || e.ctrlKey;
+    // Yazıyı düzenle açıkken ⌘Z / ⌘⇧Z yalnız düzenlemeyi bırakır ve paneli kapatır (önceki adımı geri almaz).
+    if (komut && e.key.toLowerCase() === "z" && !yaziyor && popover && popover.dataset.kind === "yazi") { e.preventDefault(); closePopover(); return; }
     if (komut && e.key.toLowerCase() === "z" && !yaziyor) { e.preventDefault(); if (e.shiftKey) activeInk && activeInk.redo(); else activeInk && activeInk.undo(); return; }
     if (komut && e.key.toLowerCase() === "f") { e.preventDefault(); aramaAc(); return; }
     if (komut && e.key === ".") { e.preventDefault(); odakModu(!screen.classList.contains("odak")); return; }

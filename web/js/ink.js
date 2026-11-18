@@ -9,6 +9,7 @@
 // - PDF metni: fosforlu ya da altı çizme, PDF'teki satıra hizalanır (options.textLines).
 // - Geri al / ileri al sayfa başına tutulur.
 import { uid, store } from "./store.js";
+import { yaziyiCozumle, yaziDonusumleri, noktalariDonustur } from "./duzenle.js";
 
 const HISTORY_LIMIT = 60;
 // Yumuşatma zaman sabiti (ms): Kapalı, Yumuşak, İpek, Akıcı. Eskiden her noktada sabit bir
@@ -435,6 +436,9 @@ export class InkCanvas {
       const eps = Math.max(0.12, 0.35 / Math.max(1, this.viewScale || 1));   // yakınken daha az sadeleştir
       stroke.points = simplify(stroke.points, eps);
     }
+    // Şekil aracından ya da basılı-tut düzeltmesinden çıkan çizgi kalıcı olarak işaretlenir: "pen" diye
+    // kaydedildiği için Yazıyı düzenle onu yazı sanıp ölçekliyordu (duzenle.js sekil'i dışarıda bırakır).
+    if (stroke.shape) stroke.sekil = true;
     delete stroke.shape;
     delete stroke.shapeBase;
     delete stroke.shapeHandle;
@@ -562,6 +566,71 @@ export class InkCanvas {
     this.transformSelection(transform);
   }
 
+  // ---- yazıyı düzenle (kelimeleri aynı boya, düz satıra, eşit aralığa getir; bkz. duzenle.js) ----
+
+  /**
+   * Seçimi çözümler ve düzenlemeyi başlatır. Yazı yoksa null.
+   * Önizleme sayfanın verisine DOKUNMAZ: dönüşmüş noktalar yalnız çizimde kullanılır (yaziOturum.onizleme).
+   * Böylece önizleme sırasında dolan kayıt zamanlayıcısı ya da sayfa değişimi reddedilecek düzenlemeyi
+   * IndexedDB'ye / sürüm geçmişine yazamaz; Vazgeç'in geri yükleyeceği bir şey de kalmaz.
+   */
+  yaziDuzenleBaslat() {
+    const strokes = this.selectedStrokes();
+    if (!strokes.length) return null;
+    const cozum = yaziyiCozumle(strokes);
+    if (!cozum.kelimeler.length) return null;
+    this.yaziOturum = { cozum, onizleme: null, plan: null };
+    return cozum;
+  }
+
+  /** Canlı önizleme. ayar.sayfa verilmezse sonuç bu sayfaya sığdırılır. Kullanılan boyu döndürür. */
+  yaziDuzenleOnizle(ayar) {
+    const o = this.yaziOturum;
+    if (!o) return null;
+    const plan = yaziDonusumleri(o.cozum, { sayfa: this.page.size, ...ayar });
+    const onizleme = new Map();
+    for (const stroke of this.selectedStrokes()) {
+      const d = plan.get(stroke.id);
+      if (d) onizleme.set(stroke.id, noktalariDonustur(stroke.points, d));
+    }
+    o.plan = plan;
+    o.onizleme = onizleme;
+    this.redraw();
+    return plan.boy;
+  }
+
+  /** Önizlemedeki yazının kutusu (sayfa biriminde); panelin yerini seçmek için. */
+  yaziOnizlemeKutusu() {
+    const o = this.yaziOturum;
+    if (!o || !o.onizleme) return this.selectionBounds();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of this.selectedStrokes()) for (const p of o.onizleme.get(s.id) || s.points) {
+      minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]);
+    }
+    return minX === Infinity ? null : { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  /** Uygula: tek geri-al adımı. Kalınlık (width) değişmez: yazı kalemle aynı kalınlıkta kalır. */
+  yaziDuzenleUygula() {
+    const o = this.yaziOturum;
+    if (!o) return;
+    this.yaziOturum = null;
+    if (o.onizleme && o.onizleme.size) {
+      this.pushHistory();
+      this.page.strokes = this.page.strokes.map((s) => (o.onizleme.has(s.id) ? { ...s, points: o.onizleme.get(s.id) } : s));
+    }
+    this.redraw();
+    this.commit();
+    if (this.options.onSelection) this.options.onSelection(this.selectionBounds());
+  }
+
+  /** Vazgeç: yalnız önizleme bırakılır; sayfa verisi ve geri-al yığını hiç değişmemişti. */
+  yaziDuzenleVazgec() {
+    if (!this.yaziOturum) return;
+    this.yaziOturum = null;
+    this.redraw();
+  }
+
   deleteSelection() {
     if (!this.selection) return;
     this.pushHistory();
@@ -637,6 +706,7 @@ export class InkCanvas {
   get canRedo() { return this.redoStack.length > 0; }
 
   undo() {
+    if (this.yaziOturum) { this.yaziDuzenleVazgec(); return; }
     if (!this.canUndo) return;
     this.redoStack.push(this.snapshot());
     this.page.strokes = this.undoStack.pop();
@@ -647,6 +717,7 @@ export class InkCanvas {
   }
 
   redo() {
+    if (this.yaziOturum) { this.yaziDuzenleVazgec(); return; }
     if (!this.canRedo) return;
     this.undoStack.push(this.snapshot());
     this.page.strokes = this.redoStack.pop();
@@ -682,7 +753,10 @@ export class InkCanvas {
     // Fosforlu çizgiler yazının altında kalsın diye önce çizilir.
     // Sesli tekrar: kaydın henüz gelmediği anlarda yazılan çizgiler soluk çiziliyor.
     const soluk = this.options.soluk || null;
-    for (const stroke of orderForDrawing(this.page.strokes)) {
+    // Yazıyı düzenle önizlemesi: veriye yazılmadan, dönüşmüş noktalarla çizilir.
+    const onizleme = this.yaziOturum && this.yaziOturum.onizleme;
+    const liste = onizleme ? this.page.strokes.map((s) => (onizleme.has(s.id) ? { ...s, points: onizleme.get(s.id) } : s)) : this.page.strokes;
+    for (const stroke of orderForDrawing(liste)) {
       if (selected && selected.has(stroke.id)) drawHighlight(ctx, stroke);
       if (soluk && stroke.ses && soluk(stroke)) drawStroke(ctx, { ...stroke, alpha: (stroke.alpha == null ? 1 : stroke.alpha) * 0.16 });
       else drawStroke(ctx, stroke);

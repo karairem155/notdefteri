@@ -280,8 +280,52 @@ export function selectionPanel(ctx) {
     row("pen", "Renk Değiştir", "Seçilen içeriğin rengini değiştir", () => ctx.openColor({ onPick: sel.recolor, title: "Seçim Rengi" })),
     row("layerUp", "Öne Al", "Bir katman öne getir", sel.front),
     row("layerDown", "Arkaya Gönder", "Bir katman arkaya gönder", sel.back),
+    sel.duzenle ? row("text", "Yazıyı Düzenle", "Boyu, satırı ve aralığı eşitle", sel.duzenle) : null,
     h("div", { class: "sp-sep" }),
     row("trash", "Seçimi Sil", null, sel.remove, "danger"));
+}
+
+// ---------- Yazıyı düzenle ----------
+
+/**
+ * Seçilen el yazısını aynı boya, düz satıra, eşit aralığa getirir (tanıma yok; bkz. duzenle.js).
+ * ctx: { close, varsayilan: { boy, aralik }, satirSayisi, cizgi: null | { aralik, ofset }, onizle(ayar), uygula() }
+ * Kaydırırken sayfada canlı önizlenir; Vazgeç ya da paneli kapatmak her şeyi geri koyar.
+ */
+export function yaziPanel(ctx) {
+  const v = ctx.varsayilan;
+  const ayar = { boy: v.boy, aralik: v.aralik, siddet: 1 };
+  let otur = !!ctx.cizgi;
+  const sigdi = h("div", { class: "sp-row-sub", style: { minHeight: "1em" } });
+  const gonder = () => {
+    // Önizleme kullanılan boyu döndürür: sayfaya sığmak için küçüldüyse söylenir.
+    const kullanilan = ctx.onizle({ ...ayar, cizgi: otur ? ctx.cizgi : null });
+    sigdi.textContent = kullanilan && kullanilan < ayar.boy * 0.99 ? `Sayfaya sığsın diye %${Math.round((kullanilan / v.boy) * 100)} oldu` : "";
+  };
+  const boyDeger = h("span", { class: "sp-value" }, "%100");
+  const aralikDeger = h("span", { class: "sp-value" }, ayar.aralik.toFixed(1) + "×");
+  const siddetDeger = h("span", { class: "sp-value" }, "%100");
+  // Adım "any": %1'lik adım değeri yuvarlıyordu (%250 yerine %248, başlangıç 7.18 → 7.25).
+  const boyMin = v.boy * 0.4, boyMax = v.boy * 2.5;
+  const panel = shell({ title: "Yazıyı Düzenle", icon: "text" }, ctx.close,
+    h("div", { class: "sp-row-sub" }, "Kelimeler aynı boya, düz satıra ve eşit aralığa gelir; harflerin şekli değişmez."),
+    h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Yazı boyu"), boyDeger),
+    slider({ min: boyMin, max: boyMax, step: "any", value: v.boy, label: "Yazı boyu",
+      onInput: (x) => { ayar.boy = x; boyDeger.textContent = "%" + Math.round((x / v.boy) * 100); gonder(); } }),
+    sigdi,
+    ctx.satirSayisi > 1 ? h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Satır aralığı"), aralikDeger) : null,
+    ctx.satirSayisi > 1 ? slider({ min: 1.2, max: 8, step: 0.1, value: ayar.aralik, label: "Satır aralığı",
+      onInput: (x) => { ayar.aralik = x; aralikDeger.textContent = x.toFixed(1) + "×"; gonder(); } }) : null,
+    ctx.cizgi ? toggleRow("Çizgiye otur", "Satırlar sayfa çizgisinin üstüne oturur.", otur, (x) => { otur = x; gonder(); }) : null,
+    h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Düzeltme şiddeti"), siddetDeger),
+    slider({ min: 0, max: 100, step: 5, value: 100, label: "Düzeltme şiddeti",
+      onInput: (x) => { ayar.siddet = x / 100; siddetDeger.textContent = "%" + x; gonder(); } }),
+    h("div", { class: "yazi-dugmeler", style: { display: "flex", gap: "10px", marginTop: "20px" } },
+      h("button", { type: "button", class: "btn", style: { flex: "1" }, onTap: ctx.close }, "Vazgeç"),
+      h("button", { type: "button", class: "btn primary", style: { flex: "1" }, onTap: ctx.uygula }, "Uygula")));
+  // Açılır açılmaz varsayılanla önizle: kullanıcı sonucu hemen görür.
+  gonder();
+  return panel;
 }
 
 // ---------- Favoriler ----------
