@@ -544,3 +544,11 @@ html[data-cubuk-acik] .ses-kapat { background: rgba(23, 42, 69, 0.1); }
 
 /* Nesne sürüklerken Safari'nin bıraktığı gölge izleri: her nesne kendi katmanında çizilsin */
 .layer-objects.editing .placed { will-change: transform, left, top; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+
+/* ===== Cam kapak (defter) ===== */
+.cover-cam .cover-front { background: #fbf8f2; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55); }
+.cover-cam .cam-kagit { position: absolute; inset: 0; background: #fbf8f2; }
+.cover-cam .cam-sayfa { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.cover-cam .cam-renk { position: absolute; inset: 0; }
+.cover-cam .cam-desen { opacity: 0.55; }
+.cover-cam .cam-isik { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.06) 45%, rgba(0, 0, 0, 0.08)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), inset 4px 0 0 rgba(0, 0, 0, 0.1); border-radius: inherit; }

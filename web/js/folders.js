@@ -11,6 +11,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 let sayac = 0;
 
 export const FOLDER_MATERIALS = [
+  { id: "cam", name: "Buzlu cam" },
   { id: "kroko", name: "Kroko" },
   { id: "deri", name: "Düz deri" },
   { id: "keten", name: "Keten" },
@@ -23,7 +24,7 @@ export const FOLDER_COLORS = [
   "#D9C7A8", "#6B7B5E"
 ];
 
-export const DEFAULT_FOLDER = { color: "#7B1E22", material: "kroko" };
+export const DEFAULT_FOLDER = { color: "#8C3B2E", material: "cam" };   // 13 Kas: kullanıcı B buzlu camı seçti
 
 /** Klasörün görünümü; kullanıcı seçmediyse ada göre sabit bir renk. */
 export function folderStyle(name) {
@@ -211,7 +212,62 @@ const DOKULAR = { kroko, deri, keten, karton };
  *
  * `style` = { color, material }. Oran 4:3, sekme sağ üstte.
  */
-export function folderElement(style, { className = "", count = 0 } = {}) {
+/**
+ * Buzlu cam ön kapak (13 Kas, kullanıcının seçtiği "B"): içerideki defterlerin
+ * kapakları önün üstünden hafifçe görünüyor, önün arkasında ise bulanık seçiliyor.
+ * Cam etkisi backdrop-filter ile değil, kapakların bulanıklaştırılmış kopyasıyla
+ * veriliyor: SVG'de ölçeklenebilir ve iPad'de her boyutta aynı.
+ */
+function camOn(svg, defs, { id, W, H, renk, onYol, kapaklar }) {
+  const bulanik = el("filter", { id: id + "-buz", x: "-20%", y: "-20%", width: "140%", height: "140%" });
+  bulanik.append(el("feGaussianBlur", { stdDeviation: "3.4" }));
+  defs.append(bulanik);
+  const isik = el("linearGradient", { id: id + "-cam", x1: "0", y1: "0", x2: "0.55", y2: "1" });
+  isik.append(el("stop", { offset: "0", "stop-color": "rgba(255,255,255,0.42)" }));
+  isik.append(el("stop", { offset: "0.45", "stop-color": "rgba(255,255,255,0.06)" }));
+  isik.append(el("stop", { offset: "1", "stop-color": "rgba(0,0,0,0.12)" }));
+  defs.append(isik);
+
+  // Kapaklar: en çok üç defter, hafif dönük, arka arkaya (iki kez çiziliyor: önde net, camın ardında bulanık)
+  const eklenenKirpmalar = new Set();
+  const kapakGrubu = () => {
+    const g = el("g");
+    kapaklar.slice(0, 3).forEach((c, i) => {
+      const w = 43, hh = 58, x = 12 + i * 24, y = 6 + i * 2;
+      const kg = el("g", { transform: `rotate(${-4 + i * 4} ${x + w / 2} ${y + hh})` });
+      const yol = yuvarlakDikdortgen(x, y, w, hh, 2.5);
+      kg.append(el("path", { d: yol, fill: (c && c.color) || "#F4A7C0" }));
+      if (c && c.imageAsset) {
+        const kid = `${id}-k${i}`;
+        if (!eklenenKirpmalar.has(kid)) {
+          eklenenKirpmalar.add(kid);
+          const kp = el("clipPath", { id: kid });
+          kp.append(el("path", { d: yol }));
+          defs.append(kp);
+        }
+        const im = el("image", { x: String(x), y: String(y), width: String(w), height: String(hh), preserveAspectRatio: "xMidYMid slice", "clip-path": `url(#${kid})` });
+        store.assetURL(c.imageAsset).then((url) => { if (url) im.setAttribute("href", url); });
+        kg.append(im);
+      }
+      kg.append(el("path", { d: yol, fill: "none", stroke: "rgba(0,0,0,0.18)", "stroke-width": "0.5" }));
+      g.append(kg);
+    });
+    return g;
+  };
+  if (kapaklar.length) svg.append(kapakGrubu());
+  const on = el("g", { "clip-path": `url(#${id}-kirp)` });
+  if (kapaklar.length) {
+    const arkada = kapakGrubu();
+    arkada.setAttribute("filter", `url(#${id}-buz)`);
+    on.append(arkada);
+  }
+  on.append(el("path", { d: onYol, fill: renk, opacity: kapaklar.length ? "0.62" : "0.9" }));
+  on.append(el("path", { d: onYol, fill: `url(#${id}-cam)` }));
+  svg.append(on);
+  svg.append(el("path", { d: onYol, fill: "none", stroke: "rgba(255,255,255,0.55)", "stroke-width": "1.1" }));
+}
+
+export function folderElement(style, { className = "", count = 0, kapaklar = [] } = {}) {
   const s = style && style.color ? style : DEFAULT_FOLDER;
   const renk = s.color;
   const id = "klasor" + (++sayac);
@@ -255,6 +311,10 @@ export function folderElement(style, { className = "", count = 0 } = {}) {
 
   // Arka kapak: sol üstte, önün sekmesinin altından görünen koyu kısım.
   svg.append(el("path", { d: yuvarlakDikdortgen(0, 0, W, H, 6), fill: koyu(renk, 0.52) }));
+  if (s.material === "cam" && !s.imageAsset) {
+    camOn(svg, defs, { id, W, H, renk, onYol, kapaklar: count > 0 ? kapaklar : [] });
+    return h("div", { class: "klasor klasor-cam " + className, style: { "--klasor": renk } }, svg);
+  }
   // İçerideki kâğıt: klasör doluysa kapağın üstünden iki ince yaprak görünüyor.
   // Dar tutuluyor ki klasörün derisi de görünsün.
   if (count > 0) {

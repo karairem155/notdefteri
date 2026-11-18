@@ -2,6 +2,72 @@
 import { h, openModal, closeModal } from "./ui.js";
 import { store, COVER_PRESETS } from "./store.js";
 
+// ── Cam kapak (18 Kas, kullanıcının seçtiği "2") ────────────────────────────
+//
+// Kapak buzlu renkli cam; altından defterin ilk sayfası (yazısıyla) bulanık
+// seçiliyor. Ayarlar > Kapak görünümü "Düz" ise eski düz kapak. Fotoğraflı
+// kapaklar her durumda fotoğraf olarak kalıyor.
+export const camKapakAcik = () => store.settings.kapakGorunumu !== "duz";
+const ilkSayfaOnbellek = new Map();   // anahtar -> { bekleyen öğeler, söz }
+let ilkSayfaKuyruk = Promise.resolve();
+
+/** Camın örtücülüğü: koyu kapak rengi açık sayfanın üstünde grileşmesin diye daha az geçirgen. */
+function camOrtusu(hex) {
+  const t = String(hex || "#F4A7C0").replace("#", "");
+  const n = t.length === 3 ? t.split("").map((c) => c + c).join("") : t;
+  const [r, g, b] = [0, 2, 4].map((i) => (parseInt(n.slice(i, i + 2), 16) || 0) / 255);
+  const parlaklik = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return 0.58 + (1 - parlaklik) * 0.32;
+}
+
+function rgba(hex, a) {
+  const t = String(hex || "#F4A7C0").replace("#", "");
+  const n = t.length === 3 ? t.split("").map((c) => c + c).join("") : t;
+  return `rgba(${parseInt(n.slice(0, 2), 16) || 0},${parseInt(n.slice(2, 4), 16) || 0},${parseInt(n.slice(4, 6), 16) || 0},${a})`;
+}
+
+/**
+ * Defterin ilk sayfasının çok küçük görüntüsü (40 px genişlik).
+ *
+ * Kasıtlı olarak küçük: kapakta büyütülünce kendiliğinden bulanık duruyor, CSS
+ * blur'a gerek kalmıyor (iPad'de rafta onlarca filtre kaydırmayı ağırlaştırırdı).
+ * - Önbellekte söz (promise) tutuluyor: aynı defter için eşzamanlı istekler tek çizim.
+ * - PDF sayfasında PDF açılmıyor (kütüphane açılırken bütün PDF'ler belleğe dolardı):
+ *   yalnız kâğıt + mürekkep.
+ * - `oge` verilirse ve iş sırası geldiğinde öğe artık sayfada değilse çizim atlanıyor.
+ */
+const SAYFA_GENISLIK = 40;
+export function ilkSayfaGorseli(notebook, { oge = null } = {}) {
+  const sayfa = notebook && notebook.pages && notebook.pages[0];
+  if (!sayfa) return Promise.resolve(null);
+  const anahtar = `${notebook.id}:${sayfa.id}:${(sayfa.strokes || []).length}:${(sayfa.objects || []).length}:${notebook.updatedAt || 0}`;
+  const var_ = ilkSayfaOnbellek.get(anahtar);
+  if (var_) { var_.bekleyen.add(oge || ZORUNLU); return var_.is; }
+  const kayit = { bekleyen: new Set([oge || ZORUNLU]), is: null };
+  kayit.is = ilkSayfaKuyruk.then(async () => {
+    // Bekleyenlerin hiçbiri artık sayfada değilse (raf yeniden çizildi, ekrandan çıkıldı) çizme.
+    if (![...kayit.bekleyen].some((o) => o === ZORUNLU || o.isConnected)) { ilkSayfaOnbellek.delete(anahtar); return null; }
+    try {
+      const { renderPageCanvas } = await import("./pagerender.js");
+      const pdfli = !!sayfa.pdf;
+      const canvas = await renderPageCanvas(sayfa, SAYFA_GENISLIK / sayfa.size.w, pdfli ? { background: false, opaque: true } : { background: true, opaque: true });
+      const url = canvas.toDataURL("image/jpeg", 0.8);
+      sonGorsel.set(notebook.id, url);
+      return url;
+    } catch (_) { return null; }
+  });
+  for (const k of [...ilkSayfaOnbellek.keys()]) if (k.startsWith(notebook.id + ":")) ilkSayfaOnbellek.delete(k);
+  ilkSayfaOnbellek.set(anahtar, kayit);
+  ilkSayfaKuyruk = kayit.is.catch(() => {});
+  return kayit.is;
+}
+const ZORUNLU = { isConnected: true };   // öğesiz istek (editör): her durumda çiz
+const sonGorsel = new Map();   // defter id -> en son üretilen görüntü (sürüm fark etmeksizin)
+/** Beklemeden: bu defter için elde olan en son görüntü (yoksa null). */
+export function ilkSayfaHazir(notebook) {
+  return (notebook && sonGorsel.get(notebook.id)) || null;
+}
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function svgEl(tag, attrs = {}) {
@@ -94,8 +160,9 @@ export function fitYerlesim(iw, ih, w, h, fit) {
 }
 
 /** Kapak öğesi. `cover` = { pattern, color, imageAsset?, imageFit? }. Oran 100:135. */
-export function coverElement(cover, { className = "" } = {}) {
+export function coverElement(cover, { className = "", notebook = null } = {}) {
   const c = cover || store.settings.defaultCover || COVER_PRESETS[5];
+  if (notebook && camKapakAcik() && !c.imageAsset) return camKapak(c, notebook, className);
   // Gerçek 3B kitap: arka kapak (z=0), sırt (sol yüz), sayfa bloğu (sağ, üst, alt yüzler), ön kapak (z=kalınlık).
   const wrap = h("div", { class: "cover " + className, style: { "--cover": c.color } });
   const front = h("div", { class: "cover-front", style: { background: c.color } });
@@ -110,6 +177,33 @@ export function coverElement(cover, { className = "" } = {}) {
     front.append(svg);
   }
   front.append(h("div", { class: "cover-sheen" }));
+  wrap.append(
+    h("div", { class: "cover-back" }),
+    h("div", { class: "book-spine" }),
+    h("div", { class: "book-pages" }),
+    h("div", { class: "book-top" }),
+    h("div", { class: "book-bottom" }),
+    front);
+  return wrap;
+}
+
+/** Cam kapaklı defter: ilk sayfa altta bulanık, üstünde renkli buzlu cam. */
+function camKapak(c, notebook, className) {
+  const wrap = h("div", { class: "cover cover-cam " + className, style: { "--cover": c.color } });
+  const sayfa = h("img", { class: "cam-sayfa", alt: "", draggable: "false" });
+  const hazir = ilkSayfaHazir(notebook);
+  if (hazir) sayfa.src = hazir;
+  ilkSayfaGorseli(notebook, { oge: sayfa }).then((url) => { if (url && url !== sayfa.src) sayfa.src = url; });
+  const front = h("div", { class: "cover-front" },
+    h("div", { class: "cam-kagit" }),
+    sayfa,
+    h("div", { class: "cam-renk", style: { background: rgba(c.color, camOrtusu(c.color)) } }));
+  if (c.pattern && c.pattern !== "plain") {
+    const svg = svgEl("svg", { viewBox: "0 0 100 135", preserveAspectRatio: "none", "aria-hidden": "true", class: "cam-desen" });
+    svg.append(patternGroup(c.pattern));
+    front.append(svg);
+  }
+  front.append(h("div", { class: "cam-isik" }));
   wrap.append(
     h("div", { class: "cover-back" }),
     h("div", { class: "book-spine" }),
@@ -189,7 +283,7 @@ function patternOnCanvas(ctx, pattern, w, h) {
  * için kapak dönüşü de sayfa kıvrımı gibi tuvalde yapılıyor). Desen SVG yerine
  * doğrudan tuval çizimiyle üretiliyor: aynı görüntü, ara adım yok.
  */
-export async function coverBitmap(cover, w, h) {
+export async function coverBitmap(cover, w, h, { notebook = null } = {}) {
   const c = cover || store.settings.defaultCover || COVER_PRESETS[5];
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(w));
@@ -197,7 +291,27 @@ export async function coverBitmap(cover, w, h) {
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = c.color || "#F4A7C0";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  if (c.imageAsset) {
+  if (notebook && camKapakAcik() && !c.imageAsset) {
+    // Cam kapak: ilk sayfa küçültülüp büyütülerek bulanıklaşıyor (ctx.filter her Safari'de yok).
+    ctx.fillStyle = "#fbf8f2";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Kuyruğu beklemiyor: elde görüntü varsa onu kullanıyor (defter açılışı gecikmesin);
+    // yoksa arka planda üretimi başlatıp sayfasız camla devam ediyor.
+    const url = ilkSayfaHazir(notebook);
+    if (!url) ilkSayfaGorseli(notebook);
+    if (url) {
+      const img = await new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = url; });
+      if (img) {
+        // Rafla aynı yerleşim: kapağı kaplayacak kadar büyüt, üstten hizala.
+        const k = Math.max(canvas.width / img.width, canvas.height / img.height);
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, (canvas.width - img.width * k) / 2, 0, img.width * k, img.height * k);
+      }
+    }
+    ctx.fillStyle = rgba(c.color, camOrtusu(c.color));
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (c.pattern && c.pattern !== "plain") patternOnCanvas(ctx, c.pattern, canvas.width, canvas.height);
+  } else if (c.imageAsset) {
     const url = await store.assetURL(c.imageAsset);
     if (url) {
       const img = await new Promise((res) => {

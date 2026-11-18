@@ -41,6 +41,7 @@ export function renderSettings(root) {
         section("SAYFA", h("div", { class: "settings-rows" },
           row("Masa", select([["marka", "Marka (varsayılan)"], ["gul", "Gül"], ["pudra", "Pudra kâğıt"], ["gece", "Gece mavisi"], ["krem", "Krem keten"], ["pembe", "Pembe keçe"], ["ceviz", "Ceviz ahşap"], ["lacivert", "Lacivert cam (eski)"]], s.masa || "marka", (v) => { store.setSetting("masaSecildi3", true); store.setSetting("masa", v); })),
           row("Çubuk rengi", cubukRenkSecici()),
+          row("Kapak görünümü", select([["cam", "Buzlu cam (ilk sayfa görünür)"], ["duz", "Düz renk"]], s.kapakGorunumu || "cam", (v) => store.setSetting("kapakGorunumu", v))),
           row("Varsayılan sayfa boyutu", select(pageSizeOptions(), s.pageSize, (v) => store.setSetting("pageSize", v))),
           row("Varsayılan görünüm", select([["single", "Tek sayfa"], ["spread", "Çift sayfa"]], s.spreadMode ? "spread" : "single", (v) => store.setSetting("spreadMode", v === "spread"))),
           row("Yeni sayfa şablonu", h("button", { class: "btn small", type: "button", style: { color: "var(--muted)" }, onTap: newPageTemplateMenu }, newPageTemplateTitle(), " ", svgIcon("forward", 14))),

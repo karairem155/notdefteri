@@ -137,6 +137,8 @@ const DEFAULT_SETTINGS = {
   rulerSnap: true,           // cetvele ve 15° açılara yapışma
   otoCeviri: true,           // PDF metni seçilince / fosforluyla çizilince yanında çeviri açılsın
   ozelFircalar: [],          // içe aktarılan desen fırçaları: [{ asset, ad }]
+  kapakGorunumu: "cam",      // "cam": buzlu cam kapak (ilk sayfa altta), "duz": eski düz kapak
+  klasorCamGecis: false,     // eski kroko klasörler bir kez buzlu cama çevrildi mi
   karalamaSilme: true,       // yazının üstünü karalayınca silinsin
   pdfHizala: true,           // PDF'te fosforlu ve kalem metin satırına hizalansın
   fosforluAralik: [3, 18],   // PDF satırına hizalanan fosforlunun en ince / en kalın hâli
@@ -221,6 +223,16 @@ class Store extends EventTarget {
     if (!this.settings.openModeByUser) this.settings.openMode = "page";
     // Varsayılan marka masası: kullanıcı yeniden seçene kadar herkes onda.
     if (!this.settings.masaSecildi3) this.settings.masa = "marka";
+    // 13 Kas: kullanıcı buzlu cam klasörü seçti; eski varsayılan kroko klasörler bir kez cama geçiyor
+    // (renkleri ve kendi görselleri korunuyor; istenirse Klasör Görünümü'nden geri alınır).
+    if (!this.settings.klasorCamGecis) {
+      const stiller = { ...(this.settings.folderStyles || {}) };
+      for (const [ad, st] of Object.entries(stiller)) if (st && st.material === "kroko" && !st.imageAsset) stiller[ad] = { ...st, material: "cam" };
+      this.settings.folderStyles = stiller;
+      this.settings.klasorCamGecis = true;
+      db.setSetting("folderStyles", stiller).catch(() => {});
+      db.setSetting("klasorCamGecis", true).catch(() => {});
+    }
     // Eski "Sadece Apple Pencil" ayarı kapatılmışsa parmak çizsin.
     if (this.settings.pencilOnly === false && !settingsRows.some((r) => r.key === "fingerAction")) this.settings.fingerAction = "draw";
     if (this.notebooks.length === 0) {

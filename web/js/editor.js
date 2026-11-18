@@ -1065,7 +1065,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       // yüzünden defterden çıkamamak olmaz.
       const [front, under, other] = await Promise.race([
         Promise.all([
-          coverBitmap(kapak, leafW * res, leafH * res),
+          coverBitmap(kapak, leafW * res, leafH * res, { notebook: nb() }),
           flipBitmap(main),
           pair ? flipBitmap(leftPage) : null
         ]),

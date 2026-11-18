@@ -338,7 +338,7 @@ export function renderLibrary(root) {
     try { if (localStorage.getItem(DEVAM_KAPALI) === `${ilk.id}:${ilk.zaman}`) return null; } catch (_) { /* özel kip */ }
     const n = ilk.notebook;
     const sira = Math.max(0, n.pages.findIndex((p) => p.id === ilk.sayfa));
-    const kapak = coverElement(n.cover);
+    const kapak = coverElement(n.cover, { notebook: n });
     const serit = h("div", { class: "devam-serit", role: "button", tabindex: "0", "aria-label": `Kaldığın yerden devam et: ${n.title}, ${sira + 1}. sayfa`,
       onTap: (e) => { dokunusIsaretle(e); openNotebook(n, kapak); } },
       h("div", { class: "devam-kapak" }, kapak),
@@ -359,7 +359,7 @@ export function renderLibrary(root) {
   /** Raftaki tek öğe: dokununca açılıyor, uzun basınca menü. */
   function rafOgesi(hucre) {
     if (hucre.tur === "klasor") {
-      const klasor = folderElement(folderStyle(hucre.ad), { count: hucre.sayi });
+      const klasor = folderElement(folderStyle(hucre.ad), { count: hucre.sayi, kapaklar: store.activeNotebooks.filter((n) => n.folder === hucre.ad).slice(0, 3).map((n) => n.cover || store.settings.defaultCover) });
       const oge = h("div", { class: "raf-oge raf-klasor", role: "button", tabindex: "0", dataset: { klasor: hucre.ad }, "aria-label": `${hucre.ad} klasörü, ${hucre.sayi} defter` }, klasor);
       pressable(oge, {
         onTap: () => { currentFolder = hucre.ad; currentIndex = 0; render(); },
@@ -369,7 +369,7 @@ export function renderLibrary(root) {
       return [oge, etiket];
     }
     const notebook = hucre.notebook;
-    const cover = coverElement(notebook.cover);
+    const cover = coverElement(notebook.cover, { notebook });
     const oge = h("div", { class: "raf-oge raf-defter", role: "button", tabindex: "0", "aria-label": `${notebook.title}, ${notebook.pages.length} sayfa` }, cover);
     // Sekmeli defterde kapağın kenarından minik bayraklar görünüyor.
     const sekmeli = notebook.pages.filter((p) => p.sekme);
@@ -454,7 +454,7 @@ export function renderLibrary(root) {
       const secili = index === currentIndex;
       let cell;
       if (hucre.tur === "klasor") {
-        const klasor = folderElement(folderStyle(hucre.ad), { count: hucre.sayi });
+        const klasor = folderElement(folderStyle(hucre.ad), { count: hucre.sayi, kapaklar: store.activeNotebooks.filter((n) => n.folder === hucre.ad).slice(0, 3).map((n) => n.cover || store.settings.defaultCover) });
         klasor.append(h("div", { class: "cover-hit" }));
         cell = h("div", { class: "carousel-item klasor-hucre" + (secili ? " current" : ""), role: "listitem", dataset: { index: String(index) }, "aria-label": `${hucre.ad} klasörü, ${hucre.sayi} defter` },
           h("div", { class: "cover-wrap" }, klasor),
@@ -611,7 +611,7 @@ export function renderLibrary(root) {
     const malzemeler = h("div", { class: "klasor-malzemeler" });
     const sayi = store.activeNotebooks.filter((n) => n.folder === name).length;
     const tazele = () => {
-      onizleme.replaceChildren(folderElement(secili, { count: sayi }));
+      onizleme.replaceChildren(folderElement(secili, { count: sayi, kapaklar: store.activeNotebooks.filter((n) => n.folder === name).slice(0, 3).map((n) => n.cover || store.settings.defaultCover) }));
       renkler.querySelectorAll(".klasor-renk").forEach((el) => el.classList.toggle("secili", el.dataset.renk === secili.color));
       malzemeler.querySelectorAll(".klasor-malzeme").forEach((el) => {
         el.classList.toggle("secili", !secili.imageAsset && el.dataset.malzeme === secili.material);
