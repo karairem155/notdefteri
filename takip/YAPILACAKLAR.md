@@ -17,10 +17,28 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 
 ## Kullanıcıdan cevap bekleyenler
 
-- [?] **Blender raf görünümü**: gerçekçi mi, yumuşak mı, arası mı? Klasörde mevcut "pul" deseni kalsın mı? — `tasarim/blender/raf-denemesi.png` gönderildi (8 Kas). Klasör şekli onaylı: uygulamadaki yatay, sağ üstte çapraz dilli şekil (`web/js/folders.js`); dosya klasörü şekli REDDEDİLDİ.
-- [?] **Kapak açılış sesi** (sayfa sesinden farklı): ElevenLabs ile üretim için açık izin bekleniyor (~30–40 kredi). İzinsiz üretme.
-- [?] **Görsel kaydırırken altta çok sayıda gölge** (8 Kas): Safari gölge izi düzeltmesi v106'da yapıldı ama bilgisayarda üretilemedi. Kullanıcıdan: ekran kaydı + fotoğraf düzenleme modunda mı taşınıyordu, sayfa mı kaydırılıyordu.
-- [?] **App Store yolu**: web'i paketleyen kabuk (öneri) mi, native'e taşıma mı? Eski Swift kodu `Sources/PencilPages` ayrıca duruyor. Fiyat önerisi: yıllık ₺499,99 / ömür boyu ₺999,99 / aylık ₺99,99. El yazısı OCR ücreti "app bitince konuşulacak".
+- [?] **Blender defter görünümü**: gerçekçi mi, yumuşak mı, arası mı? — `tasarim/blender/raf-denemesi.png` gönderildi (8 Kas). 13 Kas'ta kullanıcı yalnız klasör için yeni referans verdi (aşağıda "Yapılıyor"); defter kararı hâlâ açık. 18 Kas: B ile uyumlu defter için **cam kapak** seçildi (aşağıda) → bu soru **askıda**; cam kapak "şimdilik" olduğu için kapatılmadı.
+- [?] **Görsel kaydırırken altta çok sayıda gölge** (8 Kas): Safari gölge izi düzeltmesi v106'da yapıldı ama bilgisayarda üretilemedi. 13 Kas: kullanıcı v106'dan sonra hâlâ çıktığını söyledi ("evet") → **v106 düzeltmesi işe yaramadı**. Bekleniyor: ekran kaydı + fotoğraf düzenleme modunda mı taşınıyordu, sayfa mı kaydırılıyordu.
+- [?] **App Store yolu**: web'i paketleyen kabuk (öneri) mi, native'e taşıma mı? Eski Swift kodu `Sources/PencilPages` ayrıca duruyor. Fiyat önerisi: yıllık ₺499,99 / ömür boyu ₺999,99 / aylık ₺99,99. El yazısı OCR ücreti "app bitince konuşulacak". 13 Kas: kullanıcı "bakıcam" dedi — kendisi inceleyecek, acele ettirme.
+
+- [?] **Kapak açılış sesi** (sayfa sesinden farklı): ElevenLabs izni verildi ("evet", 13 Kas; ~30–40 kredi). 13 Kas: 3 deneme gönderildi — `tasarim/ses/kapak-1-hazir.mp3`, `kapak-2-hazir.mp3`, `kapak-3-hazir.mp3` (36 kredi). Bekleniyor: hangisi (ya da hiçbiri).
+- [?] **Klasör yelpazesi B'ye de eklensin mi?** (13 Kas) — denemede yelpaze yalnız C'de gösterildi; B seçildi ama yelpaze için cevap yok.
+- [?] **Genel arayüz daha sade olabilir** — kullanıcı bakacak, acele ettirme (18 Kas, "tasarımlarımız genel arayüz içime sinmiyor onu belki değiştirip daha sade yaparız bakacağım").
+
+## Yapılıyor
+
+- [x] **Klasör yönü** — karar: **B buzlu cam** (13 Kas, "B bence"). İstek 13 Kas, "bu klasör nasıl"; referans @damienghader "File Folder" — https://x.com/bestdesignsonx/status/2120305510331089286. Deneme: `tasarim/klasor-cam-denemesi.jpg` (A şu anki pul, B buzlu cam, C açık cam, C dokununca yelpaze). Yelpaze hareketinin B'ye de eklenip eklenmeyeceği söylenmedi.
+- [i] **B buzlu cam klasörü uygulamaya al** (`web/js/folders.js`) — 13 Kas. Yapıldı: içindeki ilk 3 defterin kapağı buzlu camın ardından bulanık görünür (SVG, backdrop-filter yok); eski kroko klasörler bir kez cama geçer; Ayarlar > Kapak görünümü (Buzlu cam / Düz renk). İnceleyici 6 bulgu, hepsi düzeltildi; doğrulayıcı 7/7, animasyon izlenemedi (panel gizli). iPad denemesi bekliyor — **v108** (06432f2, 18 Kas). Yelpaze eklenmedi (yukarıda [?]).
+- [x] **B klasörüyle uyumlu defter görünümü** — karar: **2 · Cam kapak** (kapak buzlu cam, ilk sayfadaki yazı arkadan bulanık görünür) — 18 Kas, "şimdilik 2 olsun". İstek 13 Kas, "ona uygun da defter ne olabilir".
+- [i] **Cam kapak defter görünümü uygulamaya al** — 18 Kas. Yapıldı: kapak renkli buzlu cam, altından ilk sayfa yazısıyla bulanık görünür; fotoğraflı kapak fotoğraf kalır; koyu renklerde cam daha örtücü; PDF ilk sayfası, açılış kuyruğu, eşzamanlı istek, kimlik tekrarı, kapaksız defter rengi düzeltildi. Defter açılış animasyonu iPad'de izlenmeli — **v108** (06432f2). "Şimdilik" dendi; genel arayüz sadeleşirse yeniden bakılabilir.
+- [~] **Freenotes özellikleri (TikTok @studiwithmai)**: "hepsi bizde de olmalı", "o özelliklerin şu an çok basit bizimkiler" (18 Kas) — araştırma yapıldı (18 Kas), görülen özellikler aşağıda madde madde. Kaynak video yok; kaynak: Freenotes (@studiwithmai).
+  - [?] **Anlık el yazısı güzelleştirme**: yazılan kelime seçilen el yazısı stiline dönüşüyor (ör. Noteworthy, Simplenote, Still Script, Kindred, Charmer); yazı dili Türkçe seçilebiliyor. Tanıma gerektirir. Kullanıcıya soruldu (18 Kas): web'de el yazısı Google'ın tanıma servisine gönderilsin mi (gizlilik), yoksa App Store sürümüne mi kalsın? — Freenotes (@studiwithmai), 18 Kas
+  - [ ] **Yazı boyunu ve satır aralığını eşitleme** (kaydırıcılar) + düzeltme şiddeti — tanıma gerektirmeden geometrik yapılabilir, **ilk iş** — Freenotes (@studiwithmai), 18 Kas
+  - [ ] **Başlık güzelleştirme** (el yazısı başlık seçili stilde) — el yazısı güzelleştirme kararına bağlı — Freenotes (@studiwithmai), 18 Kas
+  - [ ] **Ezber bandı**: desenli bant yazıyı örter, dokununca açılır. Bizde buzlu kalem benzeri var; desenli bant stilleri eklenecek — Freenotes (@studiwithmai), 18 Kas
+  - [ ] **Tema renk paletleri** (favori renkler, kişisel tema, en çok kullanılanlar) — bizde favori/son renkler var, tema paletleri yok — Freenotes (@studiwithmai), 18 Kas
+  - [ ] **Kementle seçilen alanın ekran görüntüsü** / kırpıp görsel yapma — Freenotes (@studiwithmai), 18 Kas
+  - [ ] **PDF'te istenen yeri istenen renkle temiz vurgulama** — bizde satıra hizalama var (v96); renk paleti entegrasyonu kontrol edilecek — Freenotes (@studiwithmai), 18 Kas
 
 ## iPad'de denenmesi gerekenler (canlı)
 
@@ -64,7 +82,7 @@ Kaynak: https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY (150 madde; "eksik de�
 
 ### Gerçekçilik (Blender) — yön onayından sonra
 - [ ] Onaylanan seviyede katmanlı çıktı: beyaz kapak gölgelendirme + kapak UV/maske, uygulama kullanıcının kapak rengini/fotoğrafını birleştirir
-- [ ] Klasör aynı yöntemle (onaylı şekil)
+- [ ] Klasör aynı yöntemle — yön kararı verildi: B buzlu cam (13 Kas); uygulama işi yukarıda "Yapılıyor"da
 - [ ] Rafa entegrasyon ve performans (300 defterde de akıcı)
 
 ### App Store hazırlığı (en son)
