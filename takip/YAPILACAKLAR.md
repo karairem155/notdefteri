@@ -24,6 +24,8 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 - [?] **Kapak açılış sesi** (sayfa sesinden farklı): ElevenLabs izni verildi ("evet", 13 Kas; ~30–40 kredi). 13 Kas: 3 deneme gönderildi — `tasarim/ses/kapak-1-hazir.mp3`, `kapak-2-hazir.mp3`, `kapak-3-hazir.mp3` (36 kredi). Bekleniyor: hangisi (ya da hiçbiri).
 - [?] **Klasör yelpazesi B'ye de eklensin mi?** (13 Kas) — denemede yelpaze yalnız C'de gösterildi; B seçildi ama yelpaze için cevap yok.
 - [?] **Genel arayüz daha sade olabilir** — kullanıcı bakacak, acele ettirme (18 Kas, "tasarımlarımız genel arayüz içime sinmiyor onu belki değiştirip daha sade yaparız bakacağım").
+- [?] **Akıcı mı İpek mi?** — ayrıntı aşağıda "Yazıda gariplik hissi" altında (19 Kas).
+- [?] **El yazısını Google'ın tanıma servisine göndermek** (stil dönüşümü için) mi, App Store sürümünü beklemek mi? — ayrıntı aşağıda Freenotes altında (18 Kas).
 
 ## Yapılıyor
 
@@ -55,6 +57,9 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 - [i] Karalayarak silme hassasiyeti — v105 (kullanıcı "çok yoğun karalamada çalışıyor" demişti, gevşetildi)
 - [i] Defterden çıkış animasyonu yarıda kalmıyor mu — v104 (önizleme paneli gizliyken akış izlenemedi)
 - [i] Dikey iPad'de üst çubuk tek satır, yer işareti düğmesi — v105
+- [i] Buzlu cam klasör: rafta görünüm, klasörü açıp kapama, Ayarlar > Kapak görünümü — v108
+- [i] Cam kapak defter: ilk sayfa yazısı arkadan bulanık görünüyor mu, koyu kapaklar, defter açılış animasyonu — v108
+- [i] Kement > Düzenle (yazı boyu, satır aralığı, çizgiye otur): gerçek el yazısıyla, ayrık harfli ve l/k/d'li yazıda — v109
 
 ## Yapılacaklar
 
