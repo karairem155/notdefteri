@@ -18,26 +18,30 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 ## Kullanıcıdan cevap bekleyenler
 
 - [?] **Blender defter görünümü**: gerçekçi mi, yumuşak mı, arası mı? — `tasarim/blender/raf-denemesi.png` gönderildi (8 Kas). 13 Kas'ta kullanıcı yalnız klasör için yeni referans verdi (aşağıda "Yapılıyor"); defter kararı hâlâ açık. 18 Kas: B ile uyumlu defter için **cam kapak** seçildi (aşağıda) → bu soru **askıda**; cam kapak "şimdilik" olduğu için kapatılmadı.
-- [?] **Görsel kaydırırken altta çok sayıda gölge** (8 Kas): Safari gölge izi düzeltmesi v106'da yapıldı ama bilgisayarda üretilemedi. 13 Kas: kullanıcı v106'dan sonra hâlâ çıktığını söyledi ("evet") → **v106 düzeltmesi işe yaramadı**. Bekleniyor: ekran kaydı + fotoğraf düzenleme modunda mı taşınıyordu, sayfa mı kaydırılıyordu.
-- [?] **App Store yolu**: web'i paketleyen kabuk (öneri) mi, native'e taşıma mı? Eski Swift kodu `Sources/PencilPages` ayrıca duruyor. Fiyat önerisi: yıllık ₺499,99 / ömür boyu ₺999,99 / aylık ₺99,99. El yazısı OCR ücreti "app bitince konuşulacak". 13 Kas: kullanıcı "bakıcam" dedi — kendisi inceleyecek, acele ettirme.
+- [x] **Görsel kaydırırken altta çok sayıda gölge** (8 Kas): Safari gölge izi düzeltmesi v106'da yapıldı ama bilgisayarda üretilemedi. 13 Kas: kullanıcı v106'dan sonra hâlâ çıktığını söyledi ("evet"). 19 Kas: "gölgeler düzeldi" → v106 düzeltmesi sonunda işe yaramış (iPad'de kullanıcı doğruladı) — v106.
+- [?] **App Store yolu**: web'i paketleyen kabuk (öneri) mi, native'e taşıma mı? Eski Swift kodu `Sources/PencilPages` ayrıca duruyor. Fiyat önerisi: yıllık ₺499,99 / ömür boyu ₺999,99 / aylık ₺99,99. El yazısı OCR ücreti "app bitince konuşulacak". 13 Kas: kullanıcı "bakıcam" dedi — kendisi inceleyecek, acele ettirme. 19 Kas: "kabuğa koymak vs derken onu da anlamadım" → **19 Kas açıklandı** (kabuk ne demek, native farkı); karar hâlâ açık.
 
-- [?] **Kapak açılış sesi** (sayfa sesinden farklı): ElevenLabs izni verildi ("evet", 13 Kas; ~30–40 kredi). 13 Kas: 3 deneme gönderildi — `tasarim/ses/kapak-1-hazir.mp3`, `kapak-2-hazir.mp3`, `kapak-3-hazir.mp3` (36 kredi). Bekleniyor: hangisi (ya da hiçbiri).
-- [?] **Klasör yelpazesi B'ye de eklensin mi?** (13 Kas) — denemede yelpaze yalnız C'de gösterildi; B seçildi ama yelpaze için cevap yok.
-- [?] **Genel arayüz daha sade olabilir** — kullanıcı bakacak, acele ettirme (18 Kas, "tasarımlarımız genel arayüz içime sinmiyor onu belki değiştirip daha sade yaparız bakacağım").
-- [?] **Akıcı mı İpek mi?** — ayrıntı aşağıda "Yazıda gariplik hissi" altında (19 Kas).
-- [?] **El yazısını Google'ın tanıma servisine göndermek** (stil dönüşümü için) mi, App Store sürümünü beklemek mi? — ayrıntı aşağıda Freenotes altında (18 Kas).
+- [?] **Kapak açılış sesi** (sayfa sesinden farklı): ElevenLabs izni verildi ("evet", 13 Kas; ~30–40 kredi). 13 Kas: 3 deneme gönderildi — `tasarim/ses/kapak-1-hazir.mp3`, `kapak-2-hazir.mp3`, `kapak-3-hazir.mp3` (36 kredi). 19 Kas: "kapak sesleri geride kaldı unuttum" → dosyalar yeniden gönderildi. Bekleniyor: hangisi (ya da hiçbiri).
+- [x] **Klasör yelpazesi B'ye de eklensin mi?** (13 Kas) — karar 19 Kas: "açılsın" (dokununca defterler yelpaze gibi açılsın, B buzlu cam klasörde). Uygulama işi aşağıda "Yapılacaklar > iPad geri bildirimi (19 Kas)".
+- [?] **Genel arayüz daha sade olabilir** — kullanıcı bakacak, acele ettirme (18 Kas, "tasarımlarımız genel arayüz içime sinmiyor onu belki değiştirip daha sade yaparız bakacağım"). 19 Kas: "bence daha clean beyaz bir temada mı olsa, özentilik yapmış olur muyum Freenotes'tan" → **beyaz sade tema düşünülüyor**; iki yön görseli önerildi (19 Kas). Bekleniyor: iki yönü görüp seçmesi.
+- [?] **Akıcı mı İpek mi?** — düşük öncelik: 19 Kas yazı hissi denemesinde sorun bildirmedi ("her şey yolunda gibi"); karşılaştırma istenirse sorulacak. Ayrıntı aşağıda "Yazıda gariplik hissi" altında.
+- [?] **El yazısını Google'ın tanıma servisine göndermek** (stil dönüşümü için) mi, App Store sürümünü beklemek mi? — ayrıntı aşağıda Freenotes altında (18 Kas). 19 Kas: "sorun ne, neden el yazısı olmuyor" → **19 Kas açıklandı**; karar hâlâ açık.
+- [?] **Sesle yazılan metin için el yazısı tarzı font** (19 Kas, "fontu çok beğenmedim, daha el yazısı tarzı font lazım") — Türkçe karakterli (ğ ş ı İ ç ö ü) el yazısı font seçenekleri gösterilecek; kullanıcı seçecek.
+- [?] **Kement > Düzenle anlaşılmadı** (19 Kas, "kement anlamadım bunu") — özelliği bulamadı/anlamadı; nasıl kullanıldığı anlatılacak, sonra iPad'de denenecek. Keşfedilebilirlik sorunu olabilir (Düzenle kementin içinde gizli). Ayrıntı aşağıda Freenotes altında (v109).
 
 ## Yapılıyor
 
 - [x] **Klasör yönü** — karar: **B buzlu cam** (13 Kas, "B bence"). İstek 13 Kas, "bu klasör nasıl"; referans @damienghader "File Folder" — https://x.com/bestdesignsonx/status/2120305510331089286. Deneme: `tasarim/klasor-cam-denemesi.jpg` (A şu anki pul, B buzlu cam, C açık cam, C dokununca yelpaze). Yelpaze hareketinin B'ye de eklenip eklenmeyeceği söylenmedi.
-- [i] **B buzlu cam klasörü uygulamaya al** (`web/js/folders.js`) — 13 Kas. Yapıldı: içindeki ilk 3 defterin kapağı buzlu camın ardından bulanık görünür (SVG, backdrop-filter yok); eski kroko klasörler bir kez cama geçer; Ayarlar > Kapak görünümü (Buzlu cam / Düz renk). İnceleyici 6 bulgu, hepsi düzeltildi; doğrulayıcı 7/7, animasyon izlenemedi (panel gizli). iPad denemesi bekliyor — **v108** (06432f2, 18 Kas). Yelpaze eklenmedi (yukarıda [?]).
+- [ ] **B buzlu cam klasörü uygulamaya al** (`web/js/folders.js`) — 13 Kas. Yapıldı: içindeki ilk 3 defterin kapağı buzlu camın ardından bulanık görünür (SVG, backdrop-filter yok); eski kroko klasörler bir kez cama geçer; Ayarlar > Kapak görünümü (Buzlu cam / Düz renk). İnceleyici 6 bulgu, hepsi düzeltildi; doğrulayıcı 7/7, animasyon izlenemedi (panel gizli). **v108** (06432f2, 18 Kas). **19 Kas iPad denemesi: HATALI** (alt satır). Yelpaze kararı "açılsın" (19 Kas), iş aşağıda.
+  - [ ] **HATA: klasör iPad'de buzlu cam görünmüyor** (19 Kas, "dosya buzlu cam gözükmüyor iPad'de") — v108. Ekran görüntüsü istendi (19 Kas); bilgisayarda görünüp iPad'de görünmemesi Safari'ye özgü SVG/filtre farkı olabilir.
 - [x] **B klasörüyle uyumlu defter görünümü** — karar: **2 · Cam kapak** (kapak buzlu cam, ilk sayfadaki yazı arkadan bulanık görünür) — 18 Kas, "şimdilik 2 olsun". İstek 13 Kas, "ona uygun da defter ne olabilir".
-- [i] **Cam kapak defter görünümü uygulamaya al** — 18 Kas. Yapıldı: kapak renkli buzlu cam, altından ilk sayfa yazısıyla bulanık görünür; fotoğraflı kapak fotoğraf kalır; koyu renklerde cam daha örtücü; PDF ilk sayfası, açılış kuyruğu, eşzamanlı istek, kimlik tekrarı, kapaksız defter rengi düzeltildi. Defter açılış animasyonu iPad'de izlenmeli — **v108** (06432f2). "Şimdilik" dendi; genel arayüz sadeleşirse yeniden bakılabilir.
-- [i] **Yazıda gariplik hissi** (19 Kas, "yazı tarafında bir gariplik hissediyorum, sanki bununla ilgili bir şey demiştin") — 19 Kas cevap: "Temel'de kötü yazdım ama gariplik gitti, harflerimi küçültüyor sanki". Neden: v107 (ea17bb3) üstel yumuşatma küçük kıvrımları içeriden kesip harfleri küçültüyor. Yapıldı: Akıcı ve Yumuşak'ta hıza uyarlanan süzgeç (`web/js/yumusatma.js`); yazı hızında harf boyu korunuyor (Akıcı en küçük harf %34 → %96, Yumuşak %81 → %98), yavaşken titreme alma eskisi gibi, Akıcı gecikmesi 31 → 0,06 birim. Hız ekran biriminde ölçülüyor: yakınlaştırınca/yatayda da çalışıyor (2x, 3x testli). İpek v109 ile birebir aynı bırakıldı (19 Kas, "ipek de iyi bu arada akıcıda sıkıntı"). Kalkışta uç son gerçek basıncı alıyor (eskiden 0,5'e sıçrıyordu). İnceleyici: engelleyici yok, 3 önerisi yapıldı. `test/yumusatma-testi.mjs` hepsi ✓, önizlemede Akıcı çizgisi ölçüldü. iPad denemesi bekliyor (aşağıda) — **v110** (d0a8463, 19 Kas).
-  - [?] **Akıcı mı İpek mi daha az titreme alsın?** (inceleyici notu, 19 Kas) — v110'da yazı hızında Akıcı artık İpek'ten daha az titreme alıyor: yavaşken sıra Yumuşak < İpek < Akıcı, hızlı yazarken Akıcı İpek'ten pürüzlü. Kullanıcının iPad'de Akıcı–İpek karşılaştırmasına göre karar verilecek.
+- [ ] **Cam kapak defter görünümü uygulamaya al** — 18 Kas. Yapıldı: kapak renkli buzlu cam, altından ilk sayfa yazısıyla bulanık görünür; fotoğraflı kapak fotoğraf kalır; koyu renklerde cam daha örtücü; PDF ilk sayfası, açılış kuyruğu, eşzamanlı istek, kimlik tekrarı, kapaksız defter rengi düzeltildi — **v108** (06432f2). "Şimdilik" dendi; genel arayüz sadeleşirse yeniden bakılabilir. **19 Kas iPad denemesi: HATALI** (alt satır).
+  - [ ] **HATA: cam kapak iPad'de garip/hatalı duruyor** (19 Kas, "defter kapağı da garip olmuş", "buzlu cam kapak defterde yazı arkadan gözüküyor hmm ama bi garip duruyor hatalı gibi") — v108. Yazı arkadan görünüyor, yani özellik çalışıyor ama görünüm bozuk. Ekran görüntüsü istendi (19 Kas).
+- [x] **Yazıda gariplik hissi** (19 Kas, "yazı tarafında bir gariplik hissediyorum, sanki bununla ilgili bir şey demiştin") — 19 Kas cevap: "Temel'de kötü yazdım ama gariplik gitti, harflerimi küçültüyor sanki". Neden: v107 (ea17bb3) üstel yumuşatma küçük kıvrımları içeriden kesip harfleri küçültüyor. Yapıldı: Akıcı ve Yumuşak'ta hıza uyarlanan süzgeç (`web/js/yumusatma.js`); yazı hızında harf boyu korunuyor (Akıcı en küçük harf %34 → %96, Yumuşak %81 → %98), yavaşken titreme alma eskisi gibi, Akıcı gecikmesi 31 → 0,06 birim. Hız ekran biriminde ölçülüyor: yakınlaştırınca/yatayda da çalışıyor (2x, 3x testli). İpek v109 ile birebir aynı bırakıldı (19 Kas, "ipek de iyi bu arada akıcıda sıkıntı"). Kalkışta uç son gerçek basıncı alıyor (eskiden 0,5'e sıçrıyordu). İnceleyici: engelleyici yok, 3 önerisi yapıldı. `test/yumusatma-testi.mjs` hepsi ✓, önizlemede Akıcı çizgisi ölçüldü. 19 Kas iPad denemesi: "her şey yolunda gibi" — **v110** (d0a8463, 19 Kas).
+  - [?] **Akıcı mı İpek mi daha az titreme alsın?** (inceleyici notu, 19 Kas) — v110'da yazı hızında Akıcı artık İpek'ten daha az titreme alıyor: yavaşken sıra Yumuşak < İpek < Akıcı, hızlı yazarken Akıcı İpek'ten pürüzlü. **Düşük öncelik**: 19 Kas denemesinde sorun bildirmedi ("her şey yolunda gibi"); karşılaştırma istenirse sorulacak.
 - [~] **Freenotes özellikleri (TikTok @studiwithmai)**: "hepsi bizde de olmalı", "o özelliklerin şu an çok basit bizimkiler" (18 Kas) — araştırma yapıldı (18 Kas), görülen özellikler aşağıda madde madde. Kaynak video yok; kaynak: Freenotes (@studiwithmai).
-  - [?] **Anlık el yazısı güzelleştirme**: yazılan kelime seçilen el yazısı stiline dönüşüyor (ör. Noteworthy, Simplenote, Still Script, Kindred, Charmer); yazı dili Türkçe seçilebiliyor. Tanıma gerektirir. Kullanıcıya soruldu (18 Kas): web'de el yazısı Google'ın tanıma servisine gönderilsin mi (gizlilik), yoksa App Store sürümüne mi kalsın? — Freenotes (@studiwithmai), 18 Kas
-  - [i] **Yazı boyunu ve satır aralığını eşitleme** (kaydırıcılar) + düzeltme şiddeti — tanıma gerektirmeden geometrik yapılabilir, **ilk iş** — Freenotes (@studiwithmai), 18 Kas. Yapıldı: Kement > **Düzenle** paneli (Yazı boyu, Satır aralığı, Çizgiye otur, Düzeltme şiddeti); canlı önizleme sayfa verisine yazılmıyor; şekil çizgileri işaretlenip dokunulmuyor (`web/js/duzenle.js`). İnceleyici 2 tur (5+3 bulgu), doğrulayıcı 1 tur (6 bulgu), hepsi düzeltildi; `test/duzenle-testi.mjs` 234/234. iPad'de gerçek el yazısıyla denenmeli, özellikle ayrık harfli ve l/k/d'li yazı — **v109** (e7d617d, 18 Kas).
+  - [?] **Anlık el yazısı güzelleştirme**: yazılan kelime seçilen el yazısı stiline dönüşüyor (ör. Noteworthy, Simplenote, Still Script, Kindred, Charmer); yazı dili Türkçe seçilebiliyor. Tanıma gerektirir. Kullanıcıya soruldu (18 Kas): web'de el yazısı Google'ın tanıma servisine gönderilsin mi (gizlilik), yoksa App Store sürümüne mi kalsın? — Freenotes (@studiwithmai), 18 Kas. 19 Kas: "sorun ne, neden el yazısı olmuyor" → 19 Kas açıklandı (tanıma servisi gerekiyor, web'de gizlilik); karar açık.
+  - [?] **Yazı boyunu ve satır aralığını eşitleme** (kaydırıcılar) + düzeltme şiddeti — tanıma gerektirmeden geometrik yapılabilir, **ilk iş** — Freenotes (@studiwithmai), 18 Kas. Yapıldı: Kement > **Düzenle** paneli (Yazı boyu, Satır aralığı, Çizgiye otur, Düzeltme şiddeti); canlı önizleme sayfa verisine yazılmıyor; şekil çizgileri işaretlenip dokunulmuyor (`web/js/duzenle.js`). İnceleyici 2 tur (5+3 bulgu), doğrulayıcı 1 tur (6 bulgu), hepsi düzeltildi; `test/duzenle-testi.mjs` 234/234. iPad'de gerçek el yazısıyla denenmeli, özellikle ayrık harfli ve l/k/d'li yazı — **v109** (e7d617d, 18 Kas). 19 Kas: "kement anlamadım bunu" → kullanıcı bulamadı/anlamadı; önce anlatılacak, keşfedilebilirlik sorunu olabilir (yukarıda [?]).
   - [ ] **Yazarken otomatik düzenleme (2. aşama)**: yazma durunca son kelime/satır aynı çözümlemeyle düşük şiddette düzenlensin, ayardan kapatılabilsin — **1. aşama (v109) iPad'de iyi çalışırsa** — 18 Kas
   - [ ] **Başlık güzelleştirme** (el yazısı başlık seçili stilde) — el yazısı güzelleştirme kararına bağlı — Freenotes (@studiwithmai), 18 Kas
   - [ ] **Ezber bandı**: desenli bant yazıyı örter, dokununca açılır. Bizde buzlu kalem benzeri var; desenli bant stilleri eklenecek — Freenotes (@studiwithmai), 18 Kas
@@ -47,21 +51,28 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 
 ## iPad'de denenmesi gerekenler (canlı)
 
-- [i] Yazı hissi: stabilizatör seviyeleri artık farklı mı, yavaş yazarken harfler bozuluyor mu — v107 (8 Kas, "savsak yazıyormuşum gibi") — ea17bb3. 19 Kas: v107 yumuşatması harfleri küçültüyordu → yerine v110'daki hıza uyarlanan süzgeç geldi; deneme bir alt satırda (v110).
-- [i] Yazı hissi v110: Akıcı'da hızlı küçük yazı harfleri küçültüyor mu; İpek eskisi gibi mi; sayfa yakınlaştırılmışken de aynı mı; avuç/sistem hareketiyle çizgi iptal olunca sonunda kuyruk çıkıyor mu — v110 (d0a8463, 19 Kas)
-- [i] Sayfa çevirme sesi kâğıt kalkarken mi geliyor — v106
-- [i] Basılı tutunca Yapıştır — v106
-- [i] Dolma, fırça, desen kalemleri; kendi fırçasını PNG'den ekleme — v102/v105
-- [i] Sesle yaz (dikte, Türkçe) — v105 (gerçek mikrofonla denenmedi)
-- [i] Sesle eşli not: kayıt sırasında yazılan çizgiye parmakla dokun → o an çalar — v101 (gerçek mikrofonla denenmedi)
-- [i] Karalayarak silme hassasiyeti — v105 (kullanıcı "çok yoğun karalamada çalışıyor" demişti, gevşetildi)
-- [i] Defterden çıkış animasyonu yarıda kalmıyor mu — v104 (önizleme paneli gizliyken akış izlenemedi)
-- [i] Dikey iPad'de üst çubuk tek satır, yer işareti düğmesi — v105
-- [i] Buzlu cam klasör: rafta görünüm, klasörü açıp kapama, Ayarlar > Kapak görünümü — v108
-- [i] Cam kapak defter: ilk sayfa yazısı arkadan bulanık görünüyor mu, koyu kapaklar, defter açılış animasyonu — v108
-- [i] Kement > Düzenle (yazı boyu, satır aralığı, çizgiye otur): gerçek el yazısıyla, ayrık harfli ve l/k/d'li yazıda — v109
+19 Kas: kullanıcı 1–12 numaralı listeye cevap verdi; 5, 6, 9, 10 cevapsız (hâlâ [i]).
+
+- [x] Yazı hissi: stabilizatör seviyeleri artık farklı mı, yavaş yazarken harfler bozuluyor mu — v107 (8 Kas, "savsak yazıyormuşum gibi") — ea17bb3. 19 Kas: v107 yumuşatması harfleri küçültüyordu → yerine v110'daki hıza uyarlanan süzgeç geldi; v110 denemesi tamam (alt satır).
+- [x] (1) Yazı hissi v110: Akıcı'da hızlı küçük yazı harfleri küçültüyor mu; İpek eskisi gibi mi; sayfa yakınlaştırılmışken de aynı mı; avuç/sistem hareketiyle çizgi iptal olunca sonunda kuyruk çıkıyor mu — v110 (d0a8463, 19 Kas). 19 Kas: "her şey yolunda gibi".
+- [i] (5) Sayfa çevirme sesi kâğıt kalkarken mi geliyor — v106 (19 Kas cevapsız)
+- [i] (6) Basılı tutunca Yapıştır — v106 (19 Kas cevapsız)
+- [x] (7) Dolma, fırça, desen kalemleri; kendi fırçasını PNG'den ekleme — v102/v105. 19 Kas: "desen png ekleniyor" (sorun bildirilmedi). Procreate fırçası isteği ayrı satır: Yapılacaklar > iPad geri bildirimi (19 Kas).
+- [x] (8) Sesle yaz (dikte, Türkçe) — v105. 19 Kas: "sorunsuz" (gerçek mikrofonla denendi). Font isteği yukarıda [?].
+- [i] (9) Sesle eşli not: kayıt sırasında yazılan çizgiye parmakla dokun → o an çalar — v101 (gerçek mikrofonla denenmedi; 19 Kas cevapsız)
+- [i] (10) Karalayarak silme hassasiyeti — v105 (kullanıcı "çok yoğun karalamada çalışıyor" demişti, gevşetildi; 19 Kas cevapsız)
+- [x] (11) Defterden çıkış animasyonu yarıda kalmıyor mu — v104. 19 Kas: "animasyon yarıda kalmıyor".
+- [x] (12) Dikey iPad'de üst çubuk tek satır, yer işareti düğmesi — v105. 19 Kas: "evet".
+- [x] (2) Buzlu cam klasör: rafta görünüm, klasörü açıp kapama, Ayarlar > Kapak görünümü — v108. Deneme yapıldı 19 Kas, **sonuç HATA** ("dosya buzlu cam gözükmüyor iPad'de") → iş yukarıda "Yapılıyor"da [ ].
+- [x] (3) Cam kapak defter: ilk sayfa yazısı arkadan bulanık görünüyor mu, koyu kapaklar, defter açılış animasyonu — v108. Deneme yapıldı 19 Kas, **sonuç HATA** ("bi garip duruyor hatalı gibi") → iş yukarıda "Yapılıyor"da [ ].
+- [?] (4) Kement > Düzenle (yazı boyu, satır aralığı, çizgiye otur): gerçek el yazısıyla, ayrık harfli ve l/k/d'li yazıda — v109. 19 Kas: "kement anlamadım bunu" → önce anlatılacak, sonra yeniden denenecek.
 
 ## Yapılacaklar
+
+### iPad geri bildirimi (19 Kas)
+- [ ] **Klasör yelpazesi**: B buzlu cam klasöre dokununca içindeki defterler yelpaze gibi açılsın — karar 19 Kas, "açılsın" (denemedeki C hareketi; `tasarim/klasor-cam-denemesi.jpg`). Önce klasörün iPad'de buzlu cam görünmeme hatası çözülmeli.
+- [ ] **Procreate fırçasını doğrudan içe aktarma** (.brush / .brushset) ve Procreate gibi çizim (19 Kas, "ben brush direkt içe aktarılıyor ya onu da istedim, Procreate gibi çizim de yapabilmek için"). PNG'den fırça ekleme zaten çalışıyor (v105).
+- [ ] **Menü düzeni**: bazı öğeler yanlış bölümde (19 Kas, "menüde bazı yerler çok saçma yerlerde, mesela sesli not görüntüler kısmında, diğerde ne alaka, buzlu kalem de öyle, kalem renk seçme çok aşağıda menüde"). Somut: sesli not "Görüntüler"de, bir öğe "Diğer"de alakasız, buzlu kalemin yeri, kalem renk seçimi menüde çok aşağıda. v105 bölümlü menü yeniden düzenlenecek.
 
 ### Rakip listesi — ilk dalgadan kalanlar
 Kaynak: https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY (150 madde; "eksik değil fazla olmalıyız")
@@ -124,12 +135,12 @@ Takip v86'dan (41ef65b, 29 Eki) başlar; öncesi (raf görünümü, sekmeler, ma
 - [x] Etiketler, kütüphanede içerik araması, okuma modu, seçici silgi — v99
 - [x] Sürüm geçmişi, yedek hatırlatması; arka kapak görseli temizlikte silinmiyor — v100
 - [i] Sesle eşli not — v101
-- [i] Dolma ve fırça kalem — v102
+- [x] Dolma ve fırça kalem — v102 (iPad 19 Kas)
 - [i] Karalayarak silme — v103, v105
-- [i] Defterden çıkış animasyonu — v104
-- [i] Desen kalemi + fırça içe aktarma, sesle yaz, yer işareti (adsız, renk değişir), bölümlü menü, Tüm sayfalara uygula (şablon/renk), "İki sayfayı kapla", buzlu kalem kalem panelinde — v105
+- [x] Defterden çıkış animasyonu — v104 (iPad 19 Kas, "animasyon yarıda kalmıyor")
+- [i] Desen kalemi + fırça içe aktarma, sesle yaz, yer işareti (adsız, renk değişir), bölümlü menü, Tüm sayfalara uygula (şablon/renk), "İki sayfayı kapla", buzlu kalem kalem panelinde — v105. 19 Kas iPad: desen/PNG fırça, sesle yaz, dikey üst çubuk tamam; bölümlü menünün düzeni beğenilmedi (Yapılacaklar > Menü düzeni); diğerleri denenmedi.
+- [x] Safari gölge izi (görsel kaydırırken) — v106 (iPad 19 Kas, "gölgeler düzeldi")
 - [i] Sayfa sesi kâğıt kalkarken, basılı tut Yapıştır — v106
-- [i] Stabilizatör zamana bağlı, harfler şekle dönmüyor — v107
-- [i] Stabilizatör harfleri küçültmüyor: Akıcı/Yumuşak hıza uyarlanan süzgeç, İpek aynı — v110 (d0a8463)
-- [x] Pinterest sayfa tasarımları sorusu cevaplandı (kişisel kullanım: Şablonlarım; dağıtım: kendi/AI tasarımı)
+- [x] Stabilizatör zamana bağlı, harfler şekle dönmüyor — v107 (v110 ile yerine geçildi)
+- [x] Stabilizatör harfleri küçültmüyor: Akıcı/Yumuşak hıza uyarlanan süzgeç, İpek aynı — v110 (d0a8463; iPad 19 Kas, "her şey yolunda gibi")- [x] Pinterest sayfa tasarımları sorusu cevaplandı (kişisel kullanım: Şablonlarım; dağıtım: kendi/AI tasarımı)
 - [x] Pazar araştırması ve rakip açığı listesi (150 madde) — https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY
