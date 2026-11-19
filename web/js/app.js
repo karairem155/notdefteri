@@ -80,13 +80,15 @@ async function surumKontrol() {
 function masaYaz(masa) {
   const kok = document.documentElement;
   // "marka": nötr zemin + lacivert çubuklar (varsayılan). "gul": aynısı, gül zeminde. ("logo" eski adı.)
-  const lacivertCubuk = masa === "marka" || masa === "gul" || masa === "logo";
+  // "beyaz" (19 Kas, kullanıcı seçimi C): zemin beyaz, rafta açık düğmeler, defterde lacivert çubuklar.
+  const lacivertCubuk = masa === "marka" || masa === "gul" || masa === "logo" || masa === "beyaz";
   kok.dataset.masa = lacivertCubuk ? "pudra" : masa;
   if (lacivertCubuk) kok.dataset.logo = ""; else delete kok.dataset.logo;
   if (masa === "gul" || masa === "logo") kok.dataset.gul = ""; else delete kok.dataset.gul;
+  if (masa === "beyaz") kok.dataset.beyaz = ""; else delete kok.dataset.beyaz;
 }
 function masaUygula() {
-  const masa = store.settings.masa || "marka";
+  const masa = store.settings.masa || "beyaz";
   masaYaz(masa);
   cubukUygula();
   try { localStorage.setItem("notdefteri.masa", masa); } catch (_) {}
@@ -108,7 +110,7 @@ function cubukUygula() {
   if (parlaklik > 0.6) kok.dataset.cubukAcik = ""; else delete kok.dataset.cubukAcik;
 }
 // Veri yüklenene kadar yanlış renk parlamasın: son seçilen masa hemen gelsin.
-try { masaYaz(localStorage.getItem("notdefteri.masa") || "marka"); } catch (_) {}
+try { masaYaz(localStorage.getItem("notdefteri.masa") || "beyaz"); } catch (_) {}
 store.addEventListener("settings", (e) => { if (!e.detail || e.detail.key === "masa" || e.detail.key === "cubukRengi") masaUygula(); });
 
 store.load().then(async () => {

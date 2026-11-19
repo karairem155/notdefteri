@@ -310,6 +310,13 @@ html[data-logo] .screen-dark .segmented button.active { background: var(--kagit)
 html[data-logo] .fav-strip .swatch::before { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 2px 4px rgba(0, 0, 0, 0.3); }
 html[data-logo] .fav-strip .swatch.selected { outline-color: var(--kagit); }
 html[data-logo] .fav-strip .swatch.current { color: var(--kagit); outline-color: rgba(251, 246, 243, 0.6); }
+/* ===== Beyaz masa (19 Kas, varsayılan): zemin beyaz ve dokusuz; rafta düğmeler beyaz,
+   defter ekranında çubuklar lacivert kalır (kullanıcı: "defter kısmı B'deki gibi"). */
+html[data-logo][data-beyaz] { --masa: #ffffff; --desk: #ffffff; --pudra: #f5f5f4; }
+html[data-beyaz] body, html[data-beyaz] .library { background: #ffffff; }
+html[data-logo][data-beyaz] .paper-topbar .icon-btn, html[data-logo][data-beyaz] .paper-actions .icon-btn:not(.accent-fill),
+html[data-logo][data-beyaz] .geri-klasor, html[data-logo][data-beyaz] .fan-round {
+  background: #ffffff; color: var(--murekkep); box-shadow: 0 0 0 0.5px rgba(23, 42, 69, 0.14), 0 2px 8px rgba(23, 42, 69, 0.08); }
 html[data-logo] .fav-strip .swatch.heart::before { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
 /* "+": logodaki gibi pembe üstünde lacivert, kabarık */
 html[data-logo] .paper-actions .icon-btn.accent-fill, html[data-logo] .paper-actions .btn.primary {

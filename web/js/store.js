@@ -154,8 +154,9 @@ const DEFAULT_SETTINGS = {
   folderStyles: {},          // klasör adı -> { color, material }: raftaki deri klasörün görünümü
   benchCollapsed: false,     // alt tezgahın kalem sırası gizli mi
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
-  masa: "marka",             // masanın yüzeyi: "marka" (nötr zemin, lacivert çubuklar); seçenekler "gul", "pudra", "gece", "krem", "pembe", "ceviz", "lacivert"
-  masaSecildi3: false,       // kullanıcı marka varsayılanından sonra masayı kendisi seçti mi
+  masa: "beyaz",             // masanın yüzeyi: "marka" (nötr zemin, lacivert çubuklar); seçenekler "gul", "pudra", "gece", "krem", "pembe", "ceviz", "lacivert"
+  masaSecildi3: false,
+  masaSecildi4: false,       // 19 Kas beyaz varsayılandan sonra masayı kendisi seçti mi       // kullanıcı marka varsayılanından sonra masayı kendisi seçti mi
   cubukRengi: "lacivert",    // çubuk ve düğme rengi: "lacivert", "kagit", "grafit", "gul" ya da "#rrggbb"
   libraryView: "raf",        // kütüphane: "raf" hepsi bir arada, "karusel" tek tek
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
@@ -222,7 +223,7 @@ class Store extends EventTarget {
     // görünüyordu ve sayfa parmakla sürüklenmiyordu (eşik geçilince zıplıyordu).
     if (!this.settings.openModeByUser) this.settings.openMode = "page";
     // Varsayılan marka masası: kullanıcı yeniden seçene kadar herkes onda.
-    if (!this.settings.masaSecildi3) this.settings.masa = "marka";
+    if (!this.settings.masaSecildi4) this.settings.masa = "beyaz";
     // 13 Kas: kullanıcı buzlu cam klasörü seçti; eski varsayılan kroko klasörler bir kez cama geçiyor
     // (renkleri ve kendi görselleri korunuyor; istenirse Klasör Görünümü'nden geri alınır).
     if (!this.settings.klasorCamGecis) {

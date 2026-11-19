@@ -39,7 +39,7 @@ export function renderSettings(root) {
         section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Alt bardaki renkler: kullandığın renkler kendiliğinden başa geçer (en çok 12). Bir renge uzun basınca değiştirir, taşır ya da çıkarırsın."))),
         section("VARSAYILAN KALEM", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
         section("SAYFA", h("div", { class: "settings-rows" },
-          row("Masa", select([["marka", "Marka (varsayılan)"], ["gul", "Gül"], ["pudra", "Pudra kâğıt"], ["gece", "Gece mavisi"], ["krem", "Krem keten"], ["pembe", "Pembe keçe"], ["ceviz", "Ceviz ahşap"], ["lacivert", "Lacivert cam (eski)"]], s.masa || "marka", (v) => { store.setSetting("masaSecildi3", true); store.setSetting("masa", v); })),
+          row("Masa", select([["beyaz", "Beyaz (varsayılan)"], ["marka", "Marka gri"], ["gul", "Gül"], ["pudra", "Pudra kâğıt"], ["gece", "Gece mavisi"], ["krem", "Krem keten"], ["pembe", "Pembe keçe"], ["ceviz", "Ceviz ahşap"], ["lacivert", "Lacivert cam (eski)"]], s.masa || "beyaz", (v) => { store.setSetting("masaSecildi4", true); store.setSetting("masa", v); })),
           row("Çubuk rengi", cubukRenkSecici()),
           row("Kapak görünümü", select([["cam", "Buzlu cam (ilk sayfa görünür)"], ["duz", "Düz renk"]], s.kapakGorunumu || "cam", (v) => store.setSetting("kapakGorunumu", v))),
           row("Varsayılan sayfa boyutu", select(pageSizeOptions(), s.pageSize, (v) => store.setSetting("pageSize", v))),
