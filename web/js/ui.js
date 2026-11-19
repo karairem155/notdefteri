@@ -25,7 +25,9 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
-export function svgIcon(name, size = 20) {
+const NOKTALI = new Set(["more", "drag", "dragDots"]);
+
+export function svgIcon(name, size = 22) {
   const paths = {
     plus: "M12 5v14M5 12h14",
     trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
@@ -59,7 +61,8 @@ export function svgIcon(name, size = 20) {
     pdf: "M7 3h7l5 5v13H7zM14 3v5h5",
     hand: "M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V6a1.5 1.5 0 0 1 3 0v6M17 12a1.5 1.5 0 0 1 3 1v3a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-3l-3-5a1.5 1.5 0 0 1 2.5-1.5L8 14",
     move: "M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4",
-    more: "M5 12h.01M12 12h.01M19 12h.01",
+    more: "M5.5 12h.01M12 12h.01M18.5 12h.01",
+    sidebar: "M5 4.5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2zM9.5 4.5v15",
     down: "M6 9l6 6 6-6",
     scissors: "M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 4L8.5 15.5M8.5 8.5L20 20",
     up: "M6 15l6-6 6 6",
@@ -117,7 +120,9 @@ export function svgIcon(name, size = 20) {
   svg.setAttribute("height", size);
   svg.setAttribute("fill", "none");
   svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "1.9");
+  // Apple tarzı ince, yuvarlak uçlu çizgi (19 Kas, A yönü). Nokta simgeleri ince çizgide
+  // kayboluyor: onlar kalın çiziliyor.
+  svg.setAttribute("stroke-width", NOKTALI.has(name) ? "3" : "1.6");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
@@ -128,7 +133,7 @@ export function svgIcon(name, size = 20) {
 }
 
 export function iconButton(name, label, onClick, extraClass = "") {
-  return h("button", { class: "icon-btn " + extraClass, type: "button", "aria-label": label, title: label, onTap: onClick }, svgIcon(name));
+  return h("button", { class: "icon-btn " + extraClass, type: "button", "aria-label": label, title: label, onTap: onClick }, svgIcon(name, 22));
 }
 
 /**

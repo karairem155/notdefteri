@@ -74,9 +74,9 @@ export function renderSettings(root) {
 
   /** Çubuk rengi: dört hazır renk ve sistem renk seçicisiyle serbest renk. */
   function cubukRenkSecici() {
-    const secili = store.settings.cubukRengi || "lacivert";
-    const HAZIR = [["lacivert", "#172a45", "Lacivert"], ["kagit", "#f7f1ee", "Kâğıt"], ["grafit", "#2a2c32", "Grafit"], ["gul", "#e8c6ce", "Gül"]];
-    const sec = (v) => { store.setSetting("cubukRengi", v); render(); };
+    const secili = store.settings.cubukRengi || "kagit";
+    const HAZIR = [["kagit", "#f7f7f9", "Açık (buzlu cam)"], ["lacivert", "#172a45", "Lacivert"], ["grafit", "#2a2c32", "Grafit"], ["gul", "#e8c6ce", "Gül"]];
+    const sec = (v) => { store.setSetting("cubukSecildi", true); store.setSetting("cubukRengi", v); render(); };
     const serbest = /^#/.test(secili);
     const girdi = h("input", { type: "color", class: "cubuk-renk-girdi", value: serbest ? secili : "#3a6ea5", "aria-label": "Serbest renk seç",
       onChange: (e) => sec(e.target.value) });

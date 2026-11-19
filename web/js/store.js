@@ -156,8 +156,9 @@ const DEFAULT_SETTINGS = {
   openModeByUser: false,    // kullanıcı açılış görünümünü kendisi seçti mi
   masa: "beyaz",             // masanın yüzeyi: "marka" (nötr zemin, lacivert çubuklar); seçenekler "gul", "pudra", "gece", "krem", "pembe", "ceviz", "lacivert"
   masaSecildi3: false,
-  masaSecildi4: false,       // 19 Kas beyaz varsayılandan sonra masayı kendisi seçti mi       // kullanıcı marka varsayılanından sonra masayı kendisi seçti mi
-  cubukRengi: "lacivert",    // çubuk ve düğme rengi: "lacivert", "kagit", "grafit", "gul" ya da "#rrggbb"
+  cubukSecildi: false,       // 19 Kas açık çubuk varsayılanından sonra çubuk rengini kendisi seçti mi
+  masaSecildi4: false,       // 19 Kas beyaz varsayılandan sonra masayı kendisi seçti mi
+  cubukRengi: "kagit",    // çubuk ve düğme rengi: "lacivert", "kagit", "grafit", "gul" ya da "#rrggbb"
   libraryView: "raf",        // kütüphane: "raf" hepsi bir arada, "karusel" tek tek
   openMode: "page",         // defter açılınca: "page" doğrudan sayfa (kapak tuvalde açılır), "fan" yelpaze ekranı
   frosted: { blur: 6, thickness: 28, revealOnTap: true }
@@ -224,6 +225,8 @@ class Store extends EventTarget {
     if (!this.settings.openModeByUser) this.settings.openMode = "page";
     // Varsayılan marka masası: kullanıcı yeniden seçene kadar herkes onda.
     if (!this.settings.masaSecildi4) this.settings.masa = "beyaz";
+    // 19 Kas: lacivert çubuklar kalktı, Apple gibi açık buzlu çubuk varsayılan (kullanıcı kendisi seçene kadar).
+    if (!this.settings.cubukSecildi) this.settings.cubukRengi = "kagit";
     // 13 Kas: kullanıcı buzlu cam klasörü seçti; eski varsayılan kroko klasörler bir kez cama geçiyor
     // (renkleri ve kendi görselleri korunuyor; istenirse Klasör Görünümü'nden geri alınır).
     if (!this.settings.klasorCamGecis) {

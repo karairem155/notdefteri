@@ -107,13 +107,17 @@ function masaUygula() {
 const CUBUK_HAZIR = { lacivert: "#172a45", kagit: "#f7f1ee", grafit: "#2a2c32", gul: "#e8c6ce" };
 function cubukUygula() {
   const kok = document.documentElement;
-  const deger = store.settings.cubukRengi || "lacivert";
+  const deger = store.settings.cubukRengi || "kagit";
   const hex = CUBUK_HAZIR[deger] || (/^#[0-9a-f]{6}$/i.test(deger) ? deger : CUBUK_HAZIR.lacivert);
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   const karis = (k, hedef) => `rgb(${[r, g, b].map((c) => Math.round(c + (hedef - c) * k)).join(",")})`;
   const parlaklik = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
   kok.style.setProperty("--kil", `linear-gradient(180deg, ${karis(0.12, 255)}, ${hex} 52%, ${karis(0.16, 0)})`);
+  // A yönü (19 Kas): defter ekranındaki çubuk ve kalem kutusu düz renk; "Kâğıt" seçilince
+  // Apple'daki gibi yarı saydam buzlu cam (bkz. apple.css, data-cubuk-cam).
+  kok.style.setProperty("--cubuk-duz", hex);
   if (parlaklik > 0.6) kok.dataset.cubukAcik = ""; else delete kok.dataset.cubukAcik;
+  if (deger === "kagit") kok.dataset.cubukCam = ""; else delete kok.dataset.cubukCam;
 }
 // Veri yüklenene kadar yanlış renk parlamasın: son seçilen masa hemen gelsin.
 try { masaYaz(localStorage.getItem("notdefteri.masa") || "beyaz"); } catch (_) {}
