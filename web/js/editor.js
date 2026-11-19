@@ -223,6 +223,20 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   let activeInk = null;
   let liveBand = null;
   const inks = new Map();
+  // Sayfa başına geri al / ileri al yığınları (pageId -> { undo, redo }). Tuvaller renderStage'de
+  // yeniden yaratılıyor; geçmiş burada durduğu için sayfa çevirip dönünce ya da yazı kutusu/nesne
+  // ekleyince silinmiyor. Defterden çıkınca (editör kapanınca) biter.
+  const gecmisler = new Map();
+  const GECMIS_SAYFA = 30;
+  const gecmisAl = (pageId) => {
+    let g = gecmisler.get(pageId);
+    if (g) gecmisler.delete(pageId); else g = { undo: [], redo: [] };
+    gecmisler.set(pageId, g);   // en sona: en son kullanılan
+    while (gecmisler.size > GECMIS_SAYFA) gecmisler.delete(gecmisler.keys().next().value);
+    return g;
+  };
+  // Önceki/sonraki sayfa düğmesi: çevirme animasyonu sürerken gelen ikinci basışın hedefi.
+  let bekleyenHedef = null;
   // Sesle eşli not oynatıcısı (aşağıda "sesle eşli not" bölümü); mürekkep çizimi erken eriştiği için burada.
   const oynatici = { audio: new Audio(), id: null, zamanlayici: 0, cubuk: null };
   oynatici.audio.preload = "auto";
@@ -401,12 +415,26 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   }
 
   function movePage(offset) {
-    ensureNextPage(offset);
+    // Çevirme sürerken ikinci basış: hedef hâlâ eski sayfadan hesaplanıyordu, iki basış tek sayfa
+    // geri gidiyordu. Önce süren çevirmenin sayfasına geçilir, sonra oradan devam edilir.
+    // (Yetişme basışı sonda yeni sayfa eklemez: "+"ya yanlışlıkla iki kez dokununca boş sayfa çoğalmasın.)
+    let yetisti = false;
+    if (bekleyenHedef && flip.active) {
+      const onceki = bekleyenHedef;
+      bekleyenHedef = null;
+      flip.cancel();
+      selectPage(onceki);
+      yetisti = true;
+    }
+    bekleyenHedef = null;
+    if (!yetisti) ensureNextPage(offset);
     const target = flipTargetId(offset);
     if (!target) return;
-    if (editingObjects || zoomed() || flip.active || !flip.run(offset, (committed) => { if (committed) selectPage(target); })) {
+    if (editingObjects || zoomed() || flip.active || !flip.run(offset, (committed) => { if (bekleyenHedef === target) bekleyenHedef = null; if (committed) selectPage(target); })) {
       selectPage(target);
+      return;
     }
+    bekleyenHedef = target;
   }
 
   function selectPage(id) {
@@ -587,7 +615,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         renderStage();
       }, null, { kapsam: pages().length > 1 })) },
       { title: "Sayfa Rengi", icon: "palette", onSelect: openPageColorPanel },
-      { title: "Sayfa Boyutu", icon: "lassoRect", onSelect: () => openPageSizeSheet(notebookId, page, () => { invalidateSnapshot(page); renderStage(); }) },
+      { title: "Sayfa Boyutu", icon: "lassoRect", onSelect: () => openPageSizeSheet(notebookId, page, () => { gecmisler.clear(); invalidateSnapshot(page); renderStage(); }) },
       { title: "Sayfayı Çoğalt", icon: "duplicate", onSelect: () => { const id = store.duplicatePage(notebookId, page.id); if (id) selectPage(id); } },
       { title: "Sayfayı Öne Taşı", icon: "back", disabled: index === 0, onSelect: () => { store.movePage(notebookId, page.id, index - 1); renderStage(); } },
       { title: "Sayfayı Arkaya Taşı", icon: "forward", disabled: index >= count - 1, onSelect: () => { store.movePage(notebookId, page.id, index + 1); renderStage(); } },
@@ -779,6 +807,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       }).catch(() => {});
     }
     const ink = new InkCanvas(canvas, page, {
+      gecmis: gecmisAl(page.id),
       getTool: () => tool,
       pencilOnly: () => store.settings.pencilOnly,
       pressureWidth: () => store.settings.pressureWidth,
@@ -2931,6 +2960,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     if (komut && e.key.toLowerCase() === "f") { e.preventDefault(); aramaAc(); return; }
     if (komut && e.key === ".") { e.preventDefault(); odakModu(!screen.classList.contains("odak")); return; }
     if (yaziyor || komut || e.altKey || document.querySelector(".modal-backdrop")) return;
+    if (e.repeat && ["ArrowRight", "ArrowLeft", "PageDown", "PageUp"].includes(e.key)) { e.preventDefault(); return; }
     if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); movePage(1); }
     else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); movePage(-1); }
   };

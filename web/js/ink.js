@@ -32,8 +32,10 @@ export class InkCanvas {
     this.page = page;
     this.options = options;
     this.ctx = canvas.getContext("2d");
-    this.undoStack = [];
-    this.redoStack = [];
+    // Geri al / ileri al yığınları dışarıdan verilebilir (options.gecmis): editör sahneyi her yeniden
+    // kurduğunda (sayfa çevirme, yazı kutusu, nesne düzenleme) tuval yeniden yaratılıyor; yığın
+    // tuvalin içinde dururken geçmiş her seferinde sıfırlanıyordu ("2 kez basınca geri gitmiyor").
+    this.gecmis = options.gecmis || { undo: [], redo: [] };
     this.live = null;
     this.activePointer = null;
     this.selection = null;       // { ids: Set }
@@ -693,6 +695,11 @@ export class InkCanvas {
   }
 
   // ---- geri al / ileri al ----
+
+  get undoStack() { return this.gecmis.undo; }
+  set undoStack(v) { this.gecmis.undo = v; }
+  get redoStack() { return this.gecmis.redo; }
+  set redoStack(v) { this.gecmis.redo = v; }
 
   snapshot() {
     return this.page.strokes.slice();
