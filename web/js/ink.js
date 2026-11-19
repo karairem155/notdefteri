@@ -10,12 +10,11 @@
 // - Geri al / ileri al sayfa başına tutulur.
 import { uid, store } from "./store.js";
 import { yaziyiCozumle, yaziDonusumleri, noktalariDonustur } from "./duzenle.js";
+// Stabilizatör (Temel, Yumuşak, İpek, Akıcı): hıza uyarlanan süzgeç, zaman damgasına bağlı.
+// Sabit τ'lu üstel süzgeç küçük harfleri içeriden kesip küçültüyordu; ayrıntı yumusatma.js'te.
+import { kalemSuzgeci } from "./yumusatma.js";
 
 const HISTORY_LIMIT = 60;
-// Yumuşatma zaman sabiti (ms): Kapalı, Yumuşak, İpek, Akıcı. Eskiden her noktada sabit bir
-// oran uygulanıyordu; Apple Pencil saniyede 240 nokta verdiği için etki birkaç milisaniyede
-// sönüyor, dört seviye de aynı hissettiriyordu. Şimdi noktalar arasındaki süreye göre.
-const SMOOTH_TAU = [0, 14, 26, 55];
 const MIN_STEP = 1.2;        // bu kadar ilerlemeyen nokta atlanır (sayfa px, 1x görünümde)
 const PIXEL_BUDGET = 14e6;   // bir sayfa tuvali için en çok piksel (bellek sınırı)
 const MAX_SIDE = 4000;       // iOS'ta bir tuvalin kenarı 4096'yı aşamaz; aşarsa tuval boş kalır
@@ -146,9 +145,7 @@ export class InkCanvas {
     }
     const usePressure = this.options.pressureWidth ? this.options.pressureWidth() : false;
     this.strokeStyle = { tool: tool.tool, color: tool.color, width: tool.width, pressure: usePressure, alpha: tool.alpha == null ? 1 : tool.alpha };
-    this.smooth = [p[0], p[1]];
-    this.smoothTau = SMOOTH_TAU[Math.min(3, Math.max(0, this.options.smoothing ? Number(this.options.smoothing()) : 2))] || 0;
-    this.sonZaman = e.timeStamp || performance.now();
+    this.suzgec = kalemSuzgeci(this.options.smoothing ? this.options.smoothing() : 2, p[0], p[1], e.timeStamp || performance.now(), this.viewScale || 1);
     this.rulerLine = this.rulerFor(p);
     this.textLine = this.rulerLine ? null : this.textLineFor(p, tool);
     this.liveTarget = this;
@@ -192,14 +189,9 @@ export class InkCanvas {
     const touched = new Set();
     for (const ev of events) {
       const raw = this.rawPoint(ev);
-      // Üstel yumuşatma (zamana göre): el titremesi ve sensör gürültüsü azalır.
-      const zaman = ev.timeStamp || performance.now();
-      const dt = Math.min(50, Math.max(1, zaman - (this.sonZaman || zaman)));
-      this.sonZaman = zaman;
-      const oran = this.smoothTau ? 1 - Math.exp(-dt / this.smoothTau) : 1;
-      this.smooth[0] += (raw[0] - this.smooth[0]) * oran;
-      this.smooth[1] += (raw[1] - this.smooth[1]) * oran;
-      const snapped = this.snap([this.smooth[0], this.smooth[1], raw[2]]);
+      // Stabilizatör (zamana göre): yavaşken titreme alınır, yazı hızında harf boyu korunur.
+      const [fx, fy] = this.suzgec ? this.suzgec.ekle(raw[0], raw[1], ev.timeStamp || performance.now()) : raw;
+      const snapped = this.snap([fx, fy, raw[2]]);
       const sx = snapped[0];
       const sy = snapped[1];
       // Çift sayfada çizgi ciltten öbür sayfaya geçer: orada yeni bir çizgi olarak devam eder.
@@ -246,13 +238,23 @@ export class InkCanvas {
       return;
     }
     if (!this.liveTarget) return;
-    if (this.smoothTau && this.liveTarget === this && this.live && !this.live.shape && this.smooth) {
+    // Kalem kalkınca süzgecin gerisinde kalan uç gerçek uca yetiştirilir.
+    if (this.suzgec && this.liveTarget === this && this.live && !this.live.shape) {
       const son = this.rawPoint(e);
       const uc = this.snap([son[0], son[1], son[2]]);
-      for (const t of [0.5, 1]) {
-        this.addLivePoint(round([this.smooth[0] + (uc[0] - this.smooth[0]) * t, this.smooth[1] + (uc[1] - this.smooth[1]) * t, son[2]]));
+      // Kalkış olayında basınç 0 gelir (rawPoint 0.5 yapar): yetişme noktaları son gerçek basıncı alsın,
+      // yoksa hafif biten harfin ucu kalınlaşır.
+      const pts = this.live.points;
+      const basinc = pts.length && pts[pts.length - 1][2] != null ? pts[pts.length - 1][2] : son[2];
+      for (const [x, y] of this.suzgec.ucaYetis(uc[0], uc[1])) this.addLivePoint(round([x, y, basinc]));
+      // addLivePoint MIN_STEP'ten yakın noktayı atlıyor: uç 1.2 birime kadar geride kalıyordu.
+      // Eski süzgeçte kalan seviyede (İpek, gamma 0) v109'la birebir kalsın diye eklenmiyor.
+      if (this.suzgec.ayar.gamma) {
+        const sonNokta = pts[pts.length - 1], ucNokta = round([uc[0], uc[1], basinc]);
+        if (Math.hypot(ucNokta[0] - sonNokta[0], ucNokta[1] - sonNokta[1]) > 0.15) pts.push(ucNokta);
       }
     }
+    this.suzgec = null;
     const satir = this.textLine;
     const noktalar = this.liveTarget.live ? this.liveTarget.live.points : null;
     this.liveTarget.finishLive();
