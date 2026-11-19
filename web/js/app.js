@@ -53,6 +53,12 @@ window.addEventListener("pagehide", () => { store.flush(); });
 document.addEventListener("visibilitychange", () => { if (document.hidden) store.flush(); });
 store.addEventListener("error", (e) => toast(e.detail));
 
+/** Tarayıcıda mı (http/https), yoksa App Store kabuğunda (Capacitor) mı çalışıyoruz? */
+function webde() {
+  try { if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) return false; } catch (_) {}
+  return location.protocol === "https:" || location.protocol === "http:";
+}
+
 /** Servis çalışanı takılı kalırsa uygulama eski sürümde donar; sürüm farklıysa bir kez temizleyip yenile. */
 async function surumKontrol() {
   try {
@@ -120,7 +126,9 @@ store.load().then(async () => {
   setTimeout(() => { editorYukle().catch(() => {}); }, 1200);
   const persisted = await requestPersistentStorage();
   if (!persisted) console.info("Kalıcı depolama verilmedi; yedekleme önemli.");
-  if ("serviceWorker" in navigator) {
+  // App Store kabuğunda (Capacitor, capacitor:// şeması) dosyalar zaten uygulamanın içinde:
+  // servis çalışanı ve sürüm kontrolü/önbellek temizliği gerekmez. Yalnız web'de (http/https) kur.
+  if ("serviceWorker" in navigator && webde()) {
     // Yeni sürüm yayınlandığında: yeni çalışan kurulur, denetimi alınca sayfa bir kez yenilenir.
     let refreshing = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {

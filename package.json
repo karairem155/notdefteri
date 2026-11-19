@@ -1,0 +1,19 @@
+{
+  "name": "notdefteri-kabuk",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Not Defteri web uygulamasını (web/) App Store için saran Capacitor iOS kabuğu.",
+  "license": "MIT",
+  "scripts": {
+    "kimlik": "node scripts/kimlik-esitle.mjs",
+    "cap:sync": "node scripts/kimlik-esitle.mjs && cap sync ios",
+    "cap:copy": "cap copy ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.2",
+    "@capacitor/ios": "8.6.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.2"
+  }
+}

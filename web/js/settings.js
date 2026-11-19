@@ -216,6 +216,13 @@ export function renderSettings(root) {
       const anahtarlar = (await caches.keys()).filter((k) => k.startsWith("notdefteri-v"));
       if (anahtarlar.length) surum = anahtarlar[anahtarlar.length - 1].replace("notdefteri-", "");
     } catch (_) { /* önbellek kapalı olabilir */ }
+    // App Store kabuğunda (capacitor://) servis çalışanı yok: sürümü paketteki sw.js'den oku.
+    if (surum === "bilinmiyor" && !/^https?:$/.test(location.protocol)) {
+      try {
+        const eslesme = (await (await fetch("./sw.js")).text()).match(/notdefteri-(v\d+)/);
+        if (eslesme) surum = eslesme[1];
+      } catch (_) { /* yoksa bilinmiyor kalsın */ }
+    }
     const el = screen.querySelector(".app-version");
     if (el) el.textContent = "Sürüm " + surum;
   }

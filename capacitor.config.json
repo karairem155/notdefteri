@@ -1,0 +1,9 @@
+{
+  "appId": "com.example.notdefteri",
+  "appName": "Not Defteri",
+  "webDir": "web",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#ffffff"
+  }
+}

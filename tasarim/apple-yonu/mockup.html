@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not Defteri — Apple yönü denemesi</title>
+<link href="https://fonts.googleapis.com/css2?family=Kalam&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<style>
+  :root { --ink: #1d1d1f; --ink2: #6e6e73; --hair: rgba(0,0,0,.09); --tint: #172a45; --pink: #f2649a; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 820px; height: 1180px; overflow: hidden; font-family: Inter, -apple-system, system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  svg.lucide { width: 22px; height: 22px; stroke-width: 1.6; }
+  .ekran { position: relative; width: 820px; height: 1180px; overflow: hidden; }
+
+  /* ---------- Raf ---------- */
+  .raf { background: #fff; padding: 0 32px; }
+  .A .raf { background: #ffffff; }
+  .B .raf { background: #f2f2f7; }
+  .ust { height: 56px; display: flex; align-items: center; justify-content: space-between; }
+  .ust .grup { display: flex; gap: 22px; align-items: center; color: var(--tint); }
+  .ust .yazi { font-size: 17px; font-weight: 500; color: var(--tint); }
+  h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin: 6px 0 4px; }
+  .alt-baslik { font-size: 15px; color: var(--ink2); margin-bottom: 22px; }
+  .arama { height: 36px; border-radius: 10px; background: rgba(118,118,128,.12); display: flex; align-items: center; gap: 6px; padding: 0 10px; color: #8e8e93; font-size: 17px; margin-bottom: 26px; }
+  .arama svg.lucide { width: 17px; height: 17px; }
+  .bolum { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin: 6px 0 14px; display: flex; justify-content: space-between; align-items: baseline; }
+  .bolum a { font-size: 17px; font-weight: 400; color: var(--tint); }
+  .izgara { display: grid; grid-template-columns: repeat(4, 1fr); gap: 34px 24px; }
+  .defter .kapak { aspect-ratio: 3/4; border-radius: 4px 9px 9px 4px; position: relative; overflow: hidden;
+    box-shadow: 0 0.5px 0 rgba(0,0,0,.08), 0 8px 18px -6px rgba(0,0,0,.28), 0 2px 4px rgba(0,0,0,.08); }
+  .defter .kapak::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 9%; background: linear-gradient(90deg, rgba(0,0,0,.18), rgba(0,0,0,.04) 70%, rgba(255,255,255,.12)); }
+  .defter .kapak::after { content: ""; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(255,255,255,.14), transparent 40%); }
+  .defter .etiket { position: absolute; left: 18%; right: 12%; top: 14%; padding: 7px 8px; background: rgba(255,255,255,.92); border-radius: 3px; font-size: 11px; font-weight: 600; color: #333; }
+  .defter .ad { font-size: 15px; font-weight: 600; margin-top: 12px; }
+  .defter .bilgi { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+  /* B: kartlı (Notlar / Freeform gibi) — ilk sayfa önizlemesi, beyaz kart */
+  .B .izgara { gap: 20px; grid-template-columns: repeat(3, 1fr); }
+  .B .defter { background: #fff; border-radius: 14px; padding: 12px 12px 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .B .defter .kapak { aspect-ratio: 4/3.2; border-radius: 8px; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.08); }
+  .B .defter .kapak::before, .B .defter .kapak::after { display: none; }
+  .B .defter .serit { position: absolute; left: 0; top: 0; bottom: 0; width: 7px; }
+  .B .defter .ad { margin-top: 10px; }
+  .sayfa-onizleme { position: absolute; inset: 0; background: #fbfaf7 repeating-linear-gradient(180deg, transparent 0 15px, rgba(23,42,69,.08) 15px 16px); }
+  .el { font-family: Kalam, cursive; color: #1d2b44; }
+  .sayfa-onizleme .el { position: absolute; left: 16px; top: 6px; right: 8px; font-size: 13px; line-height: 16px; }
+  .yuzen { position: absolute; right: 32px; bottom: 36px; width: 56px; height: 56px; border-radius: 50%; background: var(--tint); color: #fff; display: grid; place-items: center; box-shadow: 0 8px 20px rgba(23,42,69,.28); }
+  .yuzen svg.lucide { width: 26px; height: 26px; stroke-width: 2; }
+
+  /* ---------- Defter ---------- */
+  .masa { background: #f2f2f7; }
+  .A .masa { background: #e9e9ee; }
+  .cubuk { position: absolute; left: 0; right: 0; top: 0; height: 52px; display: flex; align-items: center; padding: 0 16px; gap: 20px; z-index: 3; }
+  .A .cubuk { background: rgba(250,250,252,.82); backdrop-filter: blur(20px) saturate(1.6); border-bottom: 0.5px solid var(--hair); color: var(--tint); }
+  .B .cubuk { background: #172a45; color: #fbf6f3; }
+  .cubuk .baslik { position: absolute; left: 50%; transform: translateX(-50%); font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+  .cubuk .sol, .cubuk .sag { display: flex; gap: 20px; align-items: center; }
+  .cubuk .sag { margin-left: auto; }
+  .sayfa { position: absolute; left: 40px; right: 40px; top: 76px; bottom: 120px; background: #fbfaf7; border-radius: 3px;
+    box-shadow: 0 0 0 0.5px rgba(0,0,0,.06), 0 12px 32px -8px rgba(0,0,0,.18);
+    background-image: repeating-linear-gradient(180deg, transparent 0 39px, rgba(23,42,69,.10) 39px 40px); background-position: 0 56px; }
+  .sayfa-yazi { position: absolute; left: 64px; right: 50px; top: 102px; font-size: 27px; line-height: 40px; }
+  .sayfa-yazi b { font-weight: 400; font-size: 34px; color: #1d2b44; } .sayfa-yazi .vurgu { background: linear-gradient(transparent 55%, rgba(246,215,74,.55) 55%); }
+  /* Apple Notlar'daki kalem kutusu: gerçek uç şekilleri */
+  .kalemler { position: absolute; left: 50%; transform: translateX(-50%); bottom: 22px; height: 84px; padding: 0 22px; border-radius: 22px;
+    display: flex; align-items: flex-end; gap: 16px; overflow: hidden; z-index: 3; }
+  .A .kalemler { background: rgba(250,250,252,.86); backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 0 0 0.5px rgba(0,0,0,.08), 0 10px 30px rgba(0,0,0,.12); }
+  .B .kalemler { background: #172a45; box-shadow: 0 10px 30px rgba(23,42,69,.3); }
+  .kalem { width: 30px; height: 74px; position: relative; transition: transform .2s; }
+  .kalem.secili { transform: translateY(-12px); }
+  .ayrac { width: 0.5px; height: 44px; align-self: center; background: var(--hair); }
+  .B .ayrac { background: rgba(255,255,255,.2); }
+  .renkler { display: flex; gap: 10px; align-self: center; }
+  .renk { width: 28px; height: 28px; border-radius: 50%; }
+  .renk.secili { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ink); }
+  .B .renk.secili { box-shadow: 0 0 0 2px #172a45, 0 0 0 3.5px #fbf6f3; }
+  .arti { width: 28px; height: 28px; border-radius: 50%; align-self: center; display: grid; place-items: center; color: var(--ink2); background: rgba(118,118,128,.12); }
+  .B .arti { color: #fbf6f3; background: rgba(255,255,255,.12); }
+  .arti svg.lucide { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<div id="kok"></div>
+<script>
+const q = new URLSearchParams(location.search);
+const yon = q.get("yon") || "A", ekran = q.get("ekran") || "raf";
+document.body.className = yon;
+const kok = document.getElementById("kok");
+const defterler = [["Biyoloji", "#24395a", "12 sayfa · Bugün"], ["Günlük", "#e9789f", "48 sayfa · Dün"], ["Matematik", "#3f7a68", "23 sayfa · Pzt"],
+  ["Okuma notları", "#c9965a", "9 sayfa · 12 Kas"], ["Toplantılar", "#5f5a8c", "17 sayfa · 10 Kas"], ["Tarih", "#9a4b3c", "31 sayfa · 2 Kas"],
+  ["Fikirler", "#7b8796", "6 sayfa · Ekim"], ["Fizik", "#2f5d7c", "14 sayfa · Ekim"]];
+const yaziYolu = '<path d="M4 30c6-18 10-22 12-10s-2 18 4 6 8-14 10-4 2 10 8 2M48 20c4 10 10 10 12 0M66 30c2-14 6-16 8-6M84 22c6-6 12 4 6 10s-8-6 0-8M104 18v14M104 10v1M114 30c4-14 10-14 12 0 2 6 8 6 10-6" fill="none" stroke="#1d2b44" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+const ONIZLEME = ["hücre zarı seçici geçirgendir", "bugün hava çok güzeldi", "türev: anlık değişim", "sayfa 42 — altını çiz", "perşembe 14.00 sunum", "Osmanlı kuruluş dönemi"];
+const ikon = (ad) => `<i data-lucide="${ad}"></i>`;
+
+function raf() {
+  const kart = ([ad, renk, bilgi], i) => yon === "A"
+    ? `<div class="defter"><div class="kapak" style="background:${renk}"><div class="etiket">${ad}</div></div><div class="ad">${ad}</div><div class="bilgi">${bilgi}</div></div>`
+    : `<div class="defter"><div class="kapak"><div class="sayfa-onizleme"><div class="el">${ad}<br>${ONIZLEME[i % ONIZLEME.length]}</div></div><div class="serit" style="background:${renk}"></div></div><div class="ad">${ad}</div><div class="bilgi">${bilgi}</div></div>`;
+  return `<div class="ekran raf">
+    <div class="ust"><div class="grup">${ikon("panel-left")}</div><div class="grup"><span class="yazi">Seç</span>${ikon("search")}${ikon("settings")}</div></div>
+    <h1>Defterler</h1>
+    ${yon === "A" ? "" : '<div class="alt-baslik">8 defter · 2 klasör</div>'}
+    <div class="arama">${ikon("search")} Defterlerde ve el yazısında ara</div>
+    <div class="bolum">Son açılanlar <a>Tümü</a></div>
+    <div class="izgara">${defterler.slice(0, yon === "A" ? 8 : 6).map(kart).join("")}</div>
+    <div class="yuzen">${ikon("plus")}</div>
+  </div>`;
+}
+
+function kalemSvg(tip, renk) {
+  const govde = "#f4f4f6", golge = "#d9d9de";
+  const ust = { kalem: `<path d="M9 22 15 2l6 20z" fill="${renk}"/>`, isaret: `<rect x="8" y="6" width="14" height="18" rx="2" fill="${renk}"/>`,
+    kursun: `<path d="M9 22 15 4l6 18z" fill="#e8d3b0"/><path d="M13 10 15 4l2 6z" fill="#555"/>`, silgi: `<rect x="8" y="8" width="14" height="16" rx="5" fill="#f2b6c4"/>`,
+    kement: `<path d="M9 22 15 4l6 18z" fill="#cfd3da"/><circle cx="15" cy="14" r="3" fill="none" stroke="#888" stroke-dasharray="2 2"/>`, cetvel: `<rect x="7" y="2" width="16" height="22" rx="1.5" fill="#d7dbe2"/><path d="M7 7h5M7 12h7M7 17h5" stroke="#8a90a0"/>` }[tip];
+  return `<svg class="kalem ${tip === "kalem" ? "secili" : ""}" viewBox="0 0 30 74">${ust}<rect x="7" y="22" width="16" height="60" rx="3" fill="${govde}" stroke="${golge}" stroke-width="0.6"/><rect x="7" y="40" width="16" height="4" fill="${renk === "#1d2b44" ? "#1d2b44" : renk}" opacity=".9"/></svg>`;
+}
+
+function defter() {
+  const renkler = ["#1d2b44", "#e5484d", "#2e7cf6", "#30a46c", "#f5a524"];
+  return `<div class="ekran masa">
+    <div class="cubuk"><div class="sol">${ikon("chevron-left")}${ikon("layout-grid")}${ikon("search")}</div>
+      <div class="baslik">Biyoloji ${ikon("chevron-down")}</div>
+      <div class="sag">${ikon("undo-2")}${ikon("redo-2")}${ikon("bookmark")}${ikon("share")}${ikon("ellipsis")}</div></div>
+    <div class="sayfa"><div class="sayfa-yazi el"><b>Hücre ve organeller</b><br>• Hücre zarı <span class="vurgu">seçici geçirgendir</span><br>• Mitokondri: enerji üretimi (ATP)<br>• Ribozom → protein sentezi<br>• Çekirdek: DNA burada saklanır</div></div>
+    <div class="kalemler">${kalemSvg("kalem", "#1d2b44")}${kalemSvg("isaret", "#f6d74a")}${kalemSvg("kursun", "#777")}${kalemSvg("silgi", "#f2b6c4")}${kalemSvg("kement", "#ccc")}${kalemSvg("cetvel", "#ccc")}
+      <div class="ayrac"></div><div class="renkler">${renkler.map((c, i) => `<div class="renk ${i ? "" : "secili"}" style="background:${c}"></div>`).join("")}</div><div class="arti">${ikon("plus")}</div></div>
+  </div>`;
+}
+kok.innerHTML = ekran === "raf" ? raf() : defter();
+lucide.createIcons();
+</script>
+</body>
+</html>

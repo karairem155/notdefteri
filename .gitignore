@@ -9,3 +9,15 @@ xcuserdata/
 
 tasarim/blender/kareler/
 tasarim/blender/raf/
+
+# App Store kabuğu (Capacitor)
+node_modules/
+ios/App/build/
+ios/App/output/
+ios/App/App/public/
+ios/App/Pods/
+ios/App/CapApp-SPM/.build/
+*.ipa
+*.xcarchive
+*.p8
+*.mobileprovision
