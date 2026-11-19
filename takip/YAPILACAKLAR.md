@@ -25,7 +25,8 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 
 - [?] **Kapak açılış sesi** (sayfa sesinden farklı): ElevenLabs izni verildi ("evet", 13 Kas; ~30–40 kredi). 13 Kas: 3 deneme gönderildi — `tasarim/ses/kapak-1-hazir.mp3`, `kapak-2-hazir.mp3`, `kapak-3-hazir.mp3` (36 kredi). 19 Kas: "kapak sesleri geride kaldı unuttum" → dosyalar yeniden gönderildi. 19 Kas: "pc ses bozuk dinleyeceğim bunu hatırlat bana arada, kulaklık yanımda değil" → **hatırlatılacak** (oturum başlarında/arada bir kez sor). Bekleniyor: hangisi (ya da hiçbiri).
 - [x] **Klasör yelpazesi B'ye de eklensin mi?** (13 Kas) — karar 19 Kas: "açılsın" (dokununca defterler yelpaze gibi açılsın, B buzlu cam klasörde). Uygulama işi aşağıda "Yapılacaklar > iPad geri bildirimi (19 Kas)".
-- [~] **Genel arayüz daha sade olabilir / beyaz tema** — (18 Kas, "tasarımlarımız genel arayüz içime sinmiyor onu belki değiştirip daha sade yaparız bakacağım"). 19 Kas: "bence daha clean beyaz bir temada mı olsa, özentilik yapmış olur muyum Freenotes'tan"; sonra 19 Kas: "beyaz tema yapalım bence ne dersin ama logoyla uyumsuz mu" → **beyaz tema isteniyor**; iki beyaz yön görseli hazırlanıyor (logo uyumu dahil). Kullanıcı birini onaylayınca uygulanacak.
+- [x] **Genel arayüz daha sade olabilir / beyaz tema** — (18 Kas, "tasarımlarımız genel arayüz içime sinmiyor onu belki değiştirip daha sade yaparız bakacağım"). 19 Kas: "bence daha clean beyaz bir temada mı olsa, özentilik yapmış olur muyum Freenotes'tan"; sonra 19 Kas: "beyaz tema yapalım bence ne dersin ama logoyla uyumsuz mu" → yön görseli `tasarim/beyaz-tema-yonleri.jpg`. **KARAR 19 Kas**: "c olsun ama defter kısmı b deki gibi olsun" → raf tam beyaz (A), defter ekranında lacivert çubuklar (B). Uygulama: aşağıda iPad denemesi "Beyaz masa" — v112 (04e854a).
+- [?] **Genel tasarımı beğenmemeye başladı** (19 Kas, "genel tasarımını beğenmemeye başladım") — neyi beğenmediği soruluyor: kapaklar, raf, simgeler, yazı tipi, alt çubuk? Önce ne beğenilmediği, sonra ikişerli örnek (tahminle üretme). Bekleniyor: kullanıcının cevabı.
 - [?] **Akıcı mı İpek mi?** — düşük öncelik: 19 Kas yazı hissi denemesinde sorun bildirmedi ("her şey yolunda gibi"); karşılaştırma istenirse sorulacak. Ayrıntı aşağıda "Yazıda gariplik hissi" altında.
 - [x] **El yazısını Google'ın tanıma servisine göndermek** (stil dönüşümü için) mi, App Store sürümünü beklemek mi? — 18 Kas. 19 Kas: "sorun ne, neden el yazısı olmuyor" → 19 Kas açıklandı. **Karar 19 Kas (kabuk kararıyla)**: Google'a gönderme yok; App Store kabuğunda Apple'ın cihazdaki tanıma özelliğiyle yapılacak. İş aşağıda Freenotes altında [ ], kabuğa bağlı.
 - [x] **Sesle yazılan metin için el yazısı tarzı font** (19 Kas, "fontu çok beğenmedim, daha el yazısı tarzı font lazım") — seçenekler gösterildi; **karar 19 Kas**: "5 Playpen Sans ve 3 ve 2 opsiyonel olsun, default 5" → varsayılan Playpen Sans, seçenek Patrick Hand ve Kalam. Uygulama işi aşağıda "Yapılıyor".
@@ -33,7 +34,7 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 
 ## Yapılıyor
 
-- [~] **Sesle yaz fontu**: varsayılan **Playpen Sans**, seçenek olarak **Patrick Hand** ve **Kalam** — karar 19 Kas ("5 Playpen Sans ve 3 ve 2 opsiyonel olsun, default 5"). Fontlar uygulamaya gömülecek (internetten çekilmeyecek), Türkçe karakterler (ğ ş ı İ ç ö ü) doğrulanacak.
+- [i] **Sesle yaz fontu**: varsayılan **Playpen Sans**, seçenek olarak **Patrick Hand** ve **Kalam** — karar 19 Kas ("5 Playpen Sans ve 3 ve 2 opsiyonel olsun, default 5"). Yapıldı: üç font `web/fonts/` altına gömüldü (latin + latin-ext); dışa aktarmada eski yazı tipi korunuyor (inceleyici önerisi) — **v111** (00198e8, 19 Kas). iPad'de yazı tipleri denenecek.
 - [~] **App Store kabuğu** — karar 19 Kas ("webde kalmayacağız, App Store'a eklenecek", "kabuğa da koyalım"). Plan: Capacitor/WKWebView, web dosyaları uygulamanın içinde, GitHub macOS sunucusunda derleme, TestFlight ile iPad'e. Apple Developer hesabı sorusu yukarıda [?]. **Not**: web'deki notlar uygulamaya kendiliğinden geçmez → web'de yedekle → uygulamada geri yükle akışı gerekli.
 
 - [x] **Klasör yönü** — karar: **B buzlu cam** (13 Kas, "B bence"). İstek 13 Kas, "bu klasör nasıl"; referans @damienghader "File Folder" — https://x.com/bestdesignsonx/status/2120305510331089286. Deneme: `tasarim/klasor-cam-denemesi.jpg` (A şu anki pul, B buzlu cam, C açık cam, C dokununca yelpaze). Yelpaze hareketinin B'ye de eklenip eklenmeyeceği söylenmedi.
@@ -71,21 +72,27 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 - [x] (2) Buzlu cam klasör: rafta görünüm, klasörü açıp kapama, Ayarlar > Kapak görünümü — v108. Deneme yapıldı 19 Kas, **sonuç HATA** ("dosya buzlu cam gözükmüyor iPad'de") → iş yukarıda "Yapılıyor"da [ ].
 - [x] (3) Cam kapak defter: ilk sayfa yazısı arkadan bulanık görünüyor mu, koyu kapaklar, defter açılış animasyonu — v108. Deneme yapıldı 19 Kas, **sonuç HATA** ("bi garip duruyor hatalı gibi") → iş yukarıda "Yapılıyor"da [ ].
 - [?] (4) Kement > Düzenle (yazı boyu, satır aralığı, çizgiye otur): gerçek el yazısıyla, ayrık harfli ve l/k/d'li yazıda — v109. 19 Kas: "kement anlamadım bunu" → önce anlatılacak, sonra yeniden denenecek. 19 Kas: "kementi yine anlamadım ya" → görselle yeniden anlatıldı.
+- [i] (13) Yeni kalem paneli: renk en üstte, basınç/şekil/stabilizatör kapalı "Yazma ayarları"nda; buzlu kalem uç tipleri arasında — v111 (00198e8, 19 Kas)
+- [i] (14) "Metin ve Ses" paneli (sesli not sesle yazın yanında); Seçim düğmesine ikinci dokunuş → Nesneleri düzenle — v111
+- [i] (15) Sesle yaz yazı tipleri: Playpen Sans (varsayılan), Patrick Hand, Kalam; Türkçe harfler — v111
+- [i] (16) Tek/Çift: dikeyde ve yatayda üst çubukta, bölmede menüde — v111
+- [i] (17) Medya > Fotoğraftan Çıkartma Yap çalışıyor mu — v111
+- [i] (18) Beyaz masa: raf tam beyaz, defter ekranında lacivert çubuklar; Ayarlar > Masa'da eski "Marka gri" seçilebiliyor — v112 (04e854a, 19 Kas)
 
 ## Yapılacaklar
 
 ### iPad geri bildirimi (19 Kas)
 - [ ] **Klasör yelpazesi**: B buzlu cam klasöre dokununca içindeki defterler yelpaze gibi açılsın — karar 19 Kas, "açılsın" (denemedeki C hareketi; `tasarim/klasor-cam-denemesi.jpg`). Önce klasörün iPad'de buzlu cam görünmeme hatası çözülmeli.
 - [ ] **Procreate fırçasını doğrudan içe aktarma** (.brush / .brushset) ve Procreate gibi çizim (19 Kas, "ben brush direkt içe aktarılıyor ya onu da istedim, Procreate gibi çizim de yapabilmek için"). PNG'den fırça ekleme zaten çalışıyor (v105).
-- [~] **Menü düzeni**: bazı öğeler yanlış bölümde (19 Kas, "menüde bazı yerler çok saçma yerlerde, mesela sesli not görüntüler kısmında, diğerde ne alaka, buzlu kalem de öyle, kalem renk seçme çok aşağıda menüde"). **Önerilen düzen onaylandı** (19 Kas, "bu düzenle başla"):
+- [i] **Menü düzeni** — onaylanan düzen uygulandı; inceleyicinin 4 önerisi de yapıldı (bölmede Tek/Çift menüde, düzenleme açıkken Seçim menüsü, dışa aktarmada eski yazı tipi, renk düğmeleri 44 px); ölü menü kodu silindi — **v111** (00198e8, 19 Kas). iPad denemesi aşağıda. İstek: bazı öğeler yanlış bölümde (19 Kas, "menüde bazı yerler çok saçma yerlerde, mesela sesli not görüntüler kısmında, diğerde ne alaka, buzlu kalem de öyle, kalem renk seçme çok aşağıda menüde"). **Önerilen düzen onaylandı** (19 Kas, "bu düzenle başla"):
   - kalem rengi kalem panelinin en üstüne; sıra renk → uç tipi → kalınlık → opaklık → favoriler; basınç/şekil/stabilizatör en altta kapalı "Yazma ayarları"
   - buzlu kalem yalnız kalemler arasında (ayarları kalem panelinde)
   - sesli not → "Metin ve Ses" paneli (sesle yazın yanında)
   - Nesneleri düzenle → Seçim düğmesine
   - Yapıştır Medya'dan kalkar; "Diğer" bölümü kalkar; Medya paneli adı "Fotoğraf ve Dosya"
   - üç nokta menüsünde tekrar eden (kopya) öğeler kalkar
-- [ ] **HATA: Medya > "Fotoğraftan Çıkartma Yap" çalışmıyor** (19 Kas, menü incelemesinde bulundu) — panelde `ctx.makeSticker` verilmemiş (`web/js/panels.js` 646. satır çağırıyor). Menü düzeniyle birlikte düzeltilecek; v90 özelliği.
-- [ ] **Tek sayfa görünümü daha erişilebilir yerde** (19 Kas, "tek sayfa görünümü daha erişilebilir bir yerde olsun").
+- [i] **HATA: Medya > "Fotoğraftan Çıkartma Yap" çalışmıyor** (19 Kas, menü incelemesinde bulundu) — panelde `ctx.makeSticker` verilmemiş (`web/js/panels.js` 646. satır çağırıyor); v90 özelliği. Düzeldi — **v111** (00198e8, 19 Kas).
+- [i] **Tek sayfa görünümü daha erişilebilir yerde** (19 Kas, "tek sayfa görünümü daha erişilebilir bir yerde olsun") — Tek/Çift artık dikeyde de üst çubukta (önce dikeyde gizliydi); bölmede menüde — **v111** (00198e8, 19 Kas).
 - [ ] **Chrome sekmesi gibi defter sekmeleri** (19 Kas, "sekmeler Chrome sekmesi gibi açılabilsin") — açık defterler üstte sekme şeridi gibi.
 
 ### Rakip listesi — ilk dalgadan kalanlar
@@ -152,10 +159,12 @@ Takip v86'dan (41ef65b, 29 Eki) başlar; öncesi (raf görünümü, sekmeler, ma
 - [x] Dolma ve fırça kalem — v102 (iPad 19 Kas)
 - [i] Karalayarak silme — v103, v105
 - [x] Defterden çıkış animasyonu — v104 (iPad 19 Kas, "animasyon yarıda kalmıyor")
-- [i] Desen kalemi + fırça içe aktarma, sesle yaz, yer işareti (adsız, renk değişir), bölümlü menü, Tüm sayfalara uygula (şablon/renk), "İki sayfayı kapla", buzlu kalem kalem panelinde — v105. 19 Kas iPad: desen/PNG fırça, sesle yaz, dikey üst çubuk tamam; bölümlü menünün düzeni beğenilmedi (Yapılacaklar > Menü düzeni); diğerleri denenmedi.
+- [i] Desen kalemi + fırça içe aktarma, sesle yaz, yer işareti (adsız, renk değişir), bölümlü menü, Tüm sayfalara uygula (şablon/renk), "İki sayfayı kapla", buzlu kalem kalem panelinde — v105. 19 Kas iPad: desen/PNG fırça, sesle yaz, dikey üst çubuk tamam; bölümlü menünün düzeni beğenilmedi → v111'de yeniden düzenlendi (Yapılacaklar > Menü düzeni); diğerleri denenmedi.
 - [x] Safari gölge izi (görsel kaydırırken) — v106 (iPad 19 Kas, "gölgeler düzeldi")
 - [i] Sayfa sesi kâğıt kalkarken, basılı tut Yapıştır — v106
 - [x] Stabilizatör zamana bağlı, harfler şekle dönmüyor — v107 (v110 ile yerine geçildi)
 - [x] Stabilizatör harfleri küçültmüyor: Akıcı/Yumuşak hıza uyarlanan süzgeç, İpek aynı — v110 (d0a8463; iPad 19 Kas, "her şey yolunda gibi")
+- [i] Menü düzeni (renk üstte kalem paneli, Yazma ayarları, Metin ve Ses, Seçim'de Nesneleri düzenle, Fotoğraf ve Dosya), Çıkartma hatası, sesle yaz fontları (Playpen Sans / Patrick Hand / Kalam gömülü), Tek/Çift dikeyde de; ölü menü kodu silindi — v111 (00198e8)
+- [i] Beyaz masa varsayılan (raf beyaz, defterde lacivert çubuklar; "Marka gri" Ayarlar > Masa'da) — v112 (04e854a)
 - [x] Pinterest sayfa tasarımları sorusu cevaplandı (kişisel kullanım: Şablonlarım; dağıtım: kendi/AI tasarımı)
 - [x] Pazar araştırması ve rakip açığı listesi (150 madde) — https://claude.ai/artifact/4DXNBCSUMUHur7nEssLmfY
