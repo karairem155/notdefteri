@@ -1,6 +1,6 @@
 // Çevrimdışı çalışma: uygulama kabuğu önbelleğe alınır.
 // Yeni sürüm yayınlandığında VERSION değişir, eski önbellek silinir.
-const VERSION = "notdefteri-v110";
+const VERSION = "notdefteri-v111";
 const SHELL = [
   "./",
   "./index.html",
@@ -9,6 +9,12 @@ const SHELL = [
   "./css/marka.css",
   "./fonts/plus-jakarta-latin.woff2",
   "./fonts/plus-jakarta-latin-ext.woff2",
+  "./fonts/playpen-sans-latin.woff2",
+  "./fonts/playpen-sans-latin-ext.woff2",
+  "./fonts/patrick-hand-latin.woff2",
+  "./fonts/patrick-hand-latin-ext.woff2",
+  "./fonts/kalam-latin.woff2",
+  "./fonts/kalam-latin-ext.woff2",
   "./img/maskot/sakin.png",
   "./img/maskot/mutlu.png",
   "./img/maskot/uykulu.png",

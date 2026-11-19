@@ -148,8 +148,44 @@ export function penPanel(ctx) {
     }
     return satirlar;
   };
+  /**
+   * Renk satırı: favori renkler (palet) + palette olmayan son renkler, tek sırada (yana kayar);
+   * sonda "Diğer renkler…" Renk Seçici'yi açar. Renk kullanmayan araçta (buzlu) gösterilmez.
+   */
+  const renkSatiri = (tool) => {
+    const secili = (tool.color || "").toUpperCase();
+    const favori = (s.palette || []).map((c) => c.toUpperCase());
+    const son = (s.recentColors || []).map((c) => c.toUpperCase()).filter((c) => !favori.includes(c)).slice(0, 8);
+    const renk = (c, tur) => h("button", { class: "cp-swatch" + (c === secili ? " selected" : ""), type: "button", style: { "--c": c },
+      "aria-label": `${tur} renk ${colorName(c)} (${c})`, "aria-pressed": String(c === secili), onTap: () => { ctx.setColor(c); build(); } });
+    return h("div", { class: "kp-renkler", role: "group", "aria-label": "Renk" },
+      ...favori.map((c) => renk(c, "Favori")),
+      son.length && favori.length ? h("span", { class: "kp-renk-ayrac", "aria-hidden": "true" }) : null,
+      ...son.map((c) => renk(c, "Son kullanılan")),
+      h("button", { class: "kp-diger-renk", type: "button", onTap: () => ctx.openColor() },
+        h("span", { class: "kp-diger-nokta", style: { "--c": secili || "#1C1C1E" } }), "Diğer renkler…"));
+  };
+
+  /** Buzlu kalem ayarları: Uç Tipi'nde Buzlu seçiliyken panelin içinde (ayrı pencere yok). */
+  const buzluAyarlari = () => {
+    const f = ctx.buzluAyar();
+    const bulanikDeger = h("span", { class: "sp-value" }, String(f.blur));
+    const kalinlikDeger = h("span", { class: "sp-value" }, String(f.thickness));
+    return [
+      h("p", { class: "sp-desc", style: { marginTop: "14px" } }, "Yazının üstüne çek: cevap buzlu bir şeritle örtülür. Başka bir uca dokununca buzlu kalem kapanır."),
+      h("div", { class: "sp-label-row", style: { marginTop: "12px" } }, h("span", {}, "Bulanıklık"), bulanikDeger),
+      slider({ min: 1, max: 24, step: 1, value: f.blur, label: "Bulanıklık", onInput: (v) => { ctx.buzluAyarla({ blur: v }); bulanikDeger.textContent = String(v); } }),
+      h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Şerit kalınlığı"), kalinlikDeger),
+      slider({ min: 12, max: 60, step: 2, value: f.thickness, label: "Şerit kalınlığı", onInput: (v) => { ctx.buzluAyarla({ thickness: v }); kalinlikDeger.textContent = String(v); } }),
+      toggleRow("Dokununca açılsın", "Kapalıyken kalıcı bulanık kalır.", !!f.revealOnTap, (v) => ctx.buzluAyarla({ revealOnTap: v }))
+    ];
+  };
+
+  // "Yazma ayarları" katlanır bölümü: varsayılan kapalı; panel yeniden çizilince açık/kapalı kalır.
+  let yazmaAcik = false;
   const build = () => {
     const tool = ctx.tool();
+    const buzlu = tool.tool === "frosted";
     const hl = tool.tool === "highlighter";
     const a = tool.alpha == null ? 1 : tool.alpha;
     const widthValue = h("span", { class: "sp-value" }, mm(tool.width));
@@ -158,20 +194,8 @@ export function penPanel(ctx) {
     const SMOOTH = ["Temel", "Yumuşak", "İpek", "Akıcı"];
     const holdMs = s.shapeRecognition === false ? 0 : (s.shapeHoldMs == null ? 600 : s.shapeHoldMs);
     const holdIndex = Math.max(0, HOLD_VALUES.indexOf(holdMs));
-    const preview = previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? tool.width * 1.4 : tool.width, hl ? 0.42 * a : a);
-    body.replaceChildren(...[
-      preview,
-      section("Uç Tipi"),
-      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "dolma", title: "Dolma", icon: "tipDolma" }, { key: "firca", title: "Fırça", icon: "tipFirca" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }, { key: "desen", title: "Desen", icon: "heart" }, { key: "frosted", title: "Buzlu", icon: "frost" }],
-        tool.tool, (k) => { if (k === "frosted") { ctx.buzlu(); return; } ctx.setTool(k === "desen" ? { tool: k, desen: tool.desen || "kalp", width: Math.max(6, Math.min(30, tool.width * 3)) } : { tool: k }); build(); }),
-      ...desenSecici(),
-      h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Kalınlık"), widthValue),
-      slider({ min: hl ? 4 : tool.tool === "desen" ? 3 : 0.8, max: hl ? 24 : tool.tool === "desen" ? 40 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
-        onInput: (v) => { ctx.setTool({ width: v }, true); widthValue.textContent = mm(v); preview.replaceWith(previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? v * 1.4 : v, hl ? 0.42 * a : a)); build(); } }),
-      presetRow(hl ? HL_PRESETS : WIDTH_PRESETS, tool.width, (v) => { ctx.setTool({ width: v }); build(); }, mm),
-      h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Opaklık"), opacityValue),
-      slider({ min: 10, max: 100, step: 5, value: Math.round(a * 100), label: "Opaklık",
-        onInput: (v) => { ctx.setTool({ alpha: v / 100 }, true); opacityValue.textContent = "%" + v; } }),
+    const preview = buzlu ? null : previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? tool.width * 1.4 : tool.width, hl ? 0.42 * a : a);
+    const yazmaGovde = h("div", { class: "kp-katlanir-govde", id: "kp-yazma-ayarlari", hidden: !yazmaAcik },
       toggleRow("Basınç Hassasiyeti", "Kalem baskısına göre kalınlık ayarla.", !!s.pressureWidth, (v) => ctx.store.setSetting("pressureWidth", v)),
       ...pdfAyarlari(),
       h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Şekil çizmek için basılı tutun"), h("span", { class: "sp-value" }, HOLD_NAMES[holdIndex])),
@@ -181,15 +205,35 @@ export function penPanel(ctx) {
       h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Stabilizatör"), h("span", { class: "sp-value" }, SMOOTH[smoothing])),
       h("div", { class: "sp-seg" }, ...SMOOTH.map((name, i) => h("button", { type: "button", class: i === smoothing ? "active" : "",
         onTap: () => { ctx.store.setSetting("smoothing", i); build(); } }, name))),
-      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "El titremesini yumuşatır; yüksek seviyede çizgi daha akıcı olur."),
-      h("div", { class: "sp-sep" }),
-      colorRow("Mevcut Renk", tool.color, () => ctx.openColor()),
-      (s.recentColors || []).length ? section("Son Kullanılan Renkler") : null,
-      (s.recentColors || []).length ? h("div", { class: "cp-swatches" }, ...(s.recentColors || []).slice(0, 8).map((c) =>
-        h("button", { class: "cp-swatch" + (c.toUpperCase() === tool.color.toUpperCase() ? " selected" : ""), type: "button", style: { "--c": c }, "aria-label": "Renk " + c, onTap: () => { ctx.setColor(c); build(); } }))) : null,
+      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "El titremesini yumuşatır; yüksek seviyede çizgi daha akıcı olur."));
+    const yazmaBaslik = h("button", { class: "kp-katlanir-baslik" + (yazmaAcik ? " acik" : ""), type: "button", "aria-expanded": String(yazmaAcik), "aria-controls": "kp-yazma-ayarlari",
+      onTap: () => { yazmaAcik = !yazmaAcik; yazmaGovde.hidden = !yazmaAcik; yazmaBaslik.classList.toggle("acik", yazmaAcik); yazmaBaslik.setAttribute("aria-expanded", String(yazmaAcik)); if (yazmaAcik) yazmaBaslik.scrollIntoView({ block: "start", behavior: "smooth" }); } },
+      h("span", {}, "Yazma ayarları"), h("span", { class: "sp-row-sub" }, "Basınç, PDF'te hizalama, şekil, stabilizatör"), svgIcon("down", 18));
+    body.replaceChildren(...[
+      preview,
+      buzlu ? null : section("Renk"),
+      buzlu ? null : renkSatiri(tool),
+      section("Uç Tipi"),
+      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "dolma", title: "Dolma", icon: "tipDolma" }, { key: "firca", title: "Fırça", icon: "tipFirca" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }, { key: "desen", title: "Desen", icon: "heart" }, { key: "frosted", title: "Buzlu", icon: "frost" }],
+        tool.tool, (k) => {
+          if (k === tool.tool) return;
+          if (k === "frosted") { ctx.buzlu(); build(); return; }
+          ctx.setTool(k === "desen" ? { tool: k, desen: tool.desen || "kalp", width: Math.max(6, Math.min(30, tool.width * 3)) } : { tool: k }); build();
+        }),
+      ...(buzlu ? buzluAyarlari() : [
+        ...desenSecici(),
+        h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Kalınlık"), widthValue),
+        slider({ min: hl ? 4 : tool.tool === "desen" ? 3 : 0.8, max: hl ? 24 : tool.tool === "desen" ? 40 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
+          onInput: (v) => { ctx.setTool({ width: v }, true); widthValue.textContent = mm(v); preview.replaceWith(previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? v * 1.4 : v, hl ? 0.42 * a : a)); build(); } }),
+        presetRow(hl ? HL_PRESETS : WIDTH_PRESETS, tool.width, (v) => { ctx.setTool({ width: v }); build(); }, mm),
+        h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Opaklık"), opacityValue),
+        slider({ min: 10, max: 100, step: 5, value: Math.round(a * 100), label: "Opaklık",
+          onInput: (v) => { ctx.setTool({ alpha: v / 100 }, true); opacityValue.textContent = "%" + v; } })
+      ]),
       h("div", { class: "sp-two" },
-        heartButton("Favorilere ekle", () => ctx.addFavorite()),
-        h("button", { class: "sp-outline-btn", type: "button", onTap: () => ctx.openFavorites() }, svgIcon("drag", 18), "Favorilerim"))
+        buzlu ? null : heartButton("Favorilere ekle", () => ctx.addFavorite()),
+        h("button", { class: "sp-outline-btn", type: "button", onTap: () => ctx.openFavorites() }, svgIcon("drag", 18), "Favorilerim")),
+      buzlu ? null : h("div", { class: "kp-katlanir" }, yazmaBaslik, yazmaGovde)
     ].filter(Boolean));
   };
   build();
@@ -640,32 +684,34 @@ export function mediaPanel(ctx) {
     else { const img = h("img", { alt: "", draggable: "false" }); ctx.assetURL(entry.asset).then((url) => { if (url) img.src = url; }); cell.append(img); }
     grid.append(cell);
   }
-  return shell("Fotoğraf ve Dosya Ekle", ctx.close,
+  // Yalnız ekleme işleri. Sesli not → Metin ve Ses; buzlu kalem → Kalem > Uç Tipi;
+  // nesneleri düzenle → Seçim'e tekrar dokun; yapıştır → alt çubuk ve sayfada basılı tut.
+  return shell("Fotoğraf ve Dosya", ctx.close,
+    h("div", { class: "sp-section", style: { marginTop: "4px" } }, "Ekle"),
     h("div", { class: "sp-nav" },
       navRow("photos", "Fotoğraflar", () => ctx.importPhoto()),
-      navRow("scissors", "Fotoğraftan Çıkartma Yap", () => ctx.makeSticker(), "Çevresini çiz ya da şekil seç"),
       navRow("camera", "Kamera", () => ctx.capturePhoto()),
-      navRow("folder", "Dosyalar", () => ctx.importFile(), "Görsel ya da PDF"),
       navRow("scan", "Belge Tara", () => ctx.capturePhoto(true), "Kamerayla çekilir"),
-      navRow("clock", "Son Eklenenler", () => grid.scrollIntoView({ behavior: "smooth" }))),
+      navRow("folder", "Dosyalar", () => ctx.importFile(), "Görsel ekler; PDF sayfa olarak eklenir"),
+      navRow("scissors", "Fotoğraftan Çıkartma Yap", () => ctx.makeSticker(), "Çevresini çiz ya da şekil seç")),
     h("div", { class: "sp-section-row" }, h("span", { class: "sp-section" }, "Son Eklenenler"), recent.length ? h("span", { class: "sp-row-sub" }, `${recent.length} öğe`) : null),
-    recent.length ? grid : h("p", { class: "sp-desc" }, "Eklediğin fotoğraf ve dosyalar burada birikir."),
-    h("div", { class: "sp-section" }, "Diğer"),
-    h("div", { class: "sp-nav" },
-      navRow("audio", ctx.isRecording() ? "Ses Kaydını Durdur" : "Sesli Not Kaydet", () => ctx.toggleAudio(), "Sayfaya oynatılabilir not düşer"),
-      navRow("frost", ctx.isFrosted() ? "Buzlu Kalemi Kapat" : "Buzlu Kalem", () => ctx.toggleFrosted(), "Cevabın üstünü örter; dokununca açılır"),
-      navRow("objects", ctx.isEditingObjects() ? "Düzenlemeyi Bitir" : "Nesneleri Düzenle", () => ctx.toggleEditing(), "Taşı, döndür, çıkartma yap"),
-      ctx.hasClipboard() ? navRow("copy", "Yapıştır", () => ctx.paste()) : null));
+    recent.length ? grid : h("p", { class: "sp-desc" }, "Eklediğin fotoğraf ve dosyalar burada birikir."));
 }
 
 export function textPanel(ctx) {
-  return shell("Metin", ctx.close,
+  const kayit = ctx.isRecording();
+  const dinliyor = ctx.isListening();
+  return shell("Metin ve Ses", ctx.close,
+    h("div", { class: "sp-section", style: { marginTop: "4px" } }, "Metin"),
     h("div", { class: "sp-nav" },
       navRow("textTool", "Yazı Kutusu", () => ctx.addText(false), "Klavye ya da Apple Pencil ile yaz"),
       navRow("check", "Yapılacaklar Listesi", () => ctx.addText(true), "Onay kutulu maddeler"),
       navRow("lassoRect", "Onay Kutusu", () => ctx.addCheckBox(), "El yazısının yanına"),
-      navRow("audio", "Sesle Yaz", () => ctx.sesleYaz(), "Konuş, yazı kutusuna yazılsın"),
-      navRow("translate", "Çeviri", () => ctx.openTranslate(), "Yaz ya da seç, çevir")));
+      navRow("translate", "Çeviri", () => ctx.openTranslate(), "Yaz ya da seç, çevir")),
+    h("div", { class: "sp-section" }, "Ses"),
+    h("div", { class: "sp-nav" },
+      Object.assign(navRow("audio", kayit ? "Ses Kaydını Durdur" : "Sesli Not Kaydet", () => ctx.toggleAudio(), kayit ? "Kayıt sürüyor; dokun, sayfaya eklensin" : "Sayfaya oynatılabilir not düşer"), { className: "sp-nav-row" + (kayit ? " kayitta" : "") }),
+      navRow("audio", dinliyor ? "Sesle Yazmayı Bitir" : "Sesle Yaz", () => ctx.sesleYaz(), "Konuş, yazı kutusuna yazılsın")));
 }
 
 

@@ -193,6 +193,26 @@ html[data-masa="pudra"] .raf-etiket .say { color: rgba(23, 42, 69, 0.58); }
   src: url(../fonts/plus-jakarta-latin.woff2) format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
+/* Yazı kutusu yazı tipleri (OFL, Google Fonts): uygulamaya gömülü, latin + latin-ext (ğ ş ı İ ç ö ü). */
+@font-face { font-family: "Playpen Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(../fonts/playpen-sans-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Playpen Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(../fonts/playpen-sans-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Patrick Hand"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(../fonts/patrick-hand-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Patrick Hand"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(../fonts/patrick-hand-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Kalam"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(../fonts/kalam-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Kalam"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(../fonts/kalam-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
 /* Marka yazı tipi her masada. Sayfadaki metin kutuları kendi yazı tipini (--font) kullanmaya devam eder. */
 body, button, input, select, textarea { font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
@@ -535,11 +555,13 @@ html[data-cubuk-acik] .ses-kapat { background: rgba(23, 42, 69, 0.1); }
 .yi-renk input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
 .icon-btn.yi-dugme.takili svg { fill: var(--yi); stroke: var(--yi); }
 
-/* Dikey iPad: üst çubuk tek satırda kalsın. Tek/Çift seçimi menüde (Görünüm ve metin). */
+/* Dikey iPad: üst çubuk tek satırda kalsın. Tek/Çift artık burada da görünür (19 Kas: kullanıcı
+   "tek sayfa görünümü daha erişilebilir olsun" dedi); yer açmak için defter adı biraz kısalır. */
 @media (max-width: 900px) {
-  .screen-dark .topbar .segmented { display: none; }
   .screen-dark .topbar .badge-pdf { display: none; }
-  .screen-dark .topbar .topbar-side.right { flex-wrap: nowrap; }
+  .screen-dark .topbar .topbar-side.right { flex-wrap: nowrap; gap: 4px; }
+  .screen-dark .topbar-notebook { max-width: 15vw; }
+  .split-pane .topbar .gorunum-anahtar { display: none; }
 }
 
 /* Nesne sürüklerken Safari'nin bıraktığı gölge izleri: her nesne kendi katmanında çizilsin */
@@ -552,3 +574,30 @@ html[data-cubuk-acik] .ses-kapat { background: rgba(23, 42, 69, 0.1); }
 .cover-cam .cam-renk { position: absolute; inset: 0; }
 .cover-cam .cam-desen { opacity: 0.55; }
 .cover-cam .cam-isik { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.06) 45%, rgba(0, 0, 0, 0.08)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), inset 4px 0 0 rgba(0, 0, 0, 0.1); border-radius: inherit; }
+
+/* ===== Tek / Çift sayfa anahtarı (üst çubuk, sayfa geçişinin yanında) =====
+   Görünen düğme 34 px; ::after dokunma alanını 44 px yüksekliğe tamamlar (çubuk kalınlaşmasın diye). */
+.screen-dark .topbar .gorunum-anahtar { flex-wrap: nowrap; flex: none; margin-left: 2px; padding: 2px; }
+.screen-dark .topbar .gorunum-anahtar button { position: relative; min-width: 46px; height: 32px; padding: 0 10px; justify-content: center; font-size: 15px; }
+.screen-dark .topbar .gorunum-anahtar button::after { content: ""; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+
+/* ===== Kalem paneli: renk satırı ve "Yazma ayarları" katlanır bölümü ===== */
+.kp-renkler { display: flex; align-items: center; gap: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  padding: 5px 4px 6px; margin: 0 -4px; }
+.kp-renkler::-webkit-scrollbar { display: none; }
+.kp-renkler .cp-swatch { width: 44px; height: 44px; }
+.kp-renk-ayrac { flex: none; width: 1px; height: 26px; background: currentColor; opacity: 0.22; }
+.kp-diger-renk { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 6px; border-radius: 999px;
+  border: 1px solid rgba(127, 127, 127, 0.45); background: transparent; color: inherit; font-size: 15px; cursor: pointer; white-space: nowrap; }
+.kp-diger-nokta { width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: conic-gradient(#f2649a, #f5b041, #f4e04d, #5cc98a, #4aa3f0, #9b6cf0, #f2649a); box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.85), inset 0 0 0 9px var(--c); }
+.kp-katlanir { margin-top: 18px; border-top: 1px solid rgba(127, 127, 127, 0.3); }
+.kp-katlanir-baslik { width: 100%; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left;
+  min-height: 56px; padding: 12px 2px 6px; border: 0; background: transparent; color: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+.kp-katlanir-baslik .sp-row-sub { grid-column: 1; font-weight: 400; }
+.kp-katlanir-baslik svg { grid-column: 2; grid-row: 1 / span 2; transition: transform 0.2s ease; opacity: 0.7; }
+.kp-katlanir-baslik.acik svg { transform: rotate(180deg); }
+.kp-katlanir-govde[hidden] { display: none; }
+
+/* Metin ve Ses: kayıt sürerken "Ses Kaydını Durdur" satırı kırmızı */
+.sp-nav-row.kayitta .sp-nav-icon { background: #e5484d; color: #fff; animation: rec-pulse 1s infinite; }

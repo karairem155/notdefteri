@@ -67,6 +67,11 @@ export async function renderPageCanvas(page, scale, opts = {}) {
     }
   }
   items.sort((a, b) => (a.o.z || 0) - (b.o.z || 0));
+  // Gömülü yazı tipleri (Playpen Sans…) tuvale çizilmeden önce yüklenmeli; yoksa yedek yazı tipiyle çizilir.
+  if (typeof document !== "undefined" && document.fonts && document.fonts.load) {
+    const yaziTipleri = items.filter(({ o }) => o.kind === "text" && o.font).map(({ o }) => document.fonts.load(`${o.size || 24}px ${o.font}`, o.text || "a").catch(() => null));
+    if (yaziTipleri.length) await Promise.all(yaziTipleri);
+  }
   for (const { o: object, dx } of items) {
     ctx.save();
     ctx.translate(object.rect.x + dx + object.rect.w / 2, object.rect.y + object.rect.h / 2);
@@ -122,7 +127,7 @@ export async function renderPageCanvas(page, scale, opts = {}) {
       if (object.checked) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-r * 0.5, 0); ctx.lineTo(-r * 0.1, r * 0.4); ctx.lineTo(r * 0.55, -r * 0.4); ctx.stroke(); }
     } else if (object.kind === "text") {
       ctx.fillStyle = object.color || "#1C1C1E";
-      ctx.font = `${object.size || 24}px ${object.font || "sans-serif"}`;
+      ctx.font = `${object.size || 24}px ${object.font || "'Bradley Hand', 'Segoe Script', cursive"}`;   // editor.js ESKI_YAZI_TIPI
       ctx.textBaseline = "top";
       const words = (object.text || "").replace(/\[x\]/gi, "☑").replace(/\[ \]/g, "☐").split(/\s+/);
       let line = "";
