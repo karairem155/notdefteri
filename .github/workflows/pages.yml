@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment2.outputs.page_url }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -35,6 +35,18 @@ jobs:
         with:
           path: web
 
+      # GitHub bazen az önce yüklenen dosyayı ilk aramada bulamıyor ("No artifacts named github-pages"):
+      # ilk deneme düşerse bekleyip yeniden denenir.
       - name: Deploy
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Bekle (ilk deneme düştüyse)
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 45
+
+      - name: Deploy (ikinci deneme)
+        id: deployment2
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
