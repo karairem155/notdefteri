@@ -507,9 +507,12 @@ class Store extends EventTarget {
   }
 
   addPen(pen) {
-    const exists = this.settings.pens.some((p) => p.tool === pen.tool && p.color.toUpperCase() === pen.color.toUpperCase() && p.width === pen.width);
-    if (exists) return;
+    const alfa = (p) => (p.alpha == null ? 1 : p.alpha);
+    const exists = this.settings.pens.some((p) => p.tool === pen.tool && p.color.toUpperCase() === pen.color.toUpperCase() && Math.abs(p.width - pen.width) < 0.01
+      && Math.abs(alfa(p) - alfa(pen)) < 0.01 && (pen.tool !== "desen" || (p.desen || "kalp") === (pen.desen || "kalp")));
+    if (exists) return false;
     this.setSetting("pens", [...this.settings.pens, { id: uid(), ...pen }]);
+    return true;
   }
 
   removePen(id) {

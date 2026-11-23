@@ -1,6 +1,6 @@
 // Ayarlar (13-Ayarlar.png): şablonlarım, kapak desenleri, renk paleti, varsayılan kalem, sayfa, yedekleme.
 import { store, COVER_PRESETS, COVER_TITLES, PAGE_SIZES, PAPER_STYLES, TOOLS } from "./store.js";
-import { h, svgIcon, actionSheet, promptDialog, toast, pickFile, formatPt } from "./ui.js";
+import { h, svgIcon, actionSheet, promptDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
 import { coverElement, sameCover } from "./covers.js";
 import { importTemplateFromFile, shrinkImage, openTemplatePicker } from "./addpage.js";
 import { penIllustration } from "./editor.js";
@@ -36,7 +36,7 @@ export function renderSettings(root) {
           h("div", { class: "note" }, "Bütün defterler, ayarlar ve görseller tek bir dosyaya yazılır; Dosyalar'a ya da iCloud'a kaydet. Safari yer açmak için ana ekran uygulamasının verisini silebilir, bu yüzden ara sıra yedek al.")))
       ),
       h("div", {},
-        section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Alt bardaki renkler: kullandığın renkler kendiliğinden başa geçer (en çok 12). Bir renge uzun basınca değiştirir, taşır ya da çıkarırsın."))),
+        section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Kalem ve renk panelindeki favori renkler. Bir renge dokununca çıkarabilirsin."))),
         section("VARSAYILAN KALEM", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
         section("SAYFA", h("div", { class: "settings-rows" },
           row("Masa", select([["beyaz", "Beyaz (varsayılan)"], ["marka", "Marka gri"], ["gul", "Gül"], ["pudra", "Pudra kâğıt"], ["gece", "Gece mavisi"], ["krem", "Krem keten"], ["pembe", "Pembe keçe"], ["ceviz", "Ceviz ahşap"], ["lacivert", "Lacivert cam (eski)"]], s.masa || "beyaz", (v) => { store.setSetting("masaSecildi4", true); store.setSetting("masa", v); })),
@@ -182,7 +182,10 @@ export function renderSettings(root) {
     const wrap = h("div", { class: "settings-palette" });
     for (const hex of store.settings.palette) {
       const sw = h("button", { class: "swatch", type: "button", style: { "--c": hex }, "aria-label": "Renk " + hex });
-      sw.addEventListener("contextmenu", (e) => { e.preventDefault(); actionSheet(hex, [{ title: "Paletten Çıkar", destructive: true, disabled: store.settings.palette.length <= 1, onSelect: () => { store.removePaletteColor(hex); render(); } }]); });
+      sw.addEventListener("contextmenu", (e) => e.preventDefault());
+      // iPad düğmede "contextmenu" göndermiyor: uzun basma (ya da dokunma) menüyü açar.
+      const cikar = () => actionSheet(hex, [{ title: "Paletten Çıkar", destructive: true, disabled: store.settings.palette.length <= 1, onSelect: () => { store.removePaletteColor(hex); render(); } }]);
+      pressable(sw, { onTap: cikar, onLong: cikar });
       wrap.append(sw);
     }
     const input = h("input", { type: "color", value: "#5d58d6", "aria-label": "Palete renk ekle", onChange: (e) => { store.addPaletteColor(e.target.value); render(); } });

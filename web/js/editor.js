@@ -148,6 +148,8 @@ export function penIllustration(pen) {
  * üstte araca göre uç, gövdede renk bandı. 32×104; alt kısmı kutunun içinde kalıyor.
  */
 let cubukSayac = 0;
+/** Uç tipi → kalem çizimi. */
+export const CUBUK_TURU = { pen: "kalem", fineliner: "fineliner", dolma: "dolma", firca: "firca", pencil: "kursun", highlighter: "fosforlu", desen: "desen", frosted: "buzlu" };
 export function kalemCubugu(tur, renk = "#172A45") {
   const id = "kc" + (++cubukSayac);
   const svg = document.createElementNS(SVG_NS, "svg");
@@ -182,6 +184,22 @@ export function kalemCubugu(tur, renk = "#172A45") {
     kursun: () => govde() + `<path d="M5 38 L16 5 L27 38 Z" fill="url(#${id}a)"/>`
       + `<path d="M5 38 q2.75 -2.6 5.5 0 q2.75 -2.6 5.5 0 q2.75 -2.6 5.5 0 q2.75 -2.6 5.5 0 Z" fill="url(#${id}g)"/>`
       + `<path d="M13.1 13.7 L16 5 L18.9 13.7 Z" fill="${renk}"/>` + bant(),
+    // Fineliner: ince uzun metal uç.
+    fineliner: () => govde() + `<path d="M5 38 L11.5 18 H20.5 L27 38 Z" fill="url(#${id}g)" ${cizgi}/>`
+      + `<rect x="13.2" y="9" width="5.6" height="9.5" rx="1" fill="url(#${id}m)"/><rect x="15" y="3" width="2" height="6.5" rx="1" fill="${renk}"/>` + bant(),
+    // Dolma kalem: koyu gövde, metal uç, ortasında yarık ve delik.
+    dolma: () => `<rect x="5" y="36" width="22" height="74" rx="3.5" fill="#2b3038"/><rect x="8" y="37" width="3" height="70" rx="1.5" fill="rgba(255,255,255,0.2)"/>`
+      + `<path d="M8 36 H24 L20.5 25 H11.5 Z" fill="#2b3038"/><path d="M11.2 25 H20.8 C20.4 18 17.4 10 16 3 C14.6 10 11.6 18 11.2 25 Z" fill="url(#${id}m)" ${cizgi}/>`
+      + `<path d="M16 5 V17" stroke="#5c6472" stroke-width="0.8"/><circle cx="16" cy="18" r="1.4" fill="#5c6472"/><rect x="5" y="50" width="22" height="4.5" fill="${renk}"/>`,
+    // Fırça: metal bilezik, sivrilen kıl.
+    firca: () => govde(40) + `<path d="M7 40 L9 28 H23 L25 40 Z" fill="url(#${id}m)"/>`
+      + `<path d="M9 28.5 C7.4 19 13.5 13 16 3 C18.5 13 24.6 19 23 28.5 Z" fill="${renk}"/><path d="M13 26 C12.4 20 14.6 15 16 9" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.1" stroke-linecap="round"/>` + bant(54),
+    // Desen: damga başlıklı kalem, kalp.
+    desen: () => govde(40) + `<rect x="7" y="31" width="18" height="10" rx="2" fill="url(#${id}m)"/>`
+      + `<path d="M16 29 C5 21.5 7.5 11.5 12.4 12.2 C14.5 12.5 15.6 14.2 16 15.6 C16.4 14.2 17.5 12.5 19.6 12.2 C24.5 11.5 27 21.5 16 29 Z" fill="${renk}"/>` + bant(54),
+    // Buzlu kalem: yarı saydam geniş uç, kar tanesi.
+    buzlu: () => govde(38) + `<rect x="6.5" y="9" width="19" height="29" rx="4" fill="#dfeaf6" opacity="0.92" ${cizgi}/><path d="M9 12.5 V33" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>`
+      + `<g stroke="#7fa3c7" stroke-width="1.2" stroke-linecap="round"><path d="M16.5 17.5V29.5M11.3 20.5L21.7 26.5M11.3 26.5L21.7 20.5"/></g>`,
     // Silgi: yuvarlak pembe başlık, metal bilezik.
     silgi: () => govde(40) + `<path d="M6.5 35 V22 a9.5 9.5 0 0 1 19 0 V35 Z" fill="#f4bccb"/>`
       + `<path d="M8.5 22 a7.5 7.5 0 0 1 5 -7" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.6" stroke-linecap="round"/>`
@@ -214,7 +232,8 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     : (hatirlanan && notebook.pages.some((p) => p.id === hatirlanan)) ? hatirlanan
     : notebook.pages[0].id;
   const defaultPen = store.defaultPen;
-  let tool = { tool: defaultPen.tool, color: defaultPen.color, width: defaultPen.width, alpha: 1 };
+  let tool = { tool: defaultPen.tool, color: defaultPen.color, width: defaultPen.width, alpha: defaultPen.alpha == null ? 1 : defaultPen.alpha };
+  if (defaultPen.tool === "desen") tool.desen = defaultPen.desen || "kalp";
   const toolMemory = {};         // "pen" / "highlighter" grubu için son ayarlar
   let recording = null;          // sesli not kaydı (MediaRecorder)
   let dinleyici = null;          // Sesle yaz: konuşma tanıma (alt çubuk ve şerit erken okuyor, burada tanımlı)
@@ -1531,6 +1550,11 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     }
   }
 
+  /** Kullanılmayan görselleri siler; panodaki nesnenin görseli henüz sayfada olmayabilir, o varken beklenir. */
+  function varlikTemizle() {
+    if (!clipboard.objects.some((o) => o.asset)) store.removeUnreferencedAssets();
+  }
+
   function textActions(object, page, stack, layer) {
     return {
             edit: object.kind === "text" ? () => { editingTextId = object.id; } : null,
@@ -1555,7 +1579,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
             rotate: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.rotation = (o.rotation + 90) % 360; }),
             duplicate: () => { clipboard.objects = [structuredClone(object)]; clipboard.strokes = []; toast("Kopyalandı: sayfada parmağını basılı tut, Yapıştır çıkar"); renderBench(); },
             front: () => store.updatePage(notebookId, page.id, (p) => { const o = p.objects.find((x) => x.id === object.id); if (o) o.z = maxZ(p) + 1; }),
-            remove: () => { store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); }); selectedObjectId = null; store.removeUnreferencedAssets(); }
+            remove: () => { store.updatePage(notebookId, page.id, (p) => { p.objects = p.objects.filter((x) => x.id !== object.id); }); selectedObjectId = null; varlikTemizle(); }
     };
   }
 
@@ -2003,7 +2027,11 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       capturePhoto: async () => { closePopover(); const file = await pickTemp("image/*", true); if (file) importImage("photo", file); },
       importFile: () => { closePopover(); importFile(); },
       // Eskiden verilmiyordu: "Fotoğraftan Çıkartma Yap" satırı hata veriyordu (ctx.makeSticker yok).
-      makeSticker: () => { closePopover(); cikartmaYapFotograftan(); }
+      makeSticker: () => { closePopover(); cikartmaYapFotograftan(); },
+      isEditingObjects: () => editingObjects,
+      toggleEditing: () => { closePopover(); setEditing(!editingObjects); },
+      hasClipboard: () => !!(clipboard.strokes.length || clipboard.objects.length),
+      paste: () => { closePopover(); pasteClipboard(); }
     }), "media");
     renderBench();
   }
@@ -2111,9 +2139,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
       fonts.append(h("button", { class: "fav-cell" + (object.font === family ? " selected" : ""), type: "button", style: { fontFamily: family, fontSize: "20px" }, onTap: () => apply({ font: family }) }, name));
     }
     const sizeValue = h("span", { class: "value" }, (object.size || 24) + " px");
-    openModal(h("div", { class: "dialog", style: { color: "rgba(255,255,255,0.85)" } },
-      h("h3", { style: { color: "#fff" } }, "Yazı tipi"),
-      h("div", { class: "note", style: { color: "rgba(255,255,255,0.5)" } }, "Yazıyı Apple Pencil ile kutuya yazarsan iPad (Scribble) onu metne çevirir."),
+    openModal(h("div", { class: "dialog" },
+      h("h3", {}, "Yazı tipi"),
+      h("div", { class: "note" }, "Yazıyı Apple Pencil ile kutuya yazarsan iPad (Scribble) onu metne çevirir."),
       fonts,
       h("div", { class: "panel-row" }, h("label", {}, "Boyut"), h("input", { type: "range", min: "12", max: "72", step: "2", value: String(object.size || 24), "aria-label": "Yazı boyutu",
         onInput: (e) => { sizeValue.textContent = e.target.value + " px"; }, onChange: (e) => apply({ size: Number(e.target.value) }) }), sizeValue),
@@ -2274,13 +2302,13 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     };
     const blurValue = h("span", { class: "value" }, cover.blur + " px");
     const tintValue = h("span", { class: "value" }, Math.round(cover.tintOpacity * 100) + "%");
-    openModal(h("div", { class: "dialog", style: { color: "rgba(255,255,255,0.85)" } },
-      h("h3", { style: { color: "#fff" } }, "Bulanıklık"),
+    openModal(h("div", { class: "dialog" },
+      h("h3", {}, "Bulanıklık"),
       h("div", { class: "panel-row" }, h("label", {}, "Bulanıklık"), h("input", { type: "range", min: "0", max: "30", step: "1", value: String(cover.blur), "aria-label": "Bulanıklık",
         onInput: (e) => { cover.blur = Number(e.target.value); blurValue.textContent = cover.blur + " px"; apply(); } }), blurValue),
       h("div", { class: "panel-row" }, h("label", {}, "Renk yoğunluğu"), h("input", { type: "range", min: "0", max: "100", step: "5", value: String(Math.round(cover.tintOpacity * 100)), "aria-label": "Renk yoğunluğu",
         onInput: (e) => { cover.tintOpacity = Number(e.target.value) / 100; tintValue.textContent = e.target.value + "%"; apply(); } }), tintValue),
-      h("div", { class: "note", style: { color: "rgba(255,255,255,0.5)" } }, "0 px bulanıklık: altı tamamen görünür; renk yoğunluğu %100: altı hiç görünmez."),
+      h("div", { class: "note" }, "0 px bulanıklık: altı tamamen görünür; renk yoğunluğu %100: altı hiç görünmez."),
       h("div", { class: "dialog-buttons" }, h("button", { class: "btn primary", type: "button", onTap: closeModal }, "Tamam"))
     ), { dark: true });
   }
@@ -2327,7 +2355,9 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   // ---------- tezgah ----------
 
   function penMatches(pen) {
-    return pen.tool === tool.tool && pen.color.toUpperCase() === tool.color.toUpperCase() && Math.abs(pen.width - tool.width) < 0.01;
+    return pen.tool === tool.tool && pen.color.toUpperCase() === (tool.color || "").toUpperCase() && Math.abs(pen.width - tool.width) < 0.01
+      && Math.abs((pen.alpha == null ? 1 : pen.alpha) - (tool.alpha == null ? 1 : tool.alpha)) < 0.01
+      && (pen.tool !== "desen" || (pen.desen || "kalp") === (tool.desen || "kalp"));
   }
 
   const YAZAN_UCLAR = new Set(["pen", "pencil", "fineliner", "dolma", "firca", "desen"]);
@@ -2414,7 +2444,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     const fosforluRengi = tool.tool === "highlighter" ? tool.color : ((toolMemory.highlighter && toolMemory.highlighter.color) || "#F6D74A");
     const secimHedefi = (e) => (e && e.currentTarget) || bench.querySelector(".kk-kalem.secim-dugme");
     const cubuklar = [
-      { tur: "kalem", ad: "Kalem", secili: kalemSecili, renk: kalemRengi,
+      { tur: "kalem", cizim: CUBUK_TURU[kalemSecili ? tool.tool : sonKalemUcu], ad: "Kalem", secili: kalemSecili, renk: kalemRengi,
         onTap: () => { if (kalemSecili) openPenPanel(); else kalemUcuSec(sonKalemUcu); } },
       { tur: "fosforlu", ad: "Fosforlu kalem", secili: tool.tool === "highlighter", renk: fosforluRengi,
         onTap: () => { if (tool.tool === "highlighter") openPenPanel(); else selectTool("highlighter"); } },
@@ -2447,7 +2477,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     const kalemler = h("div", { class: "kk-kalemler" }, ...kutudaki.map((c) => {
       const el = h("button", { class: "kk-kalem tur-" + c.tur + (c.ek ? " " + c.ek : ""), type: "button",
         "aria-label": c.secili && c.tur !== "kement" ? c.ad + ", seçili; tekrar dokun: ayarlar" : c.ad, "aria-pressed": String(c.secili), onTap: c.onTap },
-        kalemCubugu(c.tur, c.renk));
+        kalemCubugu(c.cizim || c.tur, c.renk));
       // Yeni seçilen kalem eski yerinden kalksın, bırakılan insin (kutu her çizimde yeniden kuruluyor).
       const yeni = c.secili && !oncekiCubuklar.has(c.tur);
       const birakilan = !c.secili && oncekiCubuklar.has(c.tur);
@@ -2459,18 +2489,38 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     oncekiCubuklar = seciliCubuklar;
 
     const secRenk = usesColor() ? (tool.color || "").toUpperCase() : null;
-    const palet = (s.palette || []).map((c) => c.toUpperCase());
-    const renk = (c, ek = "") => h("button", { class: "kk-renk" + (c === secRenk ? " secili" : "") + ek, type: "button", style: { "--c": c },
-      "aria-label": `Renk ${c}` + (c === secRenk ? ", seçili" : ""), "aria-pressed": String(c === secRenk), onTap: () => panelCtx.setColor(c) });
+    // Favori kalemler (19 Kas'ta renk noktasına dönmüştü, 23 Kas: "favoriler yeri değişmiş, çıkarma yok"):
+    // dokun → o kalem (uç + renk + kalınlık); seçiliye tekrar dokun → ayarlar; uzun bas → çıkar, taşı, adlandır.
+    const favori = (pen) => {
+      const secili = penMatches(pen);
+      const el = h("button", { class: "kk-renk kk-favori uc-" + pen.tool + (secili ? " secili" : ""), type: "button", style: { "--c": pen.color, "--k": String(Math.max(5, Math.min(22, 4 + pen.width * (pen.tool === "highlighter" ? 0.9 : 2.1)))) + "px" },
+        "aria-label": `${pen.name}${secili ? ", seçili; tekrar dokun: ayarlar" : ""}; uzun bas: favoriden çıkar, taşı`, "aria-pressed": String(secili) },
+        // Aynı renkte iki favori varsa kalınlık izi ayırt ettirir; yoksa düz renk.
+        s.pens.some((o) => o.id !== pen.id && o.color.toUpperCase() === pen.color.toUpperCase()) ? h("span", { class: "kk-favori-iz" }) : null);
+      pressable(el, { onTap: () => { if (secili) openPenPanel(); else panelCtx.applyPen(pen); }, onLong: () => favoriMenusu(pen, el) });
+      el.addEventListener("contextmenu", (e) => { e.preventDefault(); });
+      return el;
+    };
+    const arti = (etiket) => h("button", { class: "kk-arti", type: "button", "aria-label": etiket, onTap: (e) => {
+      const benim = panelCtx.favoriKalem();
+      popoverMenu((e && e.currentTarget) || bench.querySelector(".kk-arti"), [
+        usesColor() && !benim ? { title: "Bu kalemi favorilere ekle", icon: "star", onSelect: addCurrentToFavorites } : null,
+        benim ? { title: "Bu kalemi favoriden çıkar", icon: "star", destructive: true, disabled: s.pens.length <= 1, onSelect: () => favoridenCikar(benim) } : null,
+        { title: "Renkler", icon: "palette", onSelect: () => openColorPanel() },
+        { title: "Favorileri düzenle", icon: "drag", onSelect: openFavoritesPanel }
+      ]);
+    } }, svgIcon("plus", 16));
+    const simdiki = () => h("button", { class: "kk-renk simdiki" + (secRenk ? " secili" : ""), type: "button", style: { "--c": secRenk || "#1C1C1E" }, "aria-label": "Şu anki renk; dokun: renkler", onTap: () => openColorPanel() });
+    const favoriSecili = s.pens.some((p) => penMatches(p));
     const renkler = dar
-      // Dar bölmede renk şeridi sığmıyor: seçili renk tek düğme, dokununca renk paneli.
+      // Dar bölmede şerit sığmıyor: seçili renk tek düğme, dokununca renk paneli.
       ? h("div", { class: "kk-renkler", role: "group", "aria-label": "Renk" },
-        secRenk ? h("button", { class: "kk-renk secili", type: "button", style: { "--c": secRenk }, "aria-label": `Renk ${secRenk}; dokun: renkler`, onTap: () => openColorPanel() }) : null,
-        cokDar && secRenk ? null : h("button", { class: "kk-arti", type: "button", "aria-label": "Renkler", onTap: () => openColorPanel() }, svgIcon("plus", 16)))
-      : h("div", { class: "kk-renkler", role: "group", "aria-label": "Favori renkler" },
-        ...palet.map((c) => renk(c)),
-        secRenk && !palet.includes(secRenk) ? renk(secRenk, " simdiki") : null,
-        h("button", { class: "kk-arti", type: "button", "aria-label": "Diğer renkler", onTap: () => openColorPanel() }, svgIcon("plus", 16)));
+        secRenk ? simdiki() : null,
+        cokDar && secRenk ? null : arti("Favoriler ve renkler"))
+      : h("div", { class: "kk-renkler", role: "group", "aria-label": "Favori kalemler" },
+        ...s.pens.map(favori),
+        secRenk && !favoriSecili ? simdiki() : null,
+        arti("Favorilere ekle, renkler"));
 
     const ek = (icon, label, active, onTap, sinif = "") => h("button", { class: "kk-ek" + (active ? " aktif" : "") + (sinif ? " " + sinif : ""), type: "button",
       "aria-label": label, title: label, "aria-pressed": String(!!active), onTap }, svgIcon(icon, 22));
@@ -2486,6 +2536,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
         ek("more", "Daha fazla: fotoğraf, metin ve ses, çıkartmalar" + (yapistirVar ? ", yapıştır" : ""), !!(popover && ["media", "text", "stickers", "shapes"].includes(popover.dataset.kind)), (e) => {
           popoverMenu((e && e.currentTarget) || bench.querySelector(".kk-daha"), [
             enDar ? { title: "Renkler", icon: "palette", onSelect: () => openColorPanel() } : null,
+            dar ? { title: "Favori Kalemler", icon: "star", onSelect: openFavoritesPanel } : null,
             ...menudeki.map((c) => ({ title: { fosforlu: "Fosforlu Kalem", kursun: "Kurşun Kalem", cetvel: "Şekiller ve Cetvel" }[c.tur] || c.ad, icon: { fosforlu: "highlighter", kursun: "tipPencil", cetvel: "shapesTool" }[c.tur] || "pen", onSelect: () => c.onTap() })),
             { title: "Fotoğraf ve Dosya", icon: "mediaTool", onSelect: openMediaPanel },
             kayitta ? null : { title: "Metin ve Ses", icon: "textTool", onSelect: openTextPanel },
@@ -2613,6 +2664,16 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     if (editingObjects || textSelectMode || flip.active) return;
     const stackEl = e.target && e.target.closest && e.target.closest(".page-stack");
     if (!stackEl) return;
+    // Çizim katmanı nesnelerin üstünde: yapılacak/onay kutusu ve ses notu parmağın dokunuşunu
+    // hiç almıyordu. Dokunulan noktadaki düğme burada çalıştırılıyor.
+    if (e.pointerType === "touch" && store.settings.fingerAction === "navigate" && !okumaModu && !e.target.closest(".placed")) {
+      const pay = 8;
+      const dugme = [...stackEl.querySelectorAll(".layer-objects .todo-box, .layer-objects .placed.audio")].reverse().find((el) => {
+        const r = el.getBoundingClientRect();
+        return e.clientX >= r.left - pay && e.clientX <= r.right + pay && e.clientY >= r.top - pay && e.clientY <= r.bottom + pay;
+      });
+      if (dugme) { (dugme.querySelector(".audio-play") || dugme).click(); return; }
+    }
     const page = pages().find((p) => p.id === stackEl.dataset.pageId);
     if (!page || !(page.strokes || []).some((st) => st.ses)) return;
     const n = toPageCoords(e, stackEl, page);
@@ -2623,26 +2684,68 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   };
   stage.addEventListener("pointerdown", sesDokunusBasla, true);
 
-  // Basılı tutunca Yapıştır: panoda bir şey varsa parmağı sayfada 0,55 sn tutmak menüyü açar,
+  /** Sayfanın o noktasındaki en üstteki nesne ve sahibi (çift sayfada komşudan taşan yarı dahil); ses notu ve onay kutusu hariç. */
+  function noktadakiNesne(page, n) {
+    const adaylar = (page.objects || []).map((o) => ({ nesne: o, sayfa: page, dx: 0 }));
+    const komsu = spreadNeighbour(page);
+    if (komsu) for (const o of komsu.page.objects || []) if (spillsInto(o, komsu.into, page.size)) adaylar.push({ nesne: o, sayfa: komsu.page, dx: komsu.into });
+    // Eşit katmanda sonradan çizilen üstte.
+    adaylar.reverse().sort((a, b) => (b.nesne.z || 0) - (a.nesne.z || 0));
+    const bulunan = adaylar.find(({ nesne: o, dx }) => {
+      const cx = o.rect.x + dx + o.rect.w / 2, cy = o.rect.y + o.rect.h / 2;
+      const a = -(o.rotation || 0) * Math.PI / 180;
+      const ux = n.x - cx, uy = n.y - cy;
+      const x = ux * Math.cos(a) - uy * Math.sin(a), y = ux * Math.sin(a) + uy * Math.cos(a);
+      return Math.abs(x) <= o.rect.w / 2 && Math.abs(y) <= o.rect.h / 2;
+    });
+    // En üstte ses notu ya da onay kutusu varsa kendi dokunuşu geçerli.
+    return bulunan && bulunan.nesne.kind !== "audio" && bulunan.nesne.kind !== "check" ? bulunan : null;
+  }
+
+  // Kalem ekrandayken ya da az önce yazarken avuç menü açmasın.
+  let sonKalemAni = 0;
+  const kalemAni = (e) => { if (e.pointerType === "pen") { sonKalemAni = Date.now(); yapistirIptal(); } };
+  for (const tur of ["pointerdown", "pointermove", "pointerup"]) stage.addEventListener(tur, kalemAni, true);
+  const basiliTutmaUygun = () => !editingObjects && !textSelectMode && !okumaModu && !flip.active && !isFrosted()
+    && store.settings.fingerAction === "navigate" && Date.now() - sonKalemAni > 1500;
+
+  // Nesneye basılı tutunca düzenleme menüsü; boş yerde panoda bir şey varsa parmağı sayfada 0,55 sn tutmak menüyü açar,
   // kopya tam o noktaya konur (iPad'in kendi metin menüsü gibi).
   let yapistirZamanlayici = 0, yapistirBasi = null;
   const yapistirIptal = () => { clearTimeout(yapistirZamanlayici); yapistirBasi = null; };
   stage.addEventListener("pointerdown", (e) => {
     yapistirIptal();
-    if (e.pointerType === "pen" || !e.isPrimary || editingObjects || textSelectMode) return;
-    if (!clipboard.strokes.length && !clipboard.objects.length) return;
+    // Yalnız parmak: fare ve "parmak çizer/siler" ayarında aynı basış çizgi de bırakıyordu.
+    if (e.pointerType !== "touch" || !e.isPrimary || !basiliTutmaUygun()) return;
     const stackEl = e.target && e.target.closest && e.target.closest(".page-stack");
     if (!stackEl) return;
+    // Kendi basılı tutması ya da dokunuşu olanlar: buzlu şerit, yapılacak kutusu, ses notu, onay kutusu, cetvel, seçim kutusu.
+    if (e.target.closest(".cover-mark, .todo-box, .placed.audio, .placed.check, .ruler, .layer-select > *")) return;
+    const basPage = pages().find((p) => p.id === stackEl.dataset.pageId);
+    const nesne = basPage ? noktadakiNesne(basPage, toPageCoords(e, stackEl, basPage)) : null;
+    if (!nesne && !clipboard.strokes.length && !clipboard.objects.length) return;
     yapistirBasi = { x: e.clientX, y: e.clientY, stackEl };
     yapistirZamanlayici = setTimeout(() => {
       const bas = yapistirBasi;
       yapistirBasi = null;
-      if (!bas) return;
+      if (!bas || !basiliTutmaUygun()) return;
       const page = pages().find((p) => p.id === bas.stackEl.dataset.pageId);
       if (!page) return;
       const n = toPageCoords({ clientX: bas.x, clientY: bas.y }, bas.stackEl, page);
-      popoverMenu({ left: bas.x - 1, top: bas.y - 1, right: bas.x + 1, bottom: bas.y + 1, width: 2, height: 2 },
-        [{ title: "Yapıştır", icon: "copy", onSelect: () => { if (page.id !== selectedPageId) selectedPageId = page.id; pasteClipboard({ page, x: n.x, y: n.y }); } }]);
+      const vurulan = noktadakiNesne(page, n);
+      const hedef = vurulan && vurulan.nesne, sahip = vurulan && vurulan.sayfa;
+      const yapistir = clipboard.strokes.length || clipboard.objects.length
+        ? { title: "Yapıştır", icon: "copy", onSelect: () => { if (page.id !== selectedPageId) selectedPageId = page.id; pasteClipboard({ page, x: n.x, y: n.y }); } } : null;
+      if (!hedef && !yapistir) return;
+      popoverMenu({ left: bas.x - 1, top: bas.y - 1, right: bas.x + 1, bottom: bas.y + 1, width: 2, height: 2 }, [
+        hedef ? { title: "Düzenle", icon: "objects", onSelect: () => { if (sahip.id !== selectedPageId) selectedPageId = sahip.id; selectedObjectId = hedef.id; setEditing(true); } } : null,
+        hedef && (hedef.kind === "photo" || hedef.kind === "sticker") ? { title: "Çıkartma Yap", icon: "scissors", onSelect: () => cikartmaYapNesneden(hedef, sahip) } : null,
+        hedef ? { title: "Sil", icon: "trash", destructive: true, onSelect: () => confirmDialog("Silinsin mi?", "Bu nesne sayfadan kalkar; Geri al ile gelmez.", "Sil", () => {
+          store.updatePage(notebookId, sahip.id, (p) => { p.objects = p.objects.filter((x) => x.id !== hedef.id); });
+          varlikTemizle(); touchPage(sahip); renderStage();
+        }) } : null,
+        yapistir
+      ]);
     }, 550);
   }, true);
   stage.addEventListener("pointermove", (e) => { if (yapistirBasi && Math.hypot(e.clientX - yapistirBasi.x, e.clientY - yapistirBasi.y) > 10) yapistirIptal(); }, true);
@@ -2742,9 +2845,20 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
     openColor: (opts) => openColorPanel(opts),
     openFavorites: () => openFavoritesPanel(),
     addFavorite: () => addCurrentToFavorites(),
-    applyPen: (pen) => { tool = { tool: pen.tool, color: pen.color, width: pen.width, alpha: 1 }; lastPen = { ...tool }; toolMemory[groupOf(pen.tool)] = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes(); },
+    applyPen: (pen) => {
+      if (isInking()) toolMemory[groupOf(tool.tool)] = { ...tool };
+      if (editingObjects) setEditing(false);
+      tool = { tool: pen.tool, color: pen.color, width: pen.width, alpha: pen.alpha == null ? 1 : pen.alpha };
+      if (pen.tool === "desen") tool.desen = pen.desen || "kalp";
+      lastPen = { ...tool }; 
+      toolMemory[groupOf(pen.tool)] = { ...tool }; clearSelections(); renderBench(); renderTopbar(); applyModes();
+    },
     penMatches,
-    penIllustration,
+    favoriKalem: () => store.settings.pens.find((p) => penMatches(p)) || null,
+    favoridenCikar: (pen) => favoridenCikar(pen),
+    kalemCubugu: (uc, renk) => kalemCubugu(CUBUK_TURU[uc] || "kalem", renk),
+    onizlemeCiz: (tuval, t) => kalemOnizle(tuval, t),
+    penIllustration: (pen) => kalemCubugu(CUBUK_TURU[pen.tool] || "kalem", pen.color),
     ruler: { active: () => !!ruler, toggle: () => toggleRuler(), refresh: () => refreshRulers() },
     selection: null,
     clearPage: () => confirmDialog("Sayfadaki her şey silinsin mi?", "Bu sayfadaki bütün çizgiler silinir; Geri al ile geri getirilebilir.", "Sil", () => { const ink = inks.get(selectedPageId); if (ink) ink.clearPage(); }),
@@ -2820,10 +2934,51 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
 
   function addCurrentToFavorites() {
     if (!usesColor()) { toast("Önce bir kalem seç"); return; }
-    store.addPen({ tool: tool.tool === "shape" ? "pen" : tool.tool, color: tool.color, width: tool.width, name: autoPenName() });
-    toast("Favorilere eklendi");
+    const uc = tool.tool === "shape" ? "pen" : tool.tool;
+    const eklendi = store.addPen({ tool: uc, color: tool.color, width: tool.width, alpha: tool.alpha == null ? 1 : tool.alpha, ...(uc === "desen" ? { desen: tool.desen || "kalp" } : {}), name: autoPenName() });
+    toast(eklendi ? "Favorilere eklendi" : "Bu kalem zaten favorilerde");
     renderBench();
     renderTopbar();
+  }
+
+  function favoridenCikar(pen) {
+    if (store.settings.pens.length <= 1) { toast("En az bir favori kalem kalmalı"); return false; }
+    store.removePen(pen.id);
+    toast("Favorilerden çıkarıldı");
+    renderBench();
+    return true;
+  }
+
+  /** Favori kaleme uzun basınca: çıkar, taşı, adlandır, güncelle. */
+  function favoriMenusu(pen, anchor) {
+    const liste = store.settings.pens;
+    const index = liste.findIndex((p) => p.id === pen.id);
+    const tasi = (yer) => { store.reorderPen(pen.id, yer); renderBench(); };
+    popoverMenu(anchor, [
+      { title: "Kalem Ayarları", icon: "gear", onSelect: () => { panelCtx.applyPen(pen); openPenPanel(); } },
+      { title: "Yeniden Adlandır", icon: "edit", onSelect: () => promptDialog("Kalem adı", "Ad", pen.name, (name) => { store.updatePen(pen.id, { name }); renderBench(); }) },
+      { title: "Sola Taşı", icon: "back", disabled: index <= 0, onSelect: () => tasi(index - 1) },
+      { title: "Sağa Taşı", icon: "forward", disabled: index >= liste.length - 1, onSelect: () => tasi(index + 1) },
+      { title: pen.id === store.settings.defaultPenId ? "Varsayılan kalem" : "Varsayılan Yap", icon: "check", disabled: pen.id === store.settings.defaultPenId, onSelect: () => { store.setSetting("defaultPenId", pen.id); renderBench(); } },
+      { title: "Favoriden Çıkar", icon: "trash", destructive: true, disabled: liste.length <= 1, onSelect: () => favoridenCikar(pen) }
+    ], { title: pen.name });
+  }
+
+  /** Kalem panelindeki önizleme: gerçek çizgi motoruyla, o ucun izini gösterir. */
+  function kalemOnizle(tuval, t) {
+    const w = 320, yuk = 72, k = 2;
+    tuval.width = w * k; tuval.height = yuk * k;
+    const g = tuval.getContext("2d");
+    g.setTransform(k, 0, 0, k, 0, 0);
+    g.clearRect(0, 0, w, yuk);
+    const pts = [];
+    for (let i = 0; i <= 90; i++) {
+      const u = i / 90;
+      // İnce başlar, ortada basar, ince biter: basınca duyarlı uçlar farkını gösterir.
+      pts.push([26 + u * 268, 36 + Math.sin(u * Math.PI * 2.6) * 16 * (1 - u * 0.35), 0.18 + 0.72 * Math.sin(u * Math.PI)]);
+    }
+    const uc = t.tool === "shape" ? "pen" : t.tool;
+    drawStroke(g, { tool: uc, color: t.color, width: uc === "highlighter" ? Math.min(26, t.width) : t.width, alpha: t.alpha == null ? 1 : t.alpha, desen: t.desen, pressure: !!store.settings.pressureWidth, points: pts });
   }
 
   /** Otomatik ad: araç + kalınlık; aynı ad varsa numara eklenir. Uzun basıp değiştirilebilir. */
@@ -2857,7 +3012,7 @@ export function renderEditor(root, notebookId, initialPageId, opts = {}) {
   const onOutsidePointer = (e) => {
     if (!popover) return;
     if (popover.contains(e.target)) return;
-    if (e.target.closest && e.target.closest(".modal-backdrop")) return;
+    if (e.target.closest && e.target.closest(".modal-backdrop, .pop-menu, .pop-backdrop")) return;
     if (popover.dataset.kind === "selection" && e.target.closest && e.target.closest(".layer-select")) return;
     // Paneli kapatmak için yapılan dokunuş sayfaya geçmesin (kalem çizmesin, nesne seçilmesin).
     const inBench = e.target.closest && (e.target.closest(".bench") || e.target.closest(".topbar"));

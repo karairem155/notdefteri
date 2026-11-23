@@ -30,7 +30,7 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 - [?] **Uygulama simgesi kaynağı** (19 Kas, kabuk) — 1024 px, şeffaflığı olmayan PNG gerekli. Bekleniyor: kullanıcı mı verecek, maskot/logodan mı üretilsin. 19 Kas: "uyg logosuna bakacağım" → **kullanıcı bakacak**, ondan haber bekleniyor.
 - [x] **Apple tarzı tasarım yönü: A mı B mi?** (19 Kas) — gönderildi: `tasarim/apple-yonu-karsilastirma.jpg`, taslak `tasarim/apple-yonu/mockup.html`. A = Kitaplar gibi kapaklı raf + buzlu açık çubuk + gerçek uçlu kalem kutusu; B = Notlar gibi ilk sayfa kartları + lacivert çubuk. **KARAR 19 Kas: A** — "defter A yönü okay ama bize de uysun"; "bizim defter ve dosya kapağı değişmesin, o da Apple tarzı zaten" → cam kapak ve buzlu cam klasör aynen kalır, marka (lacivert/pembe vurgu) korunur. Uygulama işi aşağıda "Yapılıyor".
   - [x] **Defter ekranı çubuk rengi** (19 Kas) — son açık seçim v112 lacivert çubuk (beyaz tema kararı C); A taslağındaki açık buzlu çubuk ayrıca sorulabilir. Ayarlar > Çubuk rengi ile ikisi de mümkün. **Düşük öncelik**, kullanıcı yorgun ("kafam doldu biraz"); fırsat olunca sorulacak. 19 Kas v114 sonrası: "mavi barlar duruyor hala" → **açık buzlu cam çubuk varsayılan** yapıldı (Ayarlar > Çubuk rengi "Açık (buzlu cam)"; lacivert seçilebilir) — v114 (612db73). iPad denemesi aşağıda (20).
-- [?] **Favori kalemlere tek dokunuşla geçiş geri gelsin mi?** (19 Kas) — v114 Apple tarzı kalem kutusuyla üst çubuktaki favori kısayolu kalktı; artık kalem paneli > Favorilerim. Kullanıcıya söylendi (19 Kas). Bekleniyor: geri istiyor mu (isterse eklenecek).
+- [x] **Favori kalemlere tek dokunuşla geçiş geri gelsin mi?** (19 Kas) — v114 Apple tarzı kalem kutusuyla favori şeridi kalktı; artık kalem paneli > Favorilerim. Kullanıcıya söylendi (19 Kas). **Cevap 23 Kas: evet** ("favoriler yeri değişmiş favoriden çıkarma yok" şikâyetinden) → iş aşağıda "Yapılıyor > v115 sonrası geri bildirim".
 - [?] **Ekran görüntüleri: klasör ve cam kapak hataları** (19 Kas, "ekranı atacağım bekle") — iki iPad hatası (aşağıda "Yapılıyor") görüntü gelene kadar bekliyor.
 
 - [?] **Kapak açılış sesi** (sayfa sesinden farklı): ElevenLabs izni verildi ("evet", 13 Kas; ~30–40 kredi). 13 Kas: 3 deneme gönderildi — `tasarim/ses/kapak-1-hazir.mp3`, `kapak-2-hazir.mp3`, `kapak-3-hazir.mp3` (36 kredi). 19 Kas: "kapak sesleri geride kaldı unuttum" → dosyalar yeniden gönderildi. 19 Kas: "pc ses bozuk dinleyeceğim bunu hatırlat bana arada, kulaklık yanımda değil" → **hatırlatılacak** (oturum başlarında/arada bir kez sor). Bekleniyor: hangisi (ya da hiçbiri).
@@ -44,6 +44,15 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 
 ## Yapılıyor
 
+### v115 sonrası geri bildirim (23 Kas)
+- [~] **GERİLEME: Nesneleri Düzenle bulunamıyor** (23 Kas, "fotoğraf ve dosya kısmındaki nesneleri düzenle vs vs özellikler nereye gitti") — v111'de (00198e8) Fotoğraf ve Dosya panelinden Seçim'e taşındı; v114 kalem kutusunda yalnız seçili kemente ikinci dokunuşta açılıyor (`web/js/editor.js` `secimMenusu`). Yapılacak: Fotoğraf ve Dosya panelinde **de** olacak.
+  - [~] **Kaybolan/zor bulunan bütün işlevlerin taranması** (23 Kas, "vs vs özellikler"): v111 (00198e8) ve v114 (612db73) silinen/taşınan her menü öğesi, bugünkü yeriyle karşılaştırılacak. v111'de taşınanlar: Yapıştır, Sesli Not, Buzlu Kalem, Tek/Çift, Açık Defterler, Yeniden Adlandır, Çeviri Penceresi. v114'te kalkanlar: favori şeridi, kalem uzun basma menüsü.
+  - [ ] Soru (23 Kas): "özellikler nereye gitti" — kullanıcıya her özelliğin yeni yeri kısa listeyle **cevaplanacak**.
+- [~] **GERİLEME: favori kalemler** (23 Kas, "favoriler yeri değişmiş favoriden çıkarma yok") — v114'te (612db73) sürüklenebilir favori şeridi ve favoriye uzun basınca açılan menü (Sil, Sola/Sağa Taşı, Varsayılan Yap, Yeniden Adlandır) kalktı; silme yalnız kalem paneli > Favorilerim listesindeki çöp simgesinde. Yapılacak: favoriler tek dokunuşla geri gelecek, favoriden çıkarma kolay olacak.
+  - [ ] **Favori renk çıkarma da yok** (23 Kas, kod taramasında bulundu) — kalem kutusu "Favori renkler" ve Renk panelinde yalnız ekleme var; çıkarma yalnız Ayarlar'da sağ tık (`web/js/settings.js` 185, `contextmenu`; iPad'de çalışıp çalışmadığı bilinmiyor). "Favoriden çıkarma yok" bunu da kastediyor olabilir.
+- [~] **Açılır paneller ve menüler eski renkte, "çok basic çirkin"** (23 Kas, "kaleme basılınca açılan menü rengi eski kalmış ve menü çok basic çirkin duruyor") — kalem ayarları "örneğin" diye verildi; **bütün** paneller/menüler Apple tarzı A diliyle yeniden tasarlanacak (kalem, silgi, şekiller, seçim, Favoriler, Renk, Çıkartma, Fotoğraf ve Dosya, Metin ve Ses, sayfa rengi, üç nokta/popover menüleri, ayarlar).
+
+### Önceki işler
 - [i] **Sesle yaz fontu**: varsayılan **Playpen Sans**, seçenek olarak **Patrick Hand** ve **Kalam** — karar 19 Kas ("5 Playpen Sans ve 3 ve 2 opsiyonel olsun, default 5"). Yapıldı: üç font `web/fonts/` altına gömüldü (latin + latin-ext); dışa aktarmada eski yazı tipi korunuyor (inceleyici önerisi) — **v111** (00198e8, 19 Kas). iPad'de yazı tipleri denenecek.
 - [~] **App Store kabuğu** — karar 19 Kas ("webde kalmayacağız, App Store'a eklenecek", "kabuğa da koyalım"). Plan: Capacitor/WKWebView, web dosyaları uygulamanın içinde, GitHub macOS sunucusunda derleme, TestFlight ile iPad'e. Apple Developer hesabı var (19 Kas, "dev hesap var evet"). **İskelet yapıldı — v113 (cb52eef, 19 Kas)**: Capacitor 8.6.2 iOS (SPM, `ios/` repoda), yalnız iPad, servis çalışanı kabukta kapalı (web davranışı aynı); `.github/workflows/ios-kabuk.yml` GitHub macOS'ta imzasız simülatör derlemesi **başarılı** (run 44615923864). TestFlight adımı hazır; 4 secret (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8, APPLE_TEAM_ID) eklenince elle tetiklenecek. Rehber: `docs/app-store-kabuk.md`. Bekleyen kararlar yukarıda [?] (bundle kimliği, iPad/iPhone, simge, API anahtarı).
   - [ ] **TestFlight'ta denenecek riskler** (19 Kas): .mjs (PDF.js) kabukta yükleniyor mu; Yedekle'deki paylaşım kabukta çalışıyor mu; çeviri istekleri kabuktan geçiyor mu. **Not**: web'deki notlar uygulamaya kendiliğinden geçmez → web'de yedekle → uygulamada geri yükle akışı gerekli.
@@ -84,8 +93,8 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
 - [x] (2) Buzlu cam klasör: rafta görünüm, klasörü açıp kapama, Ayarlar > Kapak görünümü — v108. Deneme yapıldı 19 Kas, **sonuç HATA** ("dosya buzlu cam gözükmüyor iPad'de") → iş yukarıda "Yapılıyor"da [ ].
 - [x] (3) Cam kapak defter: ilk sayfa yazısı arkadan bulanık görünüyor mu, koyu kapaklar, defter açılış animasyonu — v108. Deneme yapıldı 19 Kas, **sonuç HATA** ("bi garip duruyor hatalı gibi") → iş yukarıda "Yapılıyor"da [ ].
 - [?] (4) Kement > Düzenle (yazı boyu, satır aralığı, çizgiye otur): gerçek el yazısıyla, ayrık harfli ve l/k/d'li yazıda — v109. 19 Kas: "kement anlamadım bunu" → önce anlatılacak, sonra yeniden denenecek. 19 Kas: "kementi yine anlamadım ya" → görselle yeniden anlatıldı.
-- [i] (13) Yeni kalem paneli: renk en üstte, basınç/şekil/stabilizatör kapalı "Yazma ayarları"nda; buzlu kalem uç tipleri arasında — v111 (00198e8, 19 Kas)
-- [i] (14) "Metin ve Ses" paneli (sesli not sesle yazın yanında); Seçim düğmesine ikinci dokunuş → Nesneleri düzenle — v111
+- [i] (13) Yeni kalem paneli: renk en üstte, basınç/şekil/stabilizatör kapalı "Yazma ayarları"nda; buzlu kalem uç tipleri arasında — v111 (00198e8, 19 Kas). 23 Kas: panelin görünümü beğenilmedi ("rengi eski kalmış", "çok basic çirkin") → yeniden tasarım Yapılıyor'da [~]; öğe düzeni yeni panelde denenecek.
+- [i] (14) "Metin ve Ses" paneli (sesli not sesle yazın yanında) — v111. Seçim düğmesine ikinci dokunuş → Nesneleri düzenle kısmı **23 Kas: kullanıcı bulamadı** → Yapılıyor'da [~].
 - [i] (15) Sesle yaz yazı tipleri: Playpen Sans (varsayılan), Patrick Hand, Kalam; Türkçe harfler — v111
 - [i] (16) Tek/Çift: dikeyde ve yatayda üst çubukta, bölmede menüde — v111
 - [i] (17) Medya > Fotoğraftan Çıkartma Yap çalışıyor mu — v111
@@ -103,7 +112,7 @@ Canlı adres: https://karairem155.github.io/notdefteri/ — dal `master`.
   - kalem rengi kalem panelinin en üstüne; sıra renk → uç tipi → kalınlık → opaklık → favoriler; basınç/şekil/stabilizatör en altta kapalı "Yazma ayarları"
   - buzlu kalem yalnız kalemler arasında (ayarları kalem panelinde)
   - sesli not → "Metin ve Ses" paneli (sesle yazın yanında)
-  - Nesneleri düzenle → Seçim düğmesine
+  - Nesneleri düzenle → Seçim düğmesine (23 Kas: kullanıcı bulamadı, Fotoğraf ve Dosya panelinde de olacak)
   - Yapıştır Medya'dan kalkar; "Diğer" bölümü kalkar; Medya paneli adı "Fotoğraf ve Dosya"
   - üç nokta menüsünde tekrar eden (kopya) öğeler kalkar
 - [i] **HATA: Medya > "Fotoğraftan Çıkartma Yap" çalışmıyor** (19 Kas, menü incelemesinde bulundu) — panelde `ctx.makeSticker` verilmemiş (`web/js/panels.js` 646. satır çağırıyor); v90 özelliği. Düzeldi — **v111** (00198e8, 19 Kas).

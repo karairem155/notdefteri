@@ -25,6 +25,30 @@ function section(text) {
   return h("div", { class: "sp-section" }, text);
 }
 
+/** iPad'deki gibi gruplu liste kartı: içindeki satırların arası ince çizgi. */
+function grup(...satirlar) {
+  return h("div", { class: "sp-grup" }, ...satirlar.filter(Boolean));
+}
+
+/** Kaydırıcılı satır: üstte ad ve değer, altta kaydırıcı. */
+function kaydirSatiri(ad, deger, kaydirici) {
+  return h("div", { class: "sp-kaydir" }, h("div", { class: "sp-label-row" }, h("span", {}, ad), deger), kaydirici);
+}
+
+/** Simge üstte, ad altta: hızlı eylem karosu. */
+function karo(icon, ad, renk, onTap) {
+  return h("button", { class: "sp-karo", type: "button", onTap },
+    h("span", { class: "sp-karo-simge", style: { "--s": renk } }, svgIcon(icon, 26)), h("span", { class: "sp-karo-ad" }, ad));
+}
+
+/** Kalınlık örnekleri: gerçek çizgi kalınlığında kısa izler. */
+function kalinlikSecici(degerler, simdiki, onPick) {
+  const enKalin = Math.max(...degerler);
+  return h("div", { class: "sp-kalinlik", role: "group", "aria-label": "Hazır kalınlıklar" }, ...degerler.map((v) =>
+    h("button", { type: "button", class: "sp-kalinlik-dugme" + (Math.abs(v - simdiki) < 0.05 ? " active" : ""), "aria-label": mm(v) + " mm", "aria-pressed": String(Math.abs(v - simdiki) < 0.05), onTap: () => onPick(v) },
+      h("span", { class: "sp-kalinlik-iz", style: { height: Math.max(1.5, 1 + (v / enKalin) * 12) + "px" } }))));
+}
+
 function labelRow(label, value) {
   return h("div", { class: "sp-label-row" }, h("span", {}, label), h("span", { class: "sp-value" }, value));
 }
@@ -37,10 +61,11 @@ function fillRange(el) {
   el.style.setProperty("--p", Math.max(0, Math.min(100, pct)) + "%");
 }
 
-export function slider({ min, max, step, value, onInput, label }) {
+export function slider({ min, max, step, value, onInput, onBitti, label }) {
   const el = h("input", { type: "range", class: "sp-range", min: String(min), max: String(max), step: String(step), value: String(value), "aria-label": label,
     onInput: (e) => { fillRange(el); onInput(Number(e.target.value)); } });
   fillRange(el);
+  if (onBitti) el.addEventListener("change", onBitti);   // parmak kalkınca
   return el;
 }
 
@@ -62,15 +87,6 @@ function toggleRow(title, sub, on, onChange, icon) {
     toggle(on, onChange));
 }
 
-function previewCard(label, color, width, alpha) {
-  const w = Math.max(2, Math.min(18, width * 1.6));
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 340 60");
-  svg.setAttribute("class", "sp-preview-svg");
-  svg.innerHTML = `<path d="M10 42 C 70 -10, 120 70, 180 30 S 300 10, 330 22" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" opacity="${alpha}"/>`;
-  return h("div", { class: "sp-card" }, h("div", { class: "sp-card-label" }, label), svg);
-}
-
 function optionCards(options, current, onPick) {
   // Altıdan fazla seçenek tek sıraya sığmıyor: üçerli iki sıra.
   return h("div", { class: "sp-cards", style: { gridTemplateColumns: `repeat(${options.length > 4 ? 3 : options.length}, 1fr)` } }, ...options.map((o) =>
@@ -87,12 +103,9 @@ function colorRow(label, color, onOpen) {
     h("button", { class: "sp-link-btn", type: "button", onTap: onOpen }, "Renkleri aç", svgIcon("forward", 16)));
 }
 
-function heartButton(text, onTap) {
-  return h("button", { class: "sp-outline-btn", type: "button", onTap }, svgIcon("heart", 18), text);
-}
-
 // ---------- Kalem Ayarları ----------
 
+const UCLAR = [["pen", "Jel"], ["fineliner", "Fineliner"], ["dolma", "Dolma"], ["firca", "Fırça"], ["pencil", "Kurşun"], ["highlighter", "Fosforlu"], ["desen", "Desen"], ["frosted", "Buzlu"]];
 const HOLD_NAMES = ["Devre dışı", "Kısa", "Varsayılan", "Uzun"];
 const HOLD_VALUES = [0, 350, 600, 950];
 
@@ -150,20 +163,29 @@ export function penPanel(ctx) {
   };
   /**
    * Renk satırı: favori renkler (palet) + palette olmayan son renkler, tek sırada (yana kayar);
-   * sonda "Diğer renkler…" Renk Seçici'yi açar. Renk kullanmayan araçta (buzlu) gösterilmez.
+   * sonda renk çemberi Renk Seçici'yi açar. Favori renge uzun basınca favorilerden çıkar.
+   * Renk kullanmayan araçta (buzlu) gösterilmez.
    */
   const renkSatiri = (tool) => {
     const secili = (tool.color || "").toUpperCase();
     const favori = (s.palette || []).map((c) => c.toUpperCase());
     const son = (s.recentColors || []).map((c) => c.toUpperCase()).filter((c) => !favori.includes(c)).slice(0, 8);
-    const renk = (c, tur) => h("button", { class: "cp-swatch" + (c === secili ? " selected" : ""), type: "button", style: { "--c": c },
-      "aria-label": `${tur} renk ${colorName(c)} (${c})`, "aria-pressed": String(c === secili), onTap: () => { ctx.setColor(c); build(); } });
+    const renk = (c, fav) => {
+      const el = h("button", { class: "cp-swatch" + (c === secili ? " selected" : ""), type: "button", style: { "--c": c },
+        "aria-label": `${fav ? "Favori" : "Son kullanılan"} renk ${colorName(c)} (${c}); uzun bas: ${fav ? "favorilerden çıkar" : "favorilere ekle"}`, "aria-pressed": String(c === secili) });
+      pressable(el, {
+        onTap: () => { ctx.setColor(c); build(); },
+        onLong: () => actionSheet(colorName(c) + " · " + c, [fav
+          ? { title: "Favori renklerden çıkar", destructive: true, disabled: s.palette.length <= 1, onSelect: () => { ctx.store.removePaletteColor(c); build(); ctx.rerender(); } }
+          : { title: "Favori renklere ekle", onSelect: () => { ctx.store.addPaletteColor(c); build(); ctx.rerender(); } }])
+      });
+      return el;
+    };
     return h("div", { class: "kp-renkler", role: "group", "aria-label": "Renk" },
-      ...favori.map((c) => renk(c, "Favori")),
+      ...favori.map((c) => renk(c, true)),
       son.length && favori.length ? h("span", { class: "kp-renk-ayrac", "aria-hidden": "true" }) : null,
-      ...son.map((c) => renk(c, "Son kullanılan")),
-      h("button", { class: "kp-diger-renk", type: "button", onTap: () => ctx.openColor() },
-        h("span", { class: "kp-diger-nokta", style: { "--c": secili || "#1C1C1E" } }), "Diğer renkler…"));
+      ...son.map((c) => renk(c, false)),
+      h("button", { class: "cp-swatch kp-cark", type: "button", "aria-label": "Diğer renkler", onTap: () => ctx.openColor() }, svgIcon("plus", 18)));
   };
 
   /** Buzlu kalem ayarları: Uç Tipi'nde Buzlu seçiliyken panelin içinde (ayrı pencere yok). */
@@ -172,12 +194,11 @@ export function penPanel(ctx) {
     const bulanikDeger = h("span", { class: "sp-value" }, String(f.blur));
     const kalinlikDeger = h("span", { class: "sp-value" }, String(f.thickness));
     return [
-      h("p", { class: "sp-desc", style: { marginTop: "14px" } }, "Yazının üstüne çek: cevap buzlu bir şeritle örtülür. Başka bir uca dokununca buzlu kalem kapanır."),
-      h("div", { class: "sp-label-row", style: { marginTop: "12px" } }, h("span", {}, "Bulanıklık"), bulanikDeger),
-      slider({ min: 1, max: 24, step: 1, value: f.blur, label: "Bulanıklık", onInput: (v) => { ctx.buzluAyarla({ blur: v }); bulanikDeger.textContent = String(v); } }),
-      h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Şerit kalınlığı"), kalinlikDeger),
-      slider({ min: 12, max: 60, step: 2, value: f.thickness, label: "Şerit kalınlığı", onInput: (v) => { ctx.buzluAyarla({ thickness: v }); kalinlikDeger.textContent = String(v); } }),
-      toggleRow("Dokununca açılsın", "Kapalıyken kalıcı bulanık kalır.", !!f.revealOnTap, (v) => ctx.buzluAyarla({ revealOnTap: v }))
+      grup(
+        kaydirSatiri("Bulanıklık", bulanikDeger, slider({ min: 1, max: 24, step: 1, value: f.blur, label: "Bulanıklık", onInput: (v) => { ctx.buzluAyarla({ blur: v }); bulanikDeger.textContent = String(v); } })),
+        kaydirSatiri("Şerit kalınlığı", kalinlikDeger, slider({ min: 12, max: 60, step: 2, value: f.thickness, label: "Şerit kalınlığı", onInput: (v) => { ctx.buzluAyarla({ thickness: v }); kalinlikDeger.textContent = String(v); } })),
+        toggleRow("Dokununca açılsın", "Kapalıyken kalıcı bulanık kalır.", !!f.revealOnTap, (v) => ctx.buzluAyarla({ revealOnTap: v }))),
+      h("p", { class: "sp-dipnot" }, "Yazının üstüne çek: cevap buzlu bir şeritle örtülür. Başka bir uca dokununca buzlu kalem kapanır.")
     ];
   };
 
@@ -194,50 +215,65 @@ export function penPanel(ctx) {
     const SMOOTH = ["Temel", "Yumuşak", "İpek", "Akıcı"];
     const holdMs = s.shapeRecognition === false ? 0 : (s.shapeHoldMs == null ? 600 : s.shapeHoldMs);
     const holdIndex = Math.max(0, HOLD_VALUES.indexOf(holdMs));
-    const preview = buzlu ? null : previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? tool.width * 1.4 : tool.width, hl ? 0.42 * a : a);
+    // Önizleme gerçek çizgi motoruyla çizilir: seçili ucun, rengin ve kalınlığın izi.
+    const tuval = buzlu ? null : h("canvas", { class: "kp-onizleme", "aria-hidden": "true" });
+    const onizle = () => { if (tuval) ctx.onizlemeCiz(tuval, ctx.tool()); };
     const yazmaGovde = h("div", { class: "kp-katlanir-govde", id: "kp-yazma-ayarlari", hidden: !yazmaAcik },
-      toggleRow("Basınç Hassasiyeti", "Kalem baskısına göre kalınlık ayarla.", !!s.pressureWidth, (v) => ctx.store.setSetting("pressureWidth", v)),
-      ...pdfAyarlari(),
-      h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Şekil çizmek için basılı tutun"), h("span", { class: "sp-value" }, HOLD_NAMES[holdIndex])),
-      h("div", { class: "sp-seg" }, ...HOLD_NAMES.map((name, i) => h("button", { type: "button", class: i === holdIndex ? "active" : "",
-        onTap: () => { ctx.store.setSetting("shapeHoldMs", HOLD_VALUES[i]); ctx.store.setSetting("shapeRecognition", i > 0); build(); } }, name))),
-      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "Çizimin sonunda kalemi sabit tutunca çizgi düz çizgiye, kabaca çizilen şekil gerçek şekle dönüşür."),
-      h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Stabilizatör"), h("span", { class: "sp-value" }, SMOOTH[smoothing])),
-      h("div", { class: "sp-seg" }, ...SMOOTH.map((name, i) => h("button", { type: "button", class: i === smoothing ? "active" : "",
-        onTap: () => { ctx.store.setSetting("smoothing", i); build(); } }, name))),
-      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "El titremesini yumuşatır; yüksek seviyede çizgi daha akıcı olur."));
+      grup(
+        toggleRow("Basınç Hassasiyeti", "Kalem baskısına göre kalınlık ayarla.", !!s.pressureWidth, (v) => { ctx.store.setSetting("pressureWidth", v); onizle(); }),
+        ...pdfAyarlari()),
+      grup(
+        h("div", { class: "sp-satir" },
+          h("div", { class: "sp-label-row" }, h("span", {}, "Şekil için basılı tut"), h("span", { class: "sp-value" }, HOLD_NAMES[holdIndex])),
+          h("div", { class: "sp-seg" }, ...HOLD_NAMES.map((name, i) => h("button", { type: "button", class: i === holdIndex ? "active" : "",
+            onTap: () => { ctx.store.setSetting("shapeHoldMs", HOLD_VALUES[i]); ctx.store.setSetting("shapeRecognition", i > 0); build(); } }, name))),
+          h("div", { class: "sp-row-sub" }, "Çizimin sonunda kalemi sabit tutunca çizgi düz çizgiye, kabaca çizilen şekil gerçek şekle dönüşür.")),
+        h("div", { class: "sp-satir" },
+          h("div", { class: "sp-label-row" }, h("span", {}, "Stabilizatör"), h("span", { class: "sp-value" }, SMOOTH[smoothing])),
+          h("div", { class: "sp-seg" }, ...SMOOTH.map((name, i) => h("button", { type: "button", class: i === smoothing ? "active" : "",
+            onTap: () => { ctx.store.setSetting("smoothing", i); build(); } }, name))),
+          h("div", { class: "sp-row-sub" }, "El titremesini yumuşatır; yüksek seviyede çizgi daha akıcı olur."))));
     const yazmaBaslik = h("button", { class: "kp-katlanir-baslik" + (yazmaAcik ? " acik" : ""), type: "button", "aria-expanded": String(yazmaAcik), "aria-controls": "kp-yazma-ayarlari",
       onTap: () => { yazmaAcik = !yazmaAcik; yazmaGovde.hidden = !yazmaAcik; yazmaBaslik.classList.toggle("acik", yazmaAcik); yazmaBaslik.setAttribute("aria-expanded", String(yazmaAcik)); if (yazmaAcik) yazmaBaslik.scrollIntoView({ block: "start", behavior: "smooth" }); } },
       h("span", {}, "Yazma ayarları"), h("span", { class: "sp-row-sub" }, "Basınç, PDF'te hizalama, şekil, stabilizatör"), svgIcon("down", 18));
+    const ucSec = (k) => {
+      if (k === tool.tool) return;
+      if (k === "frosted") { ctx.buzlu(); build(); return; }
+      ctx.setTool(k === "desen" ? { tool: k, desen: tool.desen || "kalp", width: Math.max(6, Math.min(30, tool.width * 3)) } : { tool: k }); build();
+    };
+    // Uçlar gerçek kalem çizimleriyle, yan yana; seçili olan yukarı kalkar.
+    const uclar = h("div", { class: "kp-uclar", role: "group", "aria-label": "Uç tipi" }, ...UCLAR.map(([k, ad]) =>
+      h("button", { type: "button", class: "kp-uc" + (k === tool.tool ? " secili" : ""), "aria-label": ad, "aria-pressed": String(k === tool.tool), onTap: () => ucSec(k) },
+        h("span", { class: "kp-uc-cizim" }, ctx.kalemCubugu(k, k === "frosted" ? "#7fa3c7" : k === tool.tool ? tool.color : k === "highlighter" ? "#F6D74A" : "#3A3D44")), h("span", { class: "kp-uc-ad" }, ad))));
+    const benim = buzlu ? null : ctx.favoriKalem();
+    const favDugme = buzlu ? null : h("button", { class: "sp-fav-dugme" + (benim ? " dolu" : ""), type: "button", "aria-pressed": String(!!benim),
+      onTap: () => { if (benim) ctx.favoridenCikar(benim); else ctx.addFavorite(); build(); } }, svgIcon("star", 20), benim ? "Favorilerden çıkar" : "Favorilere ekle");
     body.replaceChildren(...[
-      preview,
-      buzlu ? null : section("Renk"),
-      buzlu ? null : renkSatiri(tool),
-      section("Uç Tipi"),
-      optionCards([{ key: "pen", title: "Jel", icon: "tipGel" }, { key: "fineliner", title: "Fineliner", icon: "tipFine" }, { key: "dolma", title: "Dolma", icon: "tipDolma" }, { key: "firca", title: "Fırça", icon: "tipFirca" }, { key: "pencil", title: "Kurşun", icon: "tipPencil" }, { key: "highlighter", title: "Fosforlu", icon: "highlighter" }, { key: "desen", title: "Desen", icon: "heart" }, { key: "frosted", title: "Buzlu", icon: "frost" }],
-        tool.tool, (k) => {
-          if (k === tool.tool) return;
-          if (k === "frosted") { ctx.buzlu(); build(); return; }
-          ctx.setTool(k === "desen" ? { tool: k, desen: tool.desen || "kalp", width: Math.max(6, Math.min(30, tool.width * 3)) } : { tool: k }); build();
-        }),
+      tuval ? h("div", { class: "kp-onizleme-kart" }, tuval) : null,
+      uclar,
       ...(buzlu ? buzluAyarlari() : [
+        grup(h("div", { class: "sp-satir" }, renkSatiri(tool))),
         ...desenSecici(),
-        h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Kalınlık"), widthValue),
-        slider({ min: hl ? 4 : tool.tool === "desen" ? 3 : 0.8, max: hl ? 24 : tool.tool === "desen" ? 40 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
-          onInput: (v) => { ctx.setTool({ width: v }, true); widthValue.textContent = mm(v); preview.replaceWith(previewCard(hl ? "Fosforlu Önizleme" : "Kalem Önizleme", tool.color, hl ? v * 1.4 : v, hl ? 0.42 * a : a)); build(); } }),
-        presetRow(hl ? HL_PRESETS : WIDTH_PRESETS, tool.width, (v) => { ctx.setTool({ width: v }); build(); }, mm),
-        h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Opaklık"), opacityValue),
-        slider({ min: 10, max: 100, step: 5, value: Math.round(a * 100), label: "Opaklık",
-          onInput: (v) => { ctx.setTool({ alpha: v / 100 }, true); opacityValue.textContent = "%" + v; } })
+        grup(
+          h("div", { class: "sp-kaydir" },
+            h("div", { class: "sp-label-row" }, h("span", {}, "Kalınlık"), widthValue),
+            kalinlikSecici(hl ? HL_PRESETS : WIDTH_PRESETS, tool.width, (v) => { ctx.setTool({ width: v }); build(); }),
+            // Sürüklerken panel yeniden kurulmaz: kaydırıcı parmağın altından kaçıyordu.
+            slider({ min: hl ? 4 : tool.tool === "desen" ? 3 : 0.8, max: hl ? 24 : tool.tool === "desen" ? 40 : 12, step: 0.2, value: tool.width, label: "Kalınlık",
+              onInput: (v) => { ctx.setTool({ width: v }, true); widthValue.textContent = mm(v); onizle(); }, onBitti: build })),
+          kaydirSatiri("Opaklık", opacityValue, slider({ min: 10, max: 100, step: 5, value: Math.round(a * 100), label: "Opaklık",
+            onInput: (v) => { ctx.setTool({ alpha: v / 100 }, true); opacityValue.textContent = "%" + v; onizle(); }, onBitti: build })))
       ]),
-      h("div", { class: "sp-two" },
-        buzlu ? null : heartButton("Favorilere ekle", () => ctx.addFavorite()),
-        h("button", { class: "sp-outline-btn", type: "button", onTap: () => ctx.openFavorites() }, svgIcon("drag", 18), "Favorilerim")),
+      h("div", { class: "sp-two" }, favDugme,
+        h("button", { class: "sp-fav-dugme ikincil", type: "button", onTap: () => ctx.openFavorites() }, svgIcon("drag", 20), "Favorilerim")),
       buzlu ? null : h("div", { class: "kp-katlanir" }, yazmaBaslik, yazmaGovde)
     ].filter(Boolean));
+    onizle();
+    const seciliUc = uclar.querySelector(".kp-uc.secili");
+    if (seciliUc) requestAnimationFrame(() => { uclar.scrollLeft = Math.max(0, seciliUc.offsetLeft - uclar.clientWidth / 2 + seciliUc.offsetWidth / 2); });
   };
   build();
-  return shell("Kalem Ayarları", ctx.close, body);
+  return shell("Kalem", ctx.close, body);
 }
 
 // ---------- Silgi Ayarları ----------
@@ -249,31 +285,32 @@ export function eraserPanel(ctx) {
   const build = () => {
     const sizeValue = h("span", { class: "sp-value" }, e.size + " px");
     body.replaceChildren(
-      Object.assign(previewCard("Önizleme", "#f27ab0", Math.min(16, e.size / 3 + 4), 1), { className: "sp-card checker" }),
-      section("Silgi Modu"),
+
       optionCards([
         { key: "pixel", title: "Piksel", icon: "eraser", sub: "Tam hassasiyetle tek tek siler." },
         { key: "stroke", title: "Çizgi", icon: "wave", sub: "Dokunduğun çizgiyi tamamen siler." },
         { key: "area", title: "Alan", icon: "lassoRect", sub: "Çizdiğin kutunun içindeki her şeyi siler." }
       ], e.mode, (k) => { e.mode = k; save(); build(); }),
-      h("div", { class: "sp-label-row", style: { marginTop: "18px" } }, h("span", {}, "Boyut"), sizeValue),
-      slider({ min: 4, max: 80, step: 1, value: e.size, label: "Silgi boyutu", onInput: (v) => { e.size = v; sizeValue.textContent = v + " px"; save(); } }),
-      presetRow([6, 12, 20, 28, 48, 80], e.size, (v) => { e.size = v; save(); build(); }, (v) => String(v)),
-      h("div", { class: "sp-sep" }),
-      h("div", { class: "sp-label-row", style: { marginTop: "4px" } }, h("span", {}, "Ne silinsin")),
-      h("div", { class: "sp-seg" }, ...[["hepsi", "Hepsi"], ["murekkep", "Yalnız mürekkep"], ["fosforlu", "Yalnız fosforlu"]].map(([k, ad]) => {
-        const aktif = (e.hedef || (e.onlyHighlighter ? "fosforlu" : "hepsi")) === k;
-        return h("button", { type: "button", class: aktif ? "active" : "", onTap: () => { e.hedef = k; e.onlyHighlighter = k === "fosforlu"; save(); build(); } }, ad);
-      })),
-      h("div", { class: "sp-row-sub", style: { marginTop: "6px" } }, "Yalnız mürekkep: altını çizdiğin fosforluyu bozmadan yazıyı siler."),
-      toggleRow("Basınca göre boyut", "Kalem baskısına göre silgi boyutunu ayarla.", !!e.pressureSize, (v) => { e.pressureSize = v; save(); }),
-      toggleRow("Karalayarak sil", "Kalemle yazının üstünü zikzakla karalayınca silinir; silgiye geçmen gerekmez.", ctx.store.settings.karalamaSilme !== false, (v) => ctx.store.setSetting("karalamaSilme", v)),
-      h("div", { class: "sp-sep" }),
-      h("button", { class: "sp-outline-btn danger", type: "button", onTap: () => ctx.clearPage() }, svgIcon("trash", 18), "Sayfadaki her şeyi sil")
+      grup(
+        h("div", { class: "sp-kaydir" },
+          h("div", { class: "sp-label-row" }, h("span", {}, "Boyut"), sizeValue),
+          slider({ min: 4, max: 80, step: 1, value: e.size, label: "Silgi boyutu", onInput: (v) => { e.size = v; sizeValue.textContent = v + " px"; save(); } }),
+          presetRow([6, 12, 20, 28, 48, 80], e.size, (v) => { e.size = v; save(); build(); }, (v) => String(v))),
+        h("div", { class: "sp-satir" },
+          h("div", { class: "sp-label-row" }, h("span", {}, "Ne silinsin")),
+          h("div", { class: "sp-seg" }, ...[["hepsi", "Hepsi"], ["murekkep", "Mürekkep"], ["fosforlu", "Fosforlu"]].map(([k, ad]) => {
+            const aktif = (e.hedef || (e.onlyHighlighter ? "fosforlu" : "hepsi")) === k;
+            return h("button", { type: "button", class: aktif ? "active" : "", onTap: () => { e.hedef = k; e.onlyHighlighter = k === "fosforlu"; save(); build(); } }, ad);
+          })),
+          h("div", { class: "sp-row-sub" }, "Mürekkep: altını çizdiğin fosforluyu bozmadan yalnız yazıyı siler."))),
+      grup(
+        toggleRow("Basınca göre boyut", "Kalem baskısına göre silgi boyutunu ayarla.", !!e.pressureSize, (v) => { e.pressureSize = v; save(); }),
+        toggleRow("Karalayarak sil", "Kalemle yazının üstünü zikzakla karalayınca silinir; silgiye geçmen gerekmez.", ctx.store.settings.karalamaSilme !== false, (v) => ctx.store.setSetting("karalamaSilme", v))),
+      grup(h("button", { class: "sp-satir-dugme tehlike", type: "button", onTap: () => ctx.clearPage() }, svgIcon("trash", 20), "Sayfadaki her şeyi sil"))
     );
   };
   build();
-  return shell("Silgi Ayarları", ctx.close, body);
+  return shell("Silgi", ctx.close, body);
 }
 
 // ---------- Şekiller ve Cetvel ----------
@@ -291,19 +328,21 @@ export function shapesPanel(ctx) {
     const current = tool.tool === "shape" ? tool.shape : null;
     const widthValue = h("span", { class: "sp-value" }, mm(tool.width));
     body.replaceChildren(
-      section("Şekil Araçları"),
+
       h("div", { class: "sp-cards", style: { gridTemplateColumns: "repeat(3, 1fr)" } }, ...SHAPES.map(([key, title, icon]) =>
         h("button", { type: "button", class: "sp-option" + (current === key ? " active" : ""), onTap: () => { ctx.setTool({ tool: "shape", shape: key }); build(); } },
           h("div", { class: "sp-option-icon" }, svgIcon(icon, 30)), h("div", { class: "sp-option-title" }, title)))),
-      section("Çizgi Ayarları"),
-      h("div", { class: "sp-label-row" }, h("span", {}, "Kalınlık"), widthValue),
-      slider({ min: 0.8, max: 12, step: 0.2, value: tool.width, label: "Kalınlık", onInput: (v) => { ctx.setTool({ width: v }, true); widthValue.textContent = mm(v); } }),
-      presetRow(WIDTH_PRESETS, tool.width, (v) => { ctx.setTool({ width: v }); build(); }, mm),
-      colorRow("Renk", tool.color, () => ctx.openColor()),
+      grup(
+        h("div", { class: "sp-kaydir" },
+          h("div", { class: "sp-label-row" }, h("span", {}, "Kalınlık"), widthValue),
+          kalinlikSecici(WIDTH_PRESETS, tool.width, (v) => { ctx.setTool({ width: v }); build(); }),
+          slider({ min: 0.8, max: 12, step: 0.2, value: tool.width, label: "Kalınlık", onInput: (v) => { ctx.setTool({ width: v }, true); widthValue.textContent = mm(v); } })),
+        colorRow("Renk", tool.color, () => ctx.openColor())),
       section("Cetvel"),
-      toggleRow("Cetveli Göster", "Düz çizgiler çizmek için cetvel kullanın.", ctx.ruler.active(), () => ctx.ruler.toggle(), "ruler"),
-      toggleRow("Açı Göstergesi", null, s.rulerAngle !== false, (v) => { ctx.store.setSetting("rulerAngle", v); ctx.ruler.refresh(); }),
-      toggleRow("Yapışma (Snapping)", "Şekiller hizalama kılavuzlarına yapışsın.", s.rulerSnap !== false, (v) => ctx.store.setSetting("rulerSnap", v))
+      grup(
+        toggleRow("Cetveli Göster", "Düz çizgiler çizmek için cetvel kullanın.", ctx.ruler.active(), () => ctx.ruler.toggle()),
+        toggleRow("Açı Göstergesi", null, s.rulerAngle !== false, (v) => { ctx.store.setSetting("rulerAngle", v); ctx.ruler.refresh(); }),
+        toggleRow("Yapışma", "Şekiller hizalama kılavuzlarına yapışsın.", s.rulerSnap !== false, (v) => ctx.store.setSetting("rulerSnap", v)))
     );
   };
   build();
@@ -316,7 +355,7 @@ export function selectionPanel(ctx) {
   const row = (icon, title, sub, fn, cls = "") => h("button", { type: "button", class: "sp-action" + (cls ? " " + cls : ""), onTap: fn },
     h("div", { class: "sp-action-icon" }, svgIcon(icon, 24)), h("div", {}, h("div", { class: "sp-row-title" }, title), sub ? h("div", { class: "sp-row-sub" }, sub) : null));
   const sel = ctx.selection;
-  return shell("Seçim", ctx.close,
+  return shell("Seçim", ctx.close, grup(
     row("move", "Taşı", "Seçilen içeriği taşı", () => toast("Kutuyu sürükle, köşeden büyüt, üstten döndür"), "active"),
     row("copy", "Kopyala", "Panoya kopyala", sel.copy),
     row("duplicate", "Çoğalt", "Seçimi çoğalt", sel.duplicate),
@@ -324,9 +363,8 @@ export function selectionPanel(ctx) {
     row("pen", "Renk Değiştir", "Seçilen içeriğin rengini değiştir", () => ctx.openColor({ onPick: sel.recolor, title: "Seçim Rengi" })),
     row("layerUp", "Öne Al", "Bir katman öne getir", sel.front),
     row("layerDown", "Arkaya Gönder", "Bir katman arkaya gönder", sel.back),
-    sel.duzenle ? row("text", "Yazıyı Düzenle", "Boyu, satırı ve aralığı eşitle", sel.duzenle) : null,
-    h("div", { class: "sp-sep" }),
-    row("trash", "Seçimi Sil", null, sel.remove, "danger"));
+    sel.duzenle ? row("text", "Yazıyı Düzenle", "Boyu, satırı ve aralığı eşitle", sel.duzenle) : null),
+    grup(row("trash", "Seçimi Sil", null, sel.remove, "danger")));
 }
 
 // ---------- Yazıyı düzenle ----------
@@ -387,9 +425,9 @@ export function favoritesPanel(ctx) {
       const dot = h("div", { class: "fav-dot", style: { "--c": pen.color } });
       const text = h("div", { class: "fav-text" }, h("div", { class: "fav-name" }, pen.name), h("div", { class: "fav-width" }, mm(pen.width)));
       const edit = h("button", { class: "fav-icon-btn", type: "button", "aria-label": "Düzenle", onTap: (e) => { e.stopPropagation(); editMenu(pen); } }, svgIcon("edit", 18));
-      const del = h("button", { class: "fav-icon-btn", type: "button", "aria-label": "Sil", disabled: s.pens.length <= 1, onTap: (e) => { e.stopPropagation(); ctx.store.removePen(pen.id); build(); ctx.rerender(); } }, svgIcon("trash", 18));
-      row.append(handle, illo, dot, text, edit, del);
-      row.addEventListener("pointerup", (e) => { if (e.target.closest(".fav-icon-btn") || e.target.closest(".fav-drag")) return; ctx.applyPen(pen); build(); });
+      const del = h("button", { class: "fav-cikar", type: "button", "aria-label": pen.name + ": favoriden çıkar", disabled: s.pens.length <= 1, onTap: (e) => { e.stopPropagation(); ctx.favoridenCikar(pen); build(); } }, h("span", { "aria-hidden": "true" }));
+      row.append(del, illo, dot, text, edit, handle);
+      row.addEventListener("pointerup", (e) => { if (e.target.closest(".fav-icon-btn") || e.target.closest(".fav-cikar") || e.target.closest(".fav-drag")) return; ctx.applyPen(pen); build(); });
       /**
        * Sürükleyerek sıralama.
        *
@@ -434,15 +472,22 @@ export function favoritesPanel(ctx) {
       list.append(row);
     });
     body.replaceChildren(
-      h("p", { class: "sp-desc" }, "Sık kullandığın kalem ayarlarını kaydet, hemen ulaş ve notlarını daha hızlı al. Sürükleyerek sırala."),
       list,
-      h("button", { class: "sp-outline-btn wide", type: "button", onTap: () => { ctx.addFavorite(); build(); } }, svgIcon("plus", 18), "Yeni favori"));
+      h("p", { class: "sp-dipnot" }, "Kırmızı eksiyle favoriden çıkar, sağdaki tutamakla sürükleyip sırala."),
+      h("button", { class: "sp-fav-dugme", type: "button", onTap: () => { ctx.addFavorite(); build(); } }, svgIcon("plus", 20), "Şu anki kalemi ekle"));
   };
   const editMenu = (pen) => {
     const s = ctx.store.settings;
     actionSheet(pen.name, [
       { title: "Yeniden Adlandır", onSelect: () => promptDialog("Kalem adı", "Ad", pen.name, (name) => { ctx.store.updatePen(pen.id, { name }); build(); ctx.rerender(); }) },
-      { title: "Şu Anki Ayarlarla Güncelle", onSelect: () => { const t = ctx.tool(); ctx.store.updatePen(pen.id, { tool: t.tool === "shape" ? "pen" : t.tool, color: t.color, width: t.width }); build(); ctx.rerender(); } },
+      { title: "Şu Anki Ayarlarla Güncelle", onSelect: () => {
+        const t = ctx.tool();
+        const uc = t.tool === "shape" ? "pen" : t.tool;
+        // Silgi, kement ve buzlu kalemin rengi/ucu favori olamaz.
+        if (!UCLAR.some(([k]) => k === uc) || uc === "frosted") { toast("Önce bir kalem seç"); return; }
+        ctx.store.updatePen(pen.id, { tool: uc, color: t.color, width: t.width, alpha: t.alpha == null ? 1 : t.alpha, ...(uc === "desen" ? { desen: t.desen || "kalp" } : {}) });
+        build(); ctx.rerender();
+      } },
       { title: pen.id === s.defaultPenId ? "✓ Varsayılan kalem" : "Varsayılan Yap", onSelect: () => { ctx.store.setSetting("defaultPenId", pen.id); build(); } }
     ]);
   };
@@ -530,6 +575,16 @@ export function colorPanel(ctx, opts = {}) {
     return h("label", { class: "cp-field " + cls }, h("span", {}, label), input);
   };
   const fields = h("div", { class: "cp-fields" });
+  let cikarmaModu = false;
+  const favDuzenle = h("button", { class: "sp-metin-dugme", type: "button", onTap: () => { cikarmaModu = !cikarmaModu; paint(); } }, "Düzenle");
+  const favKaydet = h("button", { class: "sp-fav-dugme", type: "button", onTap: () => {
+    const hx = hex();
+    if (ctx.store.settings.palette.some((c) => c.toUpperCase() === hx.toUpperCase())) {
+      if (ctx.store.settings.palette.length <= 1) { toast("En az bir favori renk kalmalı"); return; }
+      ctx.store.removePaletteColor(hx); toast("Favori renklerden çıkarıldı");
+    } else { ctx.store.addPaletteColor(hx); toast("Favori renklere eklendi"); }
+    paint();
+  } }, svgIcon("star", 20), h("span", {}, "Favori renklere ekle"));
   const favRow = h("div", { class: "cp-swatches" });
   const recentRow = h("div", { class: "cp-swatches" });
 
@@ -549,9 +604,20 @@ export function colorPanel(ctx, opts = {}) {
         field("G", rgb.g, (v) => setRgb({ ...rgb, g: Number(v) })),
         field("B", rgb.b, (v) => setRgb({ ...rgb, b: Number(v) }))));
     const s = ctx.store.settings;
-    favRow.replaceChildren(
-      ...s.palette.map((c) => swatch(c, hx)),
-      h("button", { class: "cp-swatch add", type: "button", "aria-label": "Favori renklere ekle", onTap: () => { ctx.store.addPaletteColor(hx); paint(); } }, svgIcon("plus", 16)));
+    if (s.palette.length <= 1) cikarmaModu = false;
+    favRow.classList.toggle("cikarma", cikarmaModu);
+    favDuzenle.textContent = cikarmaModu ? "Bitti" : "Düzenle";
+    favDuzenle.hidden = s.palette.length <= 1;
+    favRow.replaceChildren(...[
+      ...s.palette.map((c) => {
+        if (!cikarmaModu) return swatch(c, hx);
+        return h("button", { class: "cp-swatch cikar", type: "button", style: { "--c": c }, "aria-label": `${colorName(c)} (${c}) favorilerden çıkar`,
+          onTap: () => { ctx.store.removePaletteColor(c); ctx.rerender(); paint(); } });
+      }),
+      cikarmaModu ? null : h("button", { class: "cp-swatch add", type: "button", "aria-label": "Favori renklere ekle", onTap: () => { ctx.store.addPaletteColor(hx); paint(); } }, svgIcon("plus", 16))].filter(Boolean));
+    const favoride = s.palette.some((c) => c.toUpperCase() === hx.toUpperCase());
+    favKaydet.classList.toggle("dolu", favoride);
+    favKaydet.lastChild.textContent = favoride ? "Favorilerden çıkar" : "Favori renklere ekle";
     recentRow.replaceChildren(...(s.recentColors || []).slice(0, 8).map((c) => swatch(c, hx)));
   }
   function swatch(c, current) {
@@ -590,9 +656,9 @@ export function colorPanel(ctx, opts = {}) {
     h("div", { class: "sp-label-row", style: { marginTop: "16px" } }, h("span", {}, "Opaklık")),
     h("div", { class: "cp-alpha" }, alphaSlider, h("span", { class: "cp-alpha-value" }, alphaValue)),
     fields,
-    section("Favori Renkler"), favRow,
+    h("div", { class: "sp-section-row" }, h("span", { class: "sp-section" }, "Favori Renkler"), favDuzenle), favRow,
     section("Son Kullanılan Renkler"), recentRow,
-    h("button", { class: "sp-primary-btn", type: "button", onTap: () => { ctx.store.addPaletteColor(hex()); paint(); toast("Favori renklere eklendi"); } }, svgIcon("heart", 20), "Favori rengi kaydet"));
+    favKaydet);
 }
 
 
@@ -668,9 +734,9 @@ export function stickerPanel(ctx) {
 
 // ---------- Fotoğraf ve Dosya Ekle / Metin ----------
 
-function navRow(icon, title, onTap, sub) {
+function navRow(icon, title, onTap, sub, renk) {
   return h("button", { class: "sp-nav-row", type: "button", onTap },
-    h("span", { class: "sp-nav-icon" }, svgIcon(icon, 22)),
+    h("span", { class: "sp-nav-icon", style: { "--s": renk || "#172a45" } }, svgIcon(icon, 20)),
     h("span", { class: "sp-nav-text" }, h("span", { class: "sp-nav-title" }, title), sub ? h("span", { class: "sp-row-sub" }, sub) : null),
     svgIcon("forward", 18));
 }
@@ -684,34 +750,39 @@ export function mediaPanel(ctx) {
     else { const img = h("img", { alt: "", draggable: "false" }); ctx.assetURL(entry.asset).then((url) => { if (url) img.src = url; }); cell.append(img); }
     grid.append(cell);
   }
-  // Yalnız ekleme işleri. Sesli not → Metin ve Ses; buzlu kalem → Kalem > Uç Tipi;
-  // nesneleri düzenle → Seçim'e tekrar dokun; yapıştır → alt çubuk ve sayfada basılı tut.
+  // Üstte ekleme karoları, altta son eklenenler ve sayfadaki nesnelerle yapılacaklar.
+  // (Nesneleri Düzenle 13 Kas'ta Seçim'e taşınmıştı; 23 Kas: "nereye gitti" → burada da duruyor.)
+  const duzenleniyor = ctx.isEditingObjects();
   return shell("Fotoğraf ve Dosya", ctx.close,
-    h("div", { class: "sp-section", style: { marginTop: "4px" } }, "Ekle"),
+    h("div", { class: "sp-karolar" },
+      karo("photos", "Fotoğraflar", "#2f7cf6", () => ctx.importPhoto()),
+      karo("camera", "Kamera", "#5b6270", () => ctx.capturePhoto()),
+      karo("scan", "Belge Tara", "#e79a1c", () => ctx.capturePhoto(true)),
+      karo("folder", "Dosyalar", "#1f9d8b", () => ctx.importFile())),
+    h("p", { class: "sp-dipnot" }, "Dosyalar'dan seçilen PDF, sayfa olarak eklenir."),
+    h("div", { class: "sp-section" }, "Sayfadakiler"),
     h("div", { class: "sp-nav" },
-      navRow("photos", "Fotoğraflar", () => ctx.importPhoto()),
-      navRow("camera", "Kamera", () => ctx.capturePhoto()),
-      navRow("scan", "Belge Tara", () => ctx.capturePhoto(true), "Kamerayla çekilir"),
-      navRow("folder", "Dosyalar", () => ctx.importFile(), "Görsel ekler; PDF sayfa olarak eklenir"),
-      navRow("scissors", "Fotoğraftan Çıkartma Yap", () => ctx.makeSticker(), "Çevresini çiz ya da şekil seç")),
+      navRow("objects", duzenleniyor ? "Düzenlemeyi Bitir" : "Nesneleri Düzenle", () => ctx.toggleEditing(),
+        duzenleniyor ? "Fotoğraf ve nesneler yerine otursun" : "Taşı, boyutlandır, döndür, sil. Fotoğrafa basılı tutmak da açar", "#172a45"),
+      navRow("scissors", "Fotoğraftan Çıkartma Yap", () => ctx.makeSticker(), "Çevresini çiz ya da şekil seç", "#f2649a"),
+      ctx.hasClipboard() ? navRow("copy", "Yapıştır", () => ctx.paste(), "Kopyaladığın yazı ya da nesne", "#34a853") : null),
     h("div", { class: "sp-section-row" }, h("span", { class: "sp-section" }, "Son Eklenenler"), recent.length ? h("span", { class: "sp-row-sub" }, `${recent.length} öğe`) : null),
-    recent.length ? grid : h("p", { class: "sp-desc" }, "Eklediğin fotoğraf ve dosyalar burada birikir."));
+    recent.length ? grid : h("p", { class: "sp-dipnot" }, "Eklediğin fotoğraf ve dosyalar burada birikir."));
 }
 
 export function textPanel(ctx) {
   const kayit = ctx.isRecording();
   const dinliyor = ctx.isListening();
   return shell("Metin ve Ses", ctx.close,
-    h("div", { class: "sp-section", style: { marginTop: "4px" } }, "Metin"),
-    h("div", { class: "sp-nav" },
-      navRow("textTool", "Yazı Kutusu", () => ctx.addText(false), "Klavye ya da Apple Pencil ile yaz"),
-      navRow("check", "Yapılacaklar Listesi", () => ctx.addText(true), "Onay kutulu maddeler"),
-      navRow("lassoRect", "Onay Kutusu", () => ctx.addCheckBox(), "El yazısının yanına"),
-      navRow("translate", "Çeviri", () => ctx.openTranslate(), "Yaz ya da seç, çevir")),
+    h("div", { class: "sp-karolar" },
+      karo("textTool", "Yazı Kutusu", "#172a45", () => ctx.addText(false)),
+      karo("check", "Yapılacaklar", "#34a853", () => ctx.addText(true)),
+      karo("lassoRect", "Onay Kutusu", "#e79a1c", () => ctx.addCheckBox()),
+      karo("translate", "Çeviri", "#2f7cf6", () => ctx.openTranslate())),
     h("div", { class: "sp-section" }, "Ses"),
     h("div", { class: "sp-nav" },
-      Object.assign(navRow("audio", kayit ? "Ses Kaydını Durdur" : "Sesli Not Kaydet", () => ctx.toggleAudio(), kayit ? "Kayıt sürüyor; dokun, sayfaya eklensin" : "Sayfaya oynatılabilir not düşer"), { className: "sp-nav-row" + (kayit ? " kayitta" : "") }),
-      navRow("audio", dinliyor ? "Sesle Yazmayı Bitir" : "Sesle Yaz", () => ctx.sesleYaz(), "Konuş, yazı kutusuna yazılsın")));
+      Object.assign(navRow("audio", kayit ? "Ses Kaydını Durdur" : "Sesli Not Kaydet", () => ctx.toggleAudio(), kayit ? "Kayıt sürüyor; dokun, sayfaya eklensin" : "Sayfaya oynatılabilir not düşer", "#e5484d"), { className: "sp-nav-row" + (kayit ? " kayitta" : "") }),
+      navRow("mic", dinliyor ? "Sesle Yazmayı Bitir" : "Sesle Yaz", () => ctx.sesleYaz(), "Konuş, yazı kutusuna yazılsın", "#7a5af0")));
 }
 
 
