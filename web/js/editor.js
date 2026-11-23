@@ -117,32 +117,6 @@ function rememberOpen(notebookId, pageId) {
   sessionStorage.setItem("notdefteri.open", JSON.stringify(list.slice(0, 8)));
 }
 
-/** Tezgahtaki kalem çizimi: üstte uç, altta gövde; araç türüne göre biçim değişir. */
-export function penIllustration(pen) {
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", "0 0 46 104");
-  svg.setAttribute("width", "46");
-  svg.setAttribute("height", "104");
-  svg.setAttribute("aria-hidden", "true");
-  const isPencil = pen.tool === "pencil";
-  const isHighlighter = pen.tool === "highlighter";
-  const bodyW = isHighlighter ? 40 : 30;
-  const tipW = isPencil ? 22 : isHighlighter ? 28 : 14;
-  const tipH = isPencil ? 26 : isHighlighter ? 18 : 26;
-  const tipColor = isPencil ? "#e6c89a" : isHighlighter ? pen.color : "#c9ccd4";
-  const bodyColor = isPencil ? pen.color : isHighlighter ? pen.color : "#3a3b42";
-  const bandColor = isPencil ? "transparent" : isHighlighter ? "rgba(255,255,255,0.35)" : pen.color;
-  const cx = 23;
-  const parts = [
-    `<polygon points="${cx},0 ${cx + tipW / 2},${tipH} ${cx - tipW / 2},${tipH}" fill="${tipColor}" opacity="${isHighlighter ? 0.65 : 1}"/>`,
-    `<rect x="${cx - bodyW / 2}" y="${tipH}" width="${bodyW}" height="${104 - tipH}" rx="5" fill="${bodyColor}" opacity="${isHighlighter ? 0.8 : 1}"/>`,
-    `<rect x="${cx - bodyW / 2}" y="${tipH + 12}" width="${bodyW}" height="9" fill="${bandColor}"/>`,
-    `<rect x="${cx - bodyW / 2 + 3}" y="${tipH + 3}" width="5" height="${104 - tipH - 6}" rx="2" fill="rgba(255,255,255,0.14)"/>`
-  ];
-  svg.innerHTML = parts.join("");
-  return svg;
-}
-
 /**
  * Kalem kutusundaki dikey kalem çizimi (A yönü, Apple Notlar gibi): beyaz gövde,
  * üstte araca göre uç, gövdede renk bandı. 32×104; alt kısmı kutunun içinde kalıyor.

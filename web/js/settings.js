@@ -3,7 +3,7 @@ import { store, COVER_PRESETS, COVER_TITLES, PAGE_SIZES, PAPER_STYLES, TOOLS } f
 import { h, svgIcon, actionSheet, promptDialog, toast, pickFile, formatPt, pressable } from "./ui.js";
 import { coverElement, sameCover } from "./covers.js";
 import { importTemplateFromFile, shrinkImage, openTemplatePicker } from "./addpage.js";
-import { penIllustration } from "./editor.js";
+import { kalemCubugu, CUBUK_TURU } from "./editor.js";
 import { exportBackup, importBackup } from "./backup.js";
 import { navigate } from "./app.js";
 
@@ -27,18 +27,18 @@ export function renderSettings(root) {
     const s = store.settings;
     body.replaceChildren(h("div", { class: "settings-columns" },
       h("div", {},
-        section("ŞABLONLARIM", h("div", { class: "card" }, templatesRow(), h("div", { class: "note" }, "Fotoğraflar veya Dosyalar'dan eklediğin her görsel buraya şablon olarak düşer. Birine dokununca yeni sayfalar hep onunla açılır; tekrar dokununca \"son kullanılan\" kuralına dönülür."))),
-        section("KAPAK DESENLERİ", h("div", { class: "card" }, coversRow(), h("div", { class: "note" }, "Yeni defter açarken bu desenlerden seçersin. Seçili olan yeni defterlerin kapağıdır."))),
-        section("YEDEKLEME", h("div", { class: "card" },
+        section("Şablonlarım", h("div", { class: "card" }, templatesRow(), h("div", { class: "note" }, "Fotoğraflar veya Dosyalar'dan eklediğin her görsel buraya şablon olarak düşer. Birine dokununca yeni sayfalar hep onunla açılır; tekrar dokununca \"son kullanılan\" kuralına dönülür."))),
+        section("Kapak desenleri", h("div", { class: "card" }, coversRow(), h("div", { class: "note" }, "Yeni defter açarken bu desenlerden seçersin. Seçili olan yeni defterlerin kapağıdır."))),
+        section("Yedekleme", h("div", { class: "card" },
           h("div", { class: "backup-actions" },
             h("button", { class: "btn primary", type: "button", onTap: exportBackup }, "Yedekle"),
             h("button", { class: "btn", type: "button", onTap: importBackup }, "Yedekten Geri Yükle")),
           h("div", { class: "note" }, "Bütün defterler, ayarlar ve görseller tek bir dosyaya yazılır; Dosyalar'a ya da iCloud'a kaydet. Safari yer açmak için ana ekran uygulamasının verisini silebilir, bu yüzden ara sıra yedek al.")))
       ),
       h("div", {},
-        section("RENK PALETİ", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Kalem ve renk panelindeki favori renkler. Bir renge dokununca çıkarabilirsin."))),
-        section("VARSAYILAN KALEM", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
-        section("SAYFA", h("div", { class: "settings-rows" },
+        section("Renk paleti", h("div", { class: "card" }, paletteRow(), h("div", { class: "note" }, "Kalem ve renk panelindeki favori renkler. Bir renge dokununca çıkarabilirsin."))),
+        section("Varsayılan kalem", h("div", { class: "card" }, pensRow(), thicknessRow(), h("div", { class: "note" }, "Yeni sayfa açınca bu kalem seçili gelir. Kalınlık, seçili varsayılan kalemin kalınlığını değiştirir."))),
+        section("Sayfa", h("div", { class: "settings-rows" },
           row("Masa", select([["beyaz", "Beyaz (varsayılan)"], ["marka", "Marka gri"], ["gul", "Gül"], ["pudra", "Pudra kâğıt"], ["gece", "Gece mavisi"], ["krem", "Krem keten"], ["pembe", "Pembe keçe"], ["ceviz", "Ceviz ahşap"], ["lacivert", "Lacivert cam (eski)"]], s.masa || "beyaz", (v) => { store.setSetting("masaSecildi4", true); store.setSetting("masa", v); })),
           row("Çubuk rengi", cubukRenkSecici()),
           row("Kapak görünümü", select([["cam", "Buzlu cam (ilk sayfa görünür)"], ["duz", "Düz renk"]], s.kapakGorunumu || "cam", (v) => store.setSetting("kapakGorunumu", v))),
@@ -53,7 +53,7 @@ export function renderSettings(root) {
           row("Sayfa ve kapak sesi", toggle(s.flipSound !== false, (v) => store.setSetting("flipSound", v))),
           row("Stabilizatör", select([["0", "Temel"], ["1", "Yumuşak"], ["2", "İpek"], ["3", "Akıcı"]], String(s.smoothing == null ? 2 : s.smoothing), (v) => store.setSetting("smoothing", Number(v))))
         )),
-        section("UYGULAMA", h("div", { class: "card" },
+        section("Uygulama", h("div", { class: "card" },
           h("div", { class: "settings-row" }, h("span", {}, "Yüklü sürüm"), h("span", { class: "app-version", style: { color: "var(--muted)" } }, "…")),
           h("div", { class: "note" }, "Güncelleme gelmediyse uygulamayı tamamen kapatıp yeniden aç. Sürüm yine eskiyse aşağıdaki düğme önbelleği temizler."),
           h("button", { class: "btn", type: "button", onTap: guncellemeyiZorla }, "Güncellemeyi Zorla")))
@@ -198,7 +198,7 @@ export function renderSettings(root) {
     for (const pen of store.settings.pens) {
       const selected = pen.id === store.defaultPen.id;
       scroll.append(h("div", { class: "pen-pick" + (selected ? " selected" : ""), role: "button", tabindex: "0", onTap: () => { store.setSetting("defaultPenId", pen.id); render(); } },
-        penIllustration(pen), h("div", { class: "name" }, pen.name)));
+        kalemCubugu(CUBUK_TURU[pen.tool] || "kalem", pen.color), h("div", { class: "name" }, pen.name)));
     }
     return scroll;
   }
@@ -207,7 +207,7 @@ export function renderSettings(root) {
     const pen = store.defaultPen;
     if (!pen) return null;
     const value = h("span", { class: "value" }, formatPt(pen.width) + " pt");
-    const range = h("input", { type: "range", min: "1", max: "24", step: "0.5", value: String(pen.width), style: { flex: "1", accentColor: "var(--accent)" },
+    const range = h("input", { type: "range", min: "1", max: "24", step: "0.5", value: String(pen.width), style: { flex: "1", accentColor: "var(--p-vurgu, var(--accent))" },
       onInput: (e) => { const w = Number(e.target.value); value.textContent = formatPt(w) + " pt"; store.updatePen(pen.id, { width: w }); } });
     return h("div", { class: "panel-row", style: { color: "var(--muted)" } }, h("label", {}, "Kalınlık"), range, value);
   }
